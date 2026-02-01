@@ -1,0 +1,65 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+coverage/
+coverage.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.log
+*.tmp
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+
+# Scanner output
+reports/
+findings/
+*.sarif
+*.har
+
+# Tool outputs
+.sqlmap/
+.nuclei/
+
+# Secrets (never commit)
+*.pem
+*.key
+credentials.json
+secrets.yaml
+
+# Binary
+/skws
+
+# Markdown files (except CLAUDE.md and README.md)
+*.md
+!CLAUDE.md
+!README.md
