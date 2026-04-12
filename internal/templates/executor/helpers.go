@@ -105,6 +105,11 @@ func (e *Executor) buildVariables(tmpl *templates.Template, targetURL string) ma
 		vars["Scheme"] = parsedURL.Scheme
 	}
 
+	// Inject interactsh OOB variables if available
+	if e.interactshHelper != nil {
+		e.interactshHelper.InjectVariables(vars)
+	}
+
 	return vars
 }
 

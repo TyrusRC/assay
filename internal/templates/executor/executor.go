@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
@@ -13,12 +14,13 @@ import (
 
 // Executor executes nuclei-compatible templates against targets.
 type Executor struct {
-	client          *http.Client
-	matcherEngine   *matchers.MatcherEngine
-	config          *Config
-	dnsExecutor     *DNSExecutor
-	networkExecutor *NetworkExecutor
-	session         *Session
+	client            *http.Client
+	matcherEngine     *matchers.MatcherEngine
+	config            *Config
+	dnsExecutor       *DNSExecutor
+	networkExecutor   *NetworkExecutor
+	session           *Session
+	interactshHelper  *InteractshHelper
 }
 
 // Config configures executor behavior.
@@ -43,6 +45,10 @@ type Config struct {
 
 	// Network configuration
 	NetworkConfig *NetworkConfig
+
+	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
+	// When nil, placeholder values are used for interactsh template variables.
+	InteractshClient *oob.Client
 }
 
 // DefaultConfig returns sensible defaults.
@@ -83,12 +89,13 @@ func New(config *Config) *Executor {
 	}
 
 	return &Executor{
-		client:          client,
-		matcherEngine:   matchers.New(),
-		config:          config,
-		dnsExecutor:     NewDNSExecutor(dnsConfig),
-		networkExecutor: NewNetworkExecutor(networkConfig),
-		session:         NewSession(),
+		client:           client,
+		matcherEngine:    matchers.New(),
+		config:           config,
+		dnsExecutor:      NewDNSExecutor(dnsConfig),
+		networkExecutor:  NewNetworkExecutor(networkConfig),
+		session:          NewSession(),
+		interactshHelper: NewInteractshHelper(config.InteractshClient),
 	}
 }
 
@@ -104,6 +111,10 @@ func hasMatch(results []*templates.ExecutionResult) bool {
 
 // Execute runs a template against a target URL.
 func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, targetURL string) ([]*templates.ExecutionResult, error) {
+	if tmpl.Flow != "" {
+		return e.executeWithFlow(ctx, tmpl, targetURL)
+	}
+
 	var results []*templates.ExecutionResult
 	stopFirst := e.config.StopAtFirstMatch
 
@@ -210,4 +221,78 @@ func (e *Executor) executeNetwork(ctx context.Context, tmpl *templates.Template,
 	}
 
 	return []*templates.ExecutionResult{result}, nil
+}
+
+// executeWithFlow executes a template using the flow field for multi-protocol orchestration.
+func (e *Executor) executeWithFlow(ctx context.Context, tmpl *templates.Template, targetURL string) ([]*templates.ExecutionResult, error) {
+	flowEngine := NewFlowEngine()
+	steps := flowEngine.Parse(tmpl.Flow)
+
+	var allResults []*templates.ExecutionResult
+	previousMatched := false
+
+	for _, step := range steps {
+		if step.Operator != "" && !flowEngine.ShouldContinue(step.Operator, previousMatched) {
+			break
+		}
+
+		var stepResults []*templates.ExecutionResult
+		var err error
+
+		switch step.Protocol {
+		case "http":
+			stepResults, err = e.executeFlowHTTP(ctx, tmpl, targetURL, step.Index)
+		case "dns":
+			stepResults, err = e.executeFlowDNS(ctx, tmpl, targetURL, step.Index)
+		default:
+			// Protocols without executors yet return empty results
+		}
+
+		if err != nil && e.config.Verbose {
+			fmt.Printf("[!] flow step %s(%d) error: %v\n", step.Protocol, step.Index, err)
+		}
+
+		allResults = append(allResults, stepResults...)
+		previousMatched = hasMatch(stepResults)
+	}
+
+	return allResults, nil
+}
+
+// executeFlowHTTP executes HTTP blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowHTTP(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.HTTP {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		httpResults, err := e.executeHTTP(ctx, tmpl, &tmpl.HTTP[i], targetURL)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, httpResults...)
+	}
+
+	return results, nil
+}
+
+// executeFlowDNS executes DNS blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowDNS(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.DNS {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		dnsResults, err := e.executeDNS(ctx, tmpl, &tmpl.DNS[i], targetURL)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, dnsResults...)
+	}
+
+	return results, nil
 }
