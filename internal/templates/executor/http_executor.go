@@ -18,6 +18,45 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 	// Build variables context
 	vars := e.buildVariables(tmpl, targetURL)
 
+	// If payloads are defined, generate combinations and execute for each.
+	if len(httpReq.Payloads) > 0 {
+		resolved := ResolvePayloads(httpReq.Payloads)
+		combos := GeneratePayloadCombinations(resolved, httpReq.AttackType)
+
+		for _, combo := range combos {
+			payloadVars := make(map[string]interface{}, len(vars)+len(combo))
+			for k, v := range vars {
+				payloadVars[k] = v
+			}
+			for k, v := range combo {
+				payloadVars[k] = v
+			}
+
+			for _, path := range httpReq.Path {
+				interpolatedPath := e.interpolate(path, payloadVars)
+				requestURL := e.buildURL(targetURL, interpolatedPath)
+				body := e.interpolate(httpReq.Body, payloadVars)
+				result := e.executeRequest(ctx, tmpl, httpReq, requestURL, httpReq.Method, body, payloadVars)
+				results = append(results, result)
+				e.mergeExtractedIntoVars(result, vars)
+				if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
+					return results, nil
+				}
+			}
+
+			for _, raw := range httpReq.Raw {
+				result := e.executeRawRequest(ctx, tmpl, httpReq, raw, targetURL, payloadVars)
+				results = append(results, result)
+				e.mergeExtractedIntoVars(result, vars)
+				if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
+					return results, nil
+				}
+			}
+		}
+
+		return results, nil
+	}
+
 	// Handle path-based requests
 	if len(httpReq.Path) > 0 {
 		for _, path := range httpReq.Path {
