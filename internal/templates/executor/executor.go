@@ -17,6 +17,7 @@ import (
 type Executor struct {
 	client            *http.Client
 	matcherEngine     *matchers.MatcherEngine
+	dslEngine         *matchers.DSLEngine
 	config            *Config
 	dnsExecutor       *DNSExecutor
 	networkExecutor   *NetworkExecutor
@@ -107,6 +108,7 @@ func New(config *Config) *Executor {
 	return &Executor{
 		client:            client,
 		matcherEngine:     matchers.New(),
+		dslEngine:         matchers.NewDSLEngine(),
 		config:            config,
 		dnsExecutor:       NewDNSExecutor(dnsConfig),
 		networkExecutor:   NewNetworkExecutor(networkConfig),
@@ -118,6 +120,15 @@ func New(config *Config) *Executor {
 		session:           NewSession(),
 		interactshHelper:  NewInteractshHelper(config.InteractshClient),
 	}
+}
+
+// stampResult fills template metadata and target URL onto a result.
+func stampResult(result *templates.ExecutionResult, tmpl *templates.Template, targetURL string) {
+	result.TemplateID = tmpl.ID
+	result.TemplateName = tmpl.Info.Name
+	result.Severity = tmpl.Info.Severity
+	result.URL = targetURL
+	result.Timestamp = time.Now()
 }
 
 // hasMatch returns true if any result matched.
@@ -210,9 +221,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			fmt.Printf("[!] WebSocket execution error: %v\n", err)
 		}
 		if wsResult != nil {
-			wsResult.TemplateID = tmpl.ID
-			wsResult.TemplateName = tmpl.Info.Name
-			wsResult.Severity = tmpl.Info.Severity
+			stampResult(wsResult, tmpl, targetURL)
 			results = append(results, wsResult)
 			if stopFirst && wsResult.Matched {
 				return results, nil
@@ -227,9 +236,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			fmt.Printf("[!] WHOIS execution error: %v\n", err)
 		}
 		if whoisResult != nil {
-			whoisResult.TemplateID = tmpl.ID
-			whoisResult.TemplateName = tmpl.Info.Name
-			whoisResult.Severity = tmpl.Info.Severity
+			stampResult(whoisResult, tmpl, targetURL)
 			results = append(results, whoisResult)
 			if stopFirst && whoisResult.Matched {
 				return results, nil
@@ -244,9 +251,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			fmt.Printf("[!] Headless execution error: %v\n", err)
 		}
 		if headlessResult != nil {
-			headlessResult.TemplateID = tmpl.ID
-			headlessResult.TemplateName = tmpl.Info.Name
-			headlessResult.Severity = tmpl.Info.Severity
+			stampResult(headlessResult, tmpl, targetURL)
 			results = append(results, headlessResult)
 			if stopFirst && headlessResult.Matched {
 				return results, nil
@@ -453,9 +458,7 @@ func (e *Executor) executeFlowHeadless(ctx context.Context, tmpl *templates.Temp
 			return results, err
 		}
 		if headlessResult != nil {
-			headlessResult.TemplateID = tmpl.ID
-			headlessResult.TemplateName = tmpl.Info.Name
-			headlessResult.Severity = tmpl.Info.Severity
+			stampResult(headlessResult, tmpl, targetURL)
 			results = append(results, headlessResult)
 		}
 	}
@@ -477,9 +480,7 @@ func (e *Executor) executeFlowWebSocket(ctx context.Context, tmpl *templates.Tem
 			return results, err
 		}
 		if wsResult != nil {
-			wsResult.TemplateID = tmpl.ID
-			wsResult.TemplateName = tmpl.Info.Name
-			wsResult.Severity = tmpl.Info.Severity
+			stampResult(wsResult, tmpl, targetURL)
 			results = append(results, wsResult)
 		}
 	}
@@ -501,9 +502,7 @@ func (e *Executor) executeFlowWHOIS(ctx context.Context, tmpl *templates.Templat
 			return results, err
 		}
 		if whoisResult != nil {
-			whoisResult.TemplateID = tmpl.ID
-			whoisResult.TemplateName = tmpl.Info.Name
-			whoisResult.Severity = tmpl.Info.Severity
+			stampResult(whoisResult, tmpl, targetURL)
 			results = append(results, whoisResult)
 		}
 	}

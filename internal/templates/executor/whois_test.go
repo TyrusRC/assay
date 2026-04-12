@@ -107,9 +107,10 @@ func TestExtractDomain(t *testing.T) {
 		},
 	}
 
+	exec := NewWHOISExecutor(0)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractDomain(tt.target)
+			got := exec.extractDomain(tt.target)
 			if got != tt.want {
 				t.Errorf("extractDomain(%q) = %q, want %q", tt.target, got, tt.want)
 			}

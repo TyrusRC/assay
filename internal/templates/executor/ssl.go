@@ -153,8 +153,8 @@ func (e *SSLExecutor) Execute(ctx context.Context, target string, probe *templat
 		result.Expired = time.Now().After(leaf.NotAfter)
 		result.SelfSigned = leaf.Subject.String() == leaf.Issuer.String()
 
-		result.subjectOrg = joinStrings(leaf.Subject.Organization)
-		result.issuerOrg = joinStrings(leaf.Issuer.Organization)
+		result.subjectOrg = strings.Join(leaf.Subject.Organization, ",")
+		result.issuerOrg = strings.Join(leaf.Issuer.Organization, ",")
 		result.serialNumber = leaf.SerialNumber.String()
 	}
 
@@ -293,6 +293,7 @@ func (e *SSLExecutor) runSSLExtractors(
 	vars map[string]interface{},
 ) map[string][]string {
 	result := make(map[string][]string)
+	dslEngine := matchers.NewDSLEngine()
 
 	for _, ext := range extractors {
 		if ext.Internal {
@@ -308,7 +309,6 @@ func (e *SSLExecutor) runSSLExtractors(
 		case "json":
 			extracted = extractJSON(ext.JSON, content)
 		case "dsl":
-			dslEngine := matchers.NewDSLEngine()
 			extracted = extractDSL(dslEngine, ext.DSL, vars)
 		}
 
@@ -318,9 +318,4 @@ func (e *SSLExecutor) runSSLExtractors(
 	}
 
 	return result
-}
-
-// joinStrings joins a string slice with a comma separator.
-func joinStrings(ss []string) string {
-	return strings.Join(ss, ",")
 }

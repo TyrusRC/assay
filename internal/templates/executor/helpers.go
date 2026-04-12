@@ -13,7 +13,6 @@ import (
 // Internal extractors store their first extracted value into vars for subsequent request interpolation.
 func (e *Executor) runExtractors(extractors []templates.Extractor, resp *matchers.Response, vars map[string]interface{}) map[string][]string {
 	result := make(map[string][]string)
-	dslEngine := matchers.NewDSLEngine()
 
 	for _, ext := range extractors {
 		var extracted []string
@@ -29,7 +28,7 @@ func (e *Executor) runExtractors(extractors []templates.Extractor, resp *matcher
 		case "xpath":
 			extracted = extractXPath(ext.XPath, content)
 		case "dsl":
-			extracted = extractDSL(dslEngine, ext.DSL, vars)
+			extracted = extractDSL(e.dslEngine, ext.DSL, vars)
 		}
 
 		if len(extracted) == 0 || ext.Name == "" {

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -19,20 +20,20 @@ func NewSession() *Session {
 	}
 }
 
-// normalizeDomain strips the scheme and lowercases the domain string.
+// normalizeDomain extracts and lowercases the host (preserving port when present)
+// from a domain or URL string.
 func normalizeDomain(domain string) string {
-	// Strip scheme if present
-	for _, prefix := range []string{"https://", "http://"} {
-		if strings.HasPrefix(domain, prefix) {
-			domain = strings.TrimPrefix(domain, prefix)
-			break
+	if u, err := url.Parse(domain); err == nil && u.Host != "" {
+		return strings.ToLower(u.Host)
+	}
+	// Fallback: try as host:port
+	if h, p, err := net.SplitHostPort(domain); err == nil {
+		if p != "" {
+			return strings.ToLower(h + ":" + p)
 		}
+		return strings.ToLower(h)
 	}
-	// Strip path and port-free host; keep host:port as-is
-	if idx := strings.IndexByte(domain, '/'); idx >= 0 {
-		domain = domain[:idx]
-	}
-	return strings.ToLower(domain)
+	return strings.ToLower(strings.TrimSpace(domain))
 }
 
 // SetCookie stores a cookie for the given domain.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 	if httpReq.ReqCondition {
 		return e.executeHTTPWithReqCondition(ctx, tmpl, httpReq, targetURL)
 	}
+
+	// Create per-request-block client once.
+	client := e.clientForRequest(httpReq)
 
 	var results []*templates.ExecutionResult
 
@@ -48,7 +52,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 				interpolatedPath := e.interpolate(path, payloadVars)
 				requestURL := e.buildURL(targetURL, interpolatedPath)
 				body := e.interpolate(httpReq.Body, payloadVars)
-				result := e.executeRequest(ctx, tmpl, httpReq, requestURL, httpReq.Method, body, payloadVars)
+				result := e.executeRequest(ctx, client, tmpl, httpReq, requestURL, httpReq.Method, body, payloadVars)
 				results = append(results, result)
 				e.mergeExtractedIntoVars(result, vars)
 				if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
@@ -57,7 +61,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 			}
 
 			for _, raw := range httpReq.Raw {
-				result := e.executeRawRequest(ctx, tmpl, httpReq, raw, targetURL, payloadVars)
+				result := e.executeRawRequest(ctx, client, tmpl, httpReq, raw, targetURL, payloadVars)
 				results = append(results, result)
 				e.mergeExtractedIntoVars(result, vars)
 				if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
@@ -76,7 +80,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 			interpolatedPath := e.interpolate(path, vars)
 			requestURL := e.buildURL(targetURL, interpolatedPath)
 
-			result := e.executeRequest(ctx, tmpl, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
+			result := e.executeRequest(ctx, client, tmpl, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
 			results = append(results, result)
 			e.mergeExtractedIntoVars(result, vars)
 
@@ -90,7 +94,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 	if len(httpReq.Raw) > 0 {
 		for _, raw := range httpReq.Raw {
 			// Parse and execute raw request
-			result := e.executeRawRequest(ctx, tmpl, httpReq, raw, targetURL, vars)
+			result := e.executeRawRequest(ctx, client, tmpl, httpReq, raw, targetURL, vars)
 			results = append(results, result)
 			e.mergeExtractedIntoVars(result, vars)
 
@@ -102,7 +106,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 
 	// Handle fuzzing
 	if len(httpReq.Fuzzing) > 0 {
-		fuzzResults := e.executeFuzzing(ctx, tmpl, httpReq, targetURL, vars)
+		fuzzResults := e.executeFuzzing(ctx, client, tmpl, httpReq, targetURL, vars)
 		results = append(results, fuzzResults...)
 	}
 
@@ -114,6 +118,9 @@ func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template
 	var results []*templates.ExecutionResult
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+
+	// Create per-request-block client once for all race goroutines.
+	client := e.clientForRequest(httpReq)
 
 	for _, path := range httpReq.Path {
 		interpolatedPath := e.interpolate(path, vars)
@@ -128,7 +135,7 @@ func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template
 			}
 			go func(url string, gv map[string]interface{}) {
 				defer wg.Done()
-				result := e.executeRequest(ctx, tmpl, httpReq, url, httpReq.Method, httpReq.Body, gv)
+				result := e.executeRequest(ctx, client, tmpl, httpReq, url, httpReq.Method, httpReq.Body, gv)
 				mu.Lock()
 				results = append(results, result)
 				mu.Unlock()
@@ -146,6 +153,9 @@ func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template
 func (e *Executor) executeHTTPWithReqCondition(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string) ([]*templates.ExecutionResult, error) {
 	vars := e.buildVariables(tmpl, targetURL)
 
+	// Create per-request-block client once.
+	client := e.clientForRequest(httpReq)
+
 	type responseEntry struct {
 		result      *templates.ExecutionResult
 		matcherResp *matchers.Response
@@ -159,7 +169,7 @@ func (e *Executor) executeHTTPWithReqCondition(ctx context.Context, tmpl *templa
 		interpolatedPath := e.interpolate(path, vars)
 		requestURL := e.buildURL(targetURL, interpolatedPath)
 
-		resp, reqStr, err := e.doRequest(ctx, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
+		resp, reqStr, err := e.doRequest(ctx, client, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
 
 		result := &templates.ExecutionResult{
 			TemplateID:   tmpl.ID,
@@ -192,11 +202,14 @@ func (e *Executor) executeHTTPWithReqCondition(ctx context.Context, tmpl *templa
 			vars[fmt.Sprintf("body_%d", n)] = entry.matcherResp.Body
 			vars[fmt.Sprintf("content_length_%d", n)] = entry.matcherResp.ContentLength
 			// Flatten headers to a single string for header_N
-			headerStr := ""
+			var headerStr strings.Builder
 			for k, v := range entry.matcherResp.Headers {
-				headerStr += k + ": " + v + "\n"
+				headerStr.WriteString(k)
+				headerStr.WriteString(": ")
+				headerStr.WriteString(v)
+				headerStr.WriteString("\n")
 			}
-			vars[fmt.Sprintf("header_%d", n)] = headerStr
+			vars[fmt.Sprintf("header_%d", n)] = headerStr.String()
 		}
 	}
 
@@ -232,7 +245,7 @@ func (e *Executor) clientForRequest(httpReq *templates.HTTPRequest) *http.Client
 
 // doRequest builds and executes an HTTP request, returning the response, request string, and any error.
 // It injects session cookies before the request and stores response cookies afterward.
-func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) (*http.Response, string, error) {
+func (e *Executor) doRequest(ctx context.Context, client *http.Client, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) (*http.Response, string, error) {
 	if method == "" {
 		method = "GET"
 	}
@@ -261,8 +274,6 @@ func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest
 		}
 	}
 
-	// Per-request redirect control
-	client := e.clientForRequest(httpReq)
 	resp, err := client.Do(ctx, req)
 	if err != nil {
 		return nil, "", err
@@ -275,7 +286,7 @@ func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest
 }
 
 // executeRequest executes a single HTTP request and evaluates matchers.
-func (e *Executor) executeRequest(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) *templates.ExecutionResult {
+func (e *Executor) executeRequest(ctx context.Context, client *http.Client, tmpl *templates.Template, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) *templates.ExecutionResult {
 	result := &templates.ExecutionResult{
 		TemplateID:   tmpl.ID,
 		TemplateName: tmpl.Info.Name,
@@ -315,9 +326,6 @@ func (e *Executor) executeRequest(ctx context.Context, tmpl *templates.Template,
 			req.Headers["Cookie"] = cookieHeader
 		}
 	}
-
-	// Per-request redirect control
-	client := e.clientForRequest(httpReq)
 
 	// Execute request
 	resp, err := client.Do(ctx, req)
@@ -360,7 +368,7 @@ func (e *Executor) executeRequest(ctx context.Context, tmpl *templates.Template,
 }
 
 // executeRawRequest parses and executes a raw HTTP request.
-func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, raw, targetURL string, vars map[string]interface{}) *templates.ExecutionResult {
+func (e *Executor) executeRawRequest(ctx context.Context, client *http.Client, tmpl *templates.Template, httpReq *templates.HTTPRequest, raw, targetURL string, vars map[string]interface{}) *templates.ExecutionResult {
 	// Interpolate variables in raw request
 	interpolatedRaw := e.interpolate(raw, vars)
 
@@ -399,9 +407,6 @@ func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Templa
 			req.Headers["Cookie"] = cookieHeader
 		}
 	}
-
-	// Per-request redirect control
-	client := e.clientForRequest(httpReq)
 
 	// Execute request
 	resp, err := client.Do(ctx, req)
@@ -444,14 +449,14 @@ func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Templa
 }
 
 // executeFuzzing executes fuzzing rules against the target.
-func (e *Executor) executeFuzzing(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string, vars map[string]interface{}) []*templates.ExecutionResult {
+func (e *Executor) executeFuzzing(ctx context.Context, client *http.Client, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string, vars map[string]interface{}) []*templates.ExecutionResult {
 	var results []*templates.ExecutionResult
 
 	for _, rule := range httpReq.Fuzzing {
 		fuzzPayloads := e.generateFuzzPayloads(&rule, vars)
 
 		for _, payload := range fuzzPayloads {
-			result := e.executeFuzzRequest(ctx, tmpl, httpReq, targetURL, &rule, payload, vars)
+			result := e.executeFuzzRequest(ctx, client, tmpl, httpReq, targetURL, &rule, payload, vars)
 			results = append(results, result)
 
 			if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
@@ -464,7 +469,7 @@ func (e *Executor) executeFuzzing(ctx context.Context, tmpl *templates.Template,
 }
 
 // executeFuzzRequest executes a single fuzz request.
-func (e *Executor) executeFuzzRequest(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string, rule *templates.FuzzingRule, payload string, vars map[string]interface{}) *templates.ExecutionResult {
+func (e *Executor) executeFuzzRequest(ctx context.Context, client *http.Client, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string, rule *templates.FuzzingRule, payload string, vars map[string]interface{}) *templates.ExecutionResult {
 	result := &templates.ExecutionResult{
 		TemplateID:   tmpl.ID,
 		TemplateName: tmpl.Info.Name,
@@ -547,9 +552,6 @@ func (e *Executor) executeFuzzRequest(ctx context.Context, tmpl *templates.Templ
 			req.Headers["Cookie"] = cookieHeader
 		}
 	}
-
-	// Per-request redirect control
-	client := e.clientForRequest(httpReq)
 
 	resp, err := client.Do(ctx, req)
 	if err != nil {

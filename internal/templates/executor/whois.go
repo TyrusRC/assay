@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,7 +39,7 @@ func NewWHOISExecutor(timeout time.Duration) *WHOISExecutor {
 // The domain queried is extracted from the target URL; the server defaults
 // to whois.iana.org:43 unless overridden in the query.
 func (e *WHOISExecutor) Execute(ctx context.Context, target string, query *templates.WhoisQuery) (*templates.ExecutionResult, error) {
-	domain := extractDomain(target)
+	domain := e.extractDomain(target)
 	if domain == "" {
 		return nil, fmt.Errorf("whois executor: could not extract domain from %q", target)
 	}
@@ -115,32 +116,16 @@ func (e *WHOISExecutor) doQuery(ctx context.Context, server, query string) (stri
 
 // extractDomain strips the scheme, credentials, port, and path from a URL,
 // returning only the bare hostname suitable for a WHOIS query.
-func extractDomain(target string) string {
+func (e *WHOISExecutor) extractDomain(target string) string {
 	if target == "" {
 		return ""
 	}
-
-	// Strip scheme.
-	if idx := strings.Index(target, "://"); idx >= 0 {
-		target = target[idx+3:]
+	// Add scheme if missing for url.Parse to work.
+	if !strings.Contains(target, "://") {
+		target = "http://" + target
 	}
-
-	// Strip credentials (user:pass@).
-	if idx := strings.LastIndex(target, "@"); idx >= 0 {
-		target = target[idx+1:]
+	if u, err := url.Parse(target); err == nil && u.Hostname() != "" {
+		return u.Hostname()
 	}
-
-	// Strip path, query, and fragment.
-	for _, sep := range []string{"/", "?", "#"} {
-		if idx := strings.Index(target, sep); idx >= 0 {
-			target = target[:idx]
-		}
-	}
-
-	// Strip port.
-	if h, _, err := net.SplitHostPort(target); err == nil {
-		return h
-	}
-
-	return target
+	return strings.TrimSuffix(target, "/")
 }

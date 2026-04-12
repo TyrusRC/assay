@@ -679,19 +679,26 @@ func dslWaitFor(args []interface{}, ctx map[string]interface{}) interface{} {
 	return nil
 }
 
+// strftimeReplacer converts strftime format directives to Go time layout tokens.
+var strftimeReplacer = strings.NewReplacer(
+	"%Y", "2006",
+	"%m", "01",
+	"%d", "02",
+	"%H", "15",
+	"%M", "04",
+	"%S", "05",
+	"%Z", "MST",
+	"%z", "-0700",
+	"%y", "06",
+	"%b", "Jan",
+	"%B", "January",
+	"%a", "Mon",
+	"%A", "Monday",
+)
+
 // strftimeToGoLayout converts a strftime format string to Go layout.
 func strftimeToGoLayout(format string) string {
-	replacer := strings.NewReplacer(
-		"%Y", "2006",
-		"%m", "01",
-		"%d", "02",
-		"%H", "15",
-		"%M", "04",
-		"%S", "05",
-		"%Z", "MST",
-		"%z", "-0700",
-	)
-	return replacer.Replace(format)
+	return strftimeReplacer.Replace(format)
 }
 
 // Compression functions
@@ -817,44 +824,33 @@ func dslDecToHex(args []interface{}, ctx map[string]interface{}) interface{} {
 	return fmt.Sprintf("%x", n)
 }
 
-// dslHexToDec converts a hexadecimal string to decimal number.
-func dslHexToDec(args []interface{}, ctx map[string]interface{}) interface{} {
-	if len(args) < 1 {
-		return float64(0)
+// dslParseIntBase returns a DSLFunction that parses a string in the given base and returns
+// the decimal value as float64. For base 16 the optional "0x" prefix is stripped first.
+func dslParseIntBase(base int) DSLFunction {
+	return func(args []interface{}, ctx map[string]interface{}) interface{} {
+		if len(args) < 1 {
+			return float64(0)
+		}
+		s := fmt.Sprintf("%v", args[0])
+		if base == 16 {
+			s = strings.TrimPrefix(s, "0x")
+		}
+		n, err := strconv.ParseInt(s, base, 64)
+		if err != nil {
+			return float64(0)
+		}
+		return float64(n)
 	}
-	str := strings.TrimPrefix(fmt.Sprintf("%v", args[0]), "0x")
-	n, err := strconv.ParseInt(str, 16, 64)
-	if err != nil {
-		return float64(0)
-	}
-	return float64(n)
 }
 
-// dslBinToDec converts a binary string to decimal number.
-func dslBinToDec(args []interface{}, ctx map[string]interface{}) interface{} {
-	if len(args) < 1 {
-		return float64(0)
-	}
-	str := fmt.Sprintf("%v", args[0])
-	n, err := strconv.ParseInt(str, 2, 64)
-	if err != nil {
-		return float64(0)
-	}
-	return float64(n)
-}
+// dslHexToDec is kept as a named alias for registration clarity.
+var dslHexToDec = dslParseIntBase(16)
 
-// dslOctToDec converts an octal string to decimal number.
-func dslOctToDec(args []interface{}, ctx map[string]interface{}) interface{} {
-	if len(args) < 1 {
-		return float64(0)
-	}
-	str := fmt.Sprintf("%v", args[0])
-	n, err := strconv.ParseInt(str, 8, 64)
-	if err != nil {
-		return float64(0)
-	}
-	return float64(n)
-}
+// dslBinToDec is kept as a named alias for registration clarity.
+var dslBinToDec = dslParseIntBase(2)
+
+// dslOctToDec is kept as a named alias for registration clarity.
+var dslOctToDec = dslParseIntBase(8)
 
 // Network functions
 
