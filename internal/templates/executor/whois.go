@@ -22,16 +22,20 @@ const (
 type WHOISExecutor struct {
 	matcherEngine *matchers.MatcherEngine
 	timeout       time.Duration
+	proxyURL      string
 }
 
 // NewWHOISExecutor creates a new WHOIS executor.
-func NewWHOISExecutor(timeout time.Duration) *WHOISExecutor {
+// proxyURL optionally routes WHOIS TCP connections through an HTTP CONNECT proxy
+// (e.g. "http://127.0.0.1:8080" for Burp Suite). Pass an empty string to use direct connections.
+func NewWHOISExecutor(timeout time.Duration, proxyURL string) *WHOISExecutor {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
 	return &WHOISExecutor{
 		matcherEngine: matchers.New(),
 		timeout:       timeout,
+		proxyURL:      proxyURL,
 	}
 }
 
@@ -82,12 +86,19 @@ func (e *WHOISExecutor) Execute(ctx context.Context, target string, query *templ
 	}, nil
 }
 
-// doQuery opens a TCP connection to the WHOIS server, sends the query, and
-// reads the full response.
+// doQuery opens a TCP connection to the WHOIS server (optionally via HTTP CONNECT
+// proxy), sends the query, and reads the full response.
 func (e *WHOISExecutor) doQuery(ctx context.Context, server, query string) (string, error) {
 	dialer := &net.Dialer{Timeout: e.timeout}
 
-	conn, err := dialer.DialContext(ctx, "tcp", server)
+	var conn net.Conn
+	var err error
+
+	if e.proxyURL != "" {
+		conn, err = e.dialViaProxy(ctx, dialer, server)
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", server)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -112,6 +123,44 @@ func (e *WHOISExecutor) doQuery(ctx context.Context, server, query string) (stri
 	}
 
 	return string(data), nil
+}
+
+// dialViaProxy connects to addr through an HTTP CONNECT proxy.
+func (e *WHOISExecutor) dialViaProxy(ctx context.Context, dialer *net.Dialer, addr string) (net.Conn, error) {
+	proxyURL, err := url.Parse(e.proxyURL)
+	if err != nil {
+		// Fall back to direct connection on bad proxy URL.
+		return dialer.DialContext(ctx, "tcp", addr)
+	}
+
+	proxyAddr := proxyURL.Host
+	if !strings.Contains(proxyAddr, ":") {
+		proxyAddr += ":8080"
+	}
+
+	proxyConn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+	if err != nil {
+		return nil, fmt.Errorf("proxy connection failed: %w", err)
+	}
+
+	connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+	if _, err := proxyConn.Write([]byte(connectReq)); err != nil {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT write failed: %w", err)
+	}
+
+	buf := make([]byte, 1024)
+	n, err := proxyConn.Read(buf)
+	if err != nil {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT read failed: %w", err)
+	}
+	if !strings.Contains(string(buf[:n]), "200") {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT rejected: %s", strings.TrimSpace(string(buf[:n])))
+	}
+
+	return proxyConn, nil
 }
 
 // extractDomain strips the scheme, credentials, port, and path from a URL,

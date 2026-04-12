@@ -42,6 +42,9 @@ type TemplateScanConfig struct {
 	// Variables for template interpolation
 	Variables map[string]interface{}
 
+	// ProxyURL routes all template traffic through a proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
+	ProxyURL string
+
 	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
 	InteractshClient *oob.Client
 
@@ -74,6 +77,7 @@ func NewTemplateScanner(config *TemplateScanConfig) (*TemplateScanner, error) {
 		StopAtFirstMatch: config.StopAtFirstMatch,
 		Verbose:          config.Verbose,
 		Variables:        config.Variables,
+		ProxyURL:         config.ProxyURL,
 	}
 
 	execConfig.InteractshClient = config.InteractshClient

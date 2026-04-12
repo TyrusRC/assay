@@ -17,6 +17,9 @@ import (
 type SSLConfig struct {
 	// Timeout for establishing TLS connections.
 	Timeout time.Duration
+
+	// ProxyURL routes TLS connections through an HTTP CONNECT proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
+	ProxyURL string
 }
 
 // DefaultSSLConfig returns sensible defaults for SSL scanning.
@@ -113,20 +116,13 @@ func (e *SSLExecutor) Execute(ctx context.Context, target string, probe *templat
 	result.Host = host
 	result.Port = port
 
-	addr := net.JoinHostPort(host, port)
-
-	dialer := &net.Dialer{Timeout: e.config.Timeout}
-	tlsCfg := &tls.Config{
-		InsecureSkipVerify: true, //nolint:gosec // intentional for certificate inspection
-		ServerName:         host,
-	}
-
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
+	tlsConn, err := e.dialTLS(ctx, host, port)
 	if err != nil {
-		result.Error = fmt.Errorf("tls dial %s: %w", addr, err)
+		result.Error = fmt.Errorf("tls dial %s:%s: %w", host, port, err)
 		return result, nil // connection failure is a valid probe result
 	}
-	defer conn.Close()
+	defer tlsConn.Close()
+	conn := tlsConn
 
 	// Verify the context has not been cancelled after connect.
 	select {
@@ -184,6 +180,62 @@ func (e *SSLExecutor) Execute(ctx context.Context, target string, probe *templat
 	}
 
 	return result, nil
+}
+
+// dialTLS establishes a TLS connection to host:port, optionally tunnelling
+// through an HTTP CONNECT proxy when SSLConfig.ProxyURL is set.
+func (e *SSLExecutor) dialTLS(ctx context.Context, host, port string) (*tls.Conn, error) {
+	addr := net.JoinHostPort(host, port)
+	tlsCfg := &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // intentional for certificate inspection
+		ServerName:         host,
+	}
+
+	if e.config.ProxyURL != "" {
+		proxyURL, err := url.Parse(e.config.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proxy URL: %w", err)
+		}
+
+		proxyAddr := proxyURL.Host
+		if !strings.Contains(proxyAddr, ":") {
+			proxyAddr += ":8080"
+		}
+
+		dialer := &net.Dialer{Timeout: e.config.Timeout}
+		proxyConn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+		if err != nil {
+			return nil, fmt.Errorf("proxy connection failed: %w", err)
+		}
+
+		connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+		if _, err := proxyConn.Write([]byte(connectReq)); err != nil {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT write failed: %w", err)
+		}
+
+		buf := make([]byte, 1024)
+		n, err := proxyConn.Read(buf)
+		if err != nil {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT read failed: %w", err)
+		}
+		if !strings.Contains(string(buf[:n]), "200") {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT rejected: %s", strings.TrimSpace(string(buf[:n])))
+		}
+
+		tlsConn := tls.Client(proxyConn, tlsCfg)
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			proxyConn.Close()
+			return nil, fmt.Errorf("TLS handshake via proxy failed: %w", err)
+		}
+		return tlsConn, nil
+	}
+
+	// Direct connection (no proxy).
+	dialer := &net.Dialer{Timeout: e.config.Timeout}
+	return tls.DialWithDialer(dialer, "tcp", addr, tlsCfg)
 }
 
 // parseSSLTarget parses a target string and returns the host and port.

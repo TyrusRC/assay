@@ -26,6 +26,11 @@ type DNSConfig struct {
 
 	// Use TCP instead of UDP.
 	UseTCP bool
+
+	// Note: DNS queries do not support HTTP proxy forwarding because the DNS
+	// protocol communicates over UDP (or TCP directly) rather than HTTP/CONNECT.
+	// To route DNS through a proxy-like mechanism, configure a custom Nameserver
+	// that is reachable via the desired network path.
 }
 
 // DefaultDNSConfig returns sensible defaults.

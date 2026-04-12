@@ -555,7 +555,11 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	// Phase 1.75: Template scanning (after URL-level tests, before OOB)
 	if s.config.EnableTemplates && len(s.config.TemplatePaths) > 0 {
-		s.runTemplateTests(ctx, &wg, findingsChan, target)
+		proxyURL := ""
+		if scanConfig != nil {
+			proxyURL = scanConfig.ProxyURL
+		}
+		s.runTemplateTests(ctx, &wg, findingsChan, target, proxyURL)
 		wg.Wait()
 	}
 
@@ -737,7 +741,8 @@ func (s *InternalScanner) extractParametersWithConfig(target *core.Target, scanC
 }
 
 // runTemplateTests executes nuclei-compatible templates against a target.
-func (s *InternalScanner) runTemplateTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, target *core.Target) {
+// proxyURL, when non-empty, routes all template traffic through the given proxy.
+func (s *InternalScanner) runTemplateTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, target *core.Target, proxyURL string) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -748,6 +753,7 @@ func (s *InternalScanner) runTemplateTests(ctx context.Context, wg *sync.WaitGro
 
 		tsCfg := DefaultTemplateScanConfig()
 		tsCfg.Verbose = s.config.Verbose
+		tsCfg.ProxyURL = proxyURL
 
 		// Use first path as directory; additional paths as individual files
 		if len(s.config.TemplatePaths) == 1 {

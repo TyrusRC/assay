@@ -47,6 +47,9 @@ type Config struct {
 	// Variables for template interpolation
 	Variables map[string]interface{}
 
+	// ProxyURL routes all HTTP and protocol traffic through a proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
+	ProxyURL string
+
 	// DNS configuration
 	DNSConfig *DNSConfig
 
@@ -85,6 +88,10 @@ func New(config *Config) *Executor {
 		WithTimeout(config.Timeout).
 		WithFollowRedirects(config.FollowRedirects)
 
+	if config.ProxyURL != "" {
+		client = client.WithProxy(config.ProxyURL)
+	}
+
 	// Initialize DNS executor
 	dnsConfig := config.DNSConfig
 	if dnsConfig == nil {
@@ -98,12 +105,15 @@ func New(config *Config) *Executor {
 		networkConfig = DefaultNetworkConfig()
 		networkConfig.Timeout = config.Timeout
 	}
+	networkConfig.ProxyURL = config.ProxyURL
 
 	sslConfig := DefaultSSLConfig()
 	sslConfig.Timeout = config.Timeout
+	sslConfig.ProxyURL = config.ProxyURL
 
 	wsConfig := DefaultWebSocketConfig()
 	wsConfig.Timeout = config.Timeout
+	wsConfig.ProxyURL = config.ProxyURL
 
 	return &Executor{
 		client:            client,
@@ -114,7 +124,7 @@ func New(config *Config) *Executor {
 		networkExecutor:   NewNetworkExecutor(networkConfig),
 		sslExecutor:       NewSSLExecutor(sslConfig),
 		websocketExecutor: NewWebSocketExecutor(wsConfig),
-		whoisExecutor:     NewWHOISExecutor(config.Timeout),
+		whoisExecutor:     NewWHOISExecutor(config.Timeout, config.ProxyURL),
 		fileExecutor:      NewFileExecutor(),
 		headlessExecutor:  NewHeadlessExecutor(config.HeadlessPool),
 		session:           NewSession(),

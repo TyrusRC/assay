@@ -18,6 +18,9 @@ import (
 type WebSocketConfig struct {
 	// Timeout for dialing and message exchange.
 	Timeout time.Duration
+
+	// ProxyURL routes WebSocket connections through an HTTP CONNECT proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
+	ProxyURL string
 }
 
 // DefaultWebSocketConfig returns sensible defaults.
@@ -60,7 +63,12 @@ func (e *WebSocketExecutor) Execute(ctx context.Context, target string, probe *t
 		defer cancel()
 	}
 
-	conn, _, _, err := ws.Dial(dialCtx, wsURL)
+	wsDialer := ws.Dialer{}
+	if e.config.ProxyURL != "" {
+		wsDialer.NetDial = e.makeProxyDialer()
+	}
+
+	conn, _, _, err := wsDialer.Dial(dialCtx, wsURL)
 	if err != nil {
 		return nil, fmt.Errorf("websocket executor: dial %s: %w", wsURL, err)
 	}
@@ -117,6 +125,52 @@ func (e *WebSocketExecutor) Execute(ctx context.Context, target string, probe *t
 		Request:       fmt.Sprintf("WS %s", wsURL),
 		Timestamp:     time.Now(),
 	}, nil
+}
+
+// makeProxyDialer returns a NetDial function that tunnels connections through
+// an HTTP CONNECT proxy (e.g. Burp Suite at http://127.0.0.1:8080).
+func (e *WebSocketExecutor) makeProxyDialer() func(ctx context.Context, network, addr string) (net.Conn, error) {
+	timeout := e.config.Timeout
+	proxyURLStr := e.config.ProxyURL
+
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		proxyURL, err := url.Parse(proxyURLStr)
+		if err != nil {
+			// Fall back to direct dial on bad proxy URL.
+			dialer := &net.Dialer{Timeout: timeout}
+			return dialer.DialContext(ctx, network, addr)
+		}
+
+		proxyAddr := proxyURL.Host
+		if !strings.Contains(proxyAddr, ":") {
+			proxyAddr += ":8080"
+		}
+
+		dialer := &net.Dialer{Timeout: timeout}
+		proxyConn, err := dialer.DialContext(ctx, "tcp", proxyAddr)
+		if err != nil {
+			return nil, fmt.Errorf("proxy connection failed: %w", err)
+		}
+
+		connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+		if _, err := proxyConn.Write([]byte(connectReq)); err != nil {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT write failed: %w", err)
+		}
+
+		buf := make([]byte, 1024)
+		n, err := proxyConn.Read(buf)
+		if err != nil {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT read failed: %w", err)
+		}
+		if !strings.Contains(string(buf[:n]), "200") {
+			proxyConn.Close()
+			return nil, fmt.Errorf("proxy CONNECT rejected: %s", strings.TrimSpace(string(buf[:n])))
+		}
+
+		return proxyConn, nil
+	}
 }
 
 // buildWSURL constructs a WebSocket URL from the HTTP target and an optional

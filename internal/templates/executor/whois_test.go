@@ -7,7 +7,7 @@ import (
 
 func TestNewWHOISExecutor(t *testing.T) {
 	t.Run("positive timeout", func(t *testing.T) {
-		exec := NewWHOISExecutor(5 * time.Second)
+		exec := NewWHOISExecutor(5*time.Second, "")
 		if exec == nil {
 			t.Fatal("NewWHOISExecutor() returned nil")
 		}
@@ -20,14 +20,14 @@ func TestNewWHOISExecutor(t *testing.T) {
 	})
 
 	t.Run("zero timeout uses default", func(t *testing.T) {
-		exec := NewWHOISExecutor(0)
+		exec := NewWHOISExecutor(0, "")
 		if exec.timeout != 10*time.Second {
 			t.Errorf("timeout = %v, want 10s (default)", exec.timeout)
 		}
 	})
 
 	t.Run("negative timeout uses default", func(t *testing.T) {
-		exec := NewWHOISExecutor(-1)
+		exec := NewWHOISExecutor(-1, "")
 		if exec.timeout != 10*time.Second {
 			t.Errorf("timeout = %v, want 10s (default)", exec.timeout)
 		}
@@ -107,7 +107,7 @@ func TestExtractDomain(t *testing.T) {
 		},
 	}
 
-	exec := NewWHOISExecutor(0)
+	exec := NewWHOISExecutor(0, "")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := exec.extractDomain(tt.target)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,6 +31,10 @@ type NetworkConfig struct {
 
 	// Dialer for custom connection options.
 	Dialer *net.Dialer
+
+	// ProxyURL routes TCP connections through an HTTP CONNECT proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
+	// SOCKS5 proxies are not supported for raw TCP; use an HTTP CONNECT-capable proxy.
+	ProxyURL string
 }
 
 // DefaultNetworkConfig returns sensible defaults.
@@ -149,9 +154,9 @@ func (e *NetworkExecutor) Execute(ctx context.Context, target string, probe *tem
 		readSize = probe.ReadSize
 	}
 
-	// Connect with context
+	// Connect with context (optionally through proxy)
 	addr := net.JoinHostPort(host, port)
-	conn, err := e.dialer.DialContext(ctx, "tcp", addr)
+	conn, err := e.dialWithProxy(ctx, "tcp", addr)
 	if err != nil {
 		result.Error = fmt.Errorf("connection failed: %w", err)
 		return result, nil // Return without error - connection failure is valid probe result
@@ -443,6 +448,49 @@ func decodeNetworkData(data string, dataType string) ([]byte, error) {
 	default:
 		return []byte(data), nil
 	}
+}
+
+// dialWithProxy dials a TCP connection, optionally tunnelling through an HTTP
+// CONNECT proxy when NetworkConfig.ProxyURL is set.
+func (e *NetworkExecutor) dialWithProxy(ctx context.Context, network, addr string) (net.Conn, error) {
+	if e.config.ProxyURL == "" {
+		return e.dialer.DialContext(ctx, network, addr)
+	}
+
+	proxyURL, err := url.Parse(e.config.ProxyURL)
+	if err != nil {
+		// Fall back to direct connection on bad proxy URL.
+		return e.dialer.DialContext(ctx, network, addr)
+	}
+
+	proxyAddr := proxyURL.Host
+	if !strings.Contains(proxyAddr, ":") {
+		proxyAddr += ":8080"
+	}
+
+	proxyConn, err := e.dialer.DialContext(ctx, "tcp", proxyAddr)
+	if err != nil {
+		return nil, fmt.Errorf("proxy connection failed: %w", err)
+	}
+
+	connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+	if _, err := proxyConn.Write([]byte(connectReq)); err != nil {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT write failed: %w", err)
+	}
+
+	buf := make([]byte, 1024)
+	n, err := proxyConn.Read(buf)
+	if err != nil {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT read failed: %w", err)
+	}
+	if !strings.Contains(string(buf[:n]), "200") {
+		proxyConn.Close()
+		return nil, fmt.Errorf("proxy CONNECT rejected: %s", strings.TrimSpace(string(buf[:n])))
+	}
+
+	return proxyConn, nil
 }
 
 // isTimeoutError checks if an error is a timeout error.
