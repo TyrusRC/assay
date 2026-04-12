@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
+	"github.com/swiss-knife-for-web-security/skws/internal/headless"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates/executor"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates/parser"
@@ -39,6 +41,14 @@ type TemplateScanConfig struct {
 
 	// Variables for template interpolation
 	Variables map[string]interface{}
+
+	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
+	// Accepts *oob.Client or nil.
+	InteractshClient interface{}
+
+	// HeadlessPool provides browser instances for headless template steps.
+	// Accepts *headless.Pool or nil.
+	HeadlessPool interface{}
 }
 
 // DefaultTemplateScanConfig returns sensible defaults.
@@ -66,6 +76,18 @@ func NewTemplateScanner(config *TemplateScanConfig) (*TemplateScanner, error) {
 		StopAtFirstMatch: config.StopAtFirstMatch,
 		Verbose:          config.Verbose,
 		Variables:        config.Variables,
+	}
+
+	if config.InteractshClient != nil {
+		if client, ok := config.InteractshClient.(*oob.Client); ok {
+			execConfig.InteractshClient = client
+		}
+	}
+
+	if config.HeadlessPool != nil {
+		if pool, ok := config.HeadlessPool.(*headless.Pool); ok {
+			execConfig.HeadlessPool = pool
+		}
 	}
 
 	return &TemplateScanner{
