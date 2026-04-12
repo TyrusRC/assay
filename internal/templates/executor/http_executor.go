@@ -184,6 +184,14 @@ func (e *Executor) executeHTTPWithReqCondition(ctx context.Context, tmpl *templa
 	return results, nil
 }
 
+// clientForRequest returns a client clone with per-request redirect settings applied.
+func (e *Executor) clientForRequest(httpReq *templates.HTTPRequest) *http.Client {
+	if httpReq.Redirects {
+		return e.client.Clone().WithFollowRedirects(true)
+	}
+	return e.client.Clone().WithFollowRedirects(false)
+}
+
 // doRequest builds and executes an HTTP request, returning the response, request string, and any error.
 // It injects session cookies before the request and stores response cookies afterward.
 func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) (*http.Response, string, error) {
@@ -215,7 +223,9 @@ func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest
 		}
 	}
 
-	resp, err := e.client.Do(ctx, req)
+	// Per-request redirect control
+	client := e.clientForRequest(httpReq)
+	resp, err := client.Do(ctx, req)
 	if err != nil {
 		return nil, "", err
 	}
@@ -268,8 +278,11 @@ func (e *Executor) executeRequest(ctx context.Context, tmpl *templates.Template,
 		}
 	}
 
+	// Per-request redirect control
+	client := e.clientForRequest(httpReq)
+
 	// Execute request
-	resp, err := e.client.Do(ctx, req)
+	resp, err := client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result
@@ -349,8 +362,11 @@ func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Templa
 		}
 	}
 
+	// Per-request redirect control
+	client := e.clientForRequest(httpReq)
+
 	// Execute request
-	resp, err := e.client.Do(ctx, req)
+	resp, err := client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result
@@ -485,7 +501,10 @@ func (e *Executor) executeFuzzRequest(ctx context.Context, tmpl *templates.Templ
 		}
 	}
 
-	resp, err := e.client.Do(ctx, req)
+	// Per-request redirect control
+	client := e.clientForRequest(httpReq)
+
+	resp, err := client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result

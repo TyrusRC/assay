@@ -1748,6 +1748,83 @@ func TestSession_CookiePersistenceAcrossRequests(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-request redirect control
+// ---------------------------------------------------------------------------
+
+func TestExecuteHTTP_RedirectControl(t *testing.T) {
+	// finalPage is the destination after the redirect.
+	finalPage := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "final page reached")
+	}))
+	defer finalPage.Close()
+
+	// redirector returns a 302 to finalPage.
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, finalPage.URL, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	t.Run("redirects false sees 302", func(t *testing.T) {
+		tmpl := &templates.Template{
+			ID:   "redir-false",
+			Info: templates.Info{Name: "Redirect False", Severity: core.SeverityInfo},
+			HTTP: []templates.HTTPRequest{
+				{
+					Method:    "GET",
+					Path:      []string{redirector.URL},
+					Redirects: false,
+					Matchers: []templates.Matcher{
+						{Type: "status", Status: []int{http.StatusFound}},
+					},
+				},
+			},
+		}
+
+		exec := New(&Config{Variables: map[string]interface{}{}})
+		results, err := exec.Execute(context.Background(), tmpl, redirector.URL)
+		if err != nil {
+			t.Fatalf("Execute() error: %v", err)
+		}
+		if len(results) == 0 {
+			t.Fatal("Expected at least one result")
+		}
+		if !results[0].Matched {
+			t.Errorf("Expected result to match 302 status, but it did not")
+		}
+	})
+
+	t.Run("redirects true sees 200", func(t *testing.T) {
+		tmpl := &templates.Template{
+			ID:   "redir-true",
+			Info: templates.Info{Name: "Redirect True", Severity: core.SeverityInfo},
+			HTTP: []templates.HTTPRequest{
+				{
+					Method:    "GET",
+					Path:      []string{redirector.URL},
+					Redirects: true,
+					Matchers: []templates.Matcher{
+						{Type: "status", Status: []int{http.StatusOK}},
+					},
+				},
+			},
+		}
+
+		exec := New(&Config{Variables: map[string]interface{}{}})
+		results, err := exec.Execute(context.Background(), tmpl, redirector.URL)
+		if err != nil {
+			t.Fatalf("Execute() error: %v", err)
+		}
+		if len(results) == 0 {
+			t.Fatal("Expected at least one result")
+		}
+		if !results[0].Matched {
+			t.Errorf("Expected result to match 200 status after following redirect, but it did not")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Helpers for this test file
 // ---------------------------------------------------------------------------
 
