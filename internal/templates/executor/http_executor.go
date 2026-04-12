@@ -121,13 +121,18 @@ func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template
 
 		for i := 0; i < httpReq.RaceCount; i++ {
 			wg.Add(1)
-			go func(url string) {
+			// Copy vars for goroutine safety.
+			goroutineVars := make(map[string]interface{}, len(vars))
+			for k, v := range vars {
+				goroutineVars[k] = v
+			}
+			go func(url string, gv map[string]interface{}) {
 				defer wg.Done()
-				result := e.executeRequest(ctx, tmpl, httpReq, url, httpReq.Method, httpReq.Body, vars)
+				result := e.executeRequest(ctx, tmpl, httpReq, url, httpReq.Method, httpReq.Body, gv)
 				mu.Lock()
 				results = append(results, result)
 				mu.Unlock()
-			}(requestURL)
+			}(requestURL, goroutineVars)
 		}
 	}
 
@@ -424,6 +429,15 @@ func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Templa
 		if len(result.Response) > 500 {
 			result.Response = result.Response[:500] + "..."
 		}
+	}
+
+	// Run extractors
+	extracted := e.runExtractors(httpReq.Extractors, matcherResp, vars)
+	for k, v := range extracted {
+		if result.ExtractedData == nil {
+			result.ExtractedData = make(map[string][]string)
+		}
+		result.ExtractedData[k] = v
 	}
 
 	return result

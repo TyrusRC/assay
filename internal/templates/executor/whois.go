@@ -102,7 +102,7 @@ func (e *WHOISExecutor) doQuery(ctx context.Context, server, query string) (stri
 		return "", fmt.Errorf("write query: %w", err)
 	}
 
-	data, err := io.ReadAll(conn)
+	data, err := io.ReadAll(io.LimitReader(conn, 1024*1024)) // 1MB limit
 	if err != nil {
 		// Partial data on deadline expiry is still useful.
 		if len(data) == 0 {

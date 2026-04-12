@@ -45,9 +45,6 @@ func (fe *FlowEngine) Parse(flow string) []FlowStep {
 		start := loc[0]
 		end := loc[1]
 
-		fullMatch := flow[loc[0]:loc[1]]
-		_ = fullMatch
-
 		protocol := flow[loc[2]:loc[3]]
 
 		var index int

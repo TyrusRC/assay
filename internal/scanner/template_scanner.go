@@ -43,12 +43,10 @@ type TemplateScanConfig struct {
 	Variables map[string]interface{}
 
 	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
-	// Accepts *oob.Client or nil.
-	InteractshClient interface{}
+	InteractshClient *oob.Client
 
 	// HeadlessPool provides browser instances for headless template steps.
-	// Accepts *headless.Pool or nil.
-	HeadlessPool interface{}
+	HeadlessPool *headless.Pool
 }
 
 // DefaultTemplateScanConfig returns sensible defaults.
@@ -78,17 +76,8 @@ func NewTemplateScanner(config *TemplateScanConfig) (*TemplateScanner, error) {
 		Variables:        config.Variables,
 	}
 
-	if config.InteractshClient != nil {
-		if client, ok := config.InteractshClient.(*oob.Client); ok {
-			execConfig.InteractshClient = client
-		}
-	}
-
-	if config.HeadlessPool != nil {
-		if pool, ok := config.HeadlessPool.(*headless.Pool); ok {
-			execConfig.HeadlessPool = pool
-		}
-	}
+	execConfig.InteractshClient = config.InteractshClient
+	execConfig.HeadlessPool = config.HeadlessPool
 
 	return &TemplateScanner{
 		parser:   parser.New(),

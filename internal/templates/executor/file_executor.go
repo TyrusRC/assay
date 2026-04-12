@@ -34,6 +34,16 @@ func NewFileExecutor() *FileExecutor {
 // applies extension / denylist / size filters, reads matching files,
 // evaluates matchers, and returns one ExecutionResult per matched file.
 func (e *FileExecutor) Execute(path string, fileMatch *templates.FileMatch) ([]*templates.ExecutionResult, error) {
+	// Sanitize path to prevent directory traversal.
+	path = filepath.Clean(path)
+	if !filepath.IsAbs(path) {
+		var err error
+		path, err = filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("invalid path: %w", err)
+		}
+	}
+
 	maxSize := e.maxFileSize
 	if fileMatch.MaxSize != "" {
 		parsed, err := parseSize(fileMatch.MaxSize)

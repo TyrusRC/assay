@@ -8,11 +8,13 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"io"
 	"math/big"
@@ -276,11 +278,14 @@ func dslRepeat(args []interface{}, ctx map[string]interface{}) interface{} {
 		return ""
 	}
 	str := fmt.Sprintf("%v", args[0])
-	n := int(toFloat64(args[1]))
-	if n < 0 {
-		return ""
+	count := int(toFloat64(args[1]))
+	if count < 0 {
+		count = 0
 	}
-	return strings.Repeat(str, n)
+	if count > 10000 { // Prevent memory exhaustion
+		count = 10000
+	}
+	return strings.Repeat(str, count)
 }
 
 // dslReverse reverses a string.
@@ -415,15 +420,25 @@ func dslMMH3(args []interface{}, ctx map[string]interface{}) interface{} {
 	return float64(int32(h.Sum32()))
 }
 
-// dslHMAC computes an HMAC-SHA256 of the data with the given key.
+// dslHMAC computes an HMAC of the data with the given key using the specified algorithm.
+// Supported algorithms: sha1, sha256 (default).
 func dslHMAC(args []interface{}, ctx map[string]interface{}) interface{} {
 	if len(args) < 3 {
 		return ""
 	}
-	// args: algorithm, data, key
-	data := fmt.Sprintf("%v", args[1])
-	key := fmt.Sprintf("%v", args[2])
-	mac := hmac.New(sha256.New, []byte(key))
+	algo := fmt.Sprintf("%v", args[0])
+	key := fmt.Sprintf("%v", args[1])
+	data := fmt.Sprintf("%v", args[2])
+
+	var mac hash.Hash
+	switch strings.ToLower(algo) {
+	case "sha1":
+		mac = hmac.New(sha1.New, []byte(key))
+	case "sha256":
+		mac = hmac.New(sha256.New, []byte(key))
+	default:
+		mac = hmac.New(sha256.New, []byte(key))
+	}
 	mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))
 }
