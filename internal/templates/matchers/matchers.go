@@ -137,6 +137,11 @@ func (e *MatcherEngine) MatchAll(matchers []templates.Matcher, condition string,
 // matchWord checks for word matches in the response.
 func (e *MatcherEngine) matchWord(m *templates.Matcher, resp *Response) bool {
 	content := e.getMatchPart(m.Part, resp)
+	if m.Encoding == "hex" {
+		if decoded, err := hexDecode(content); err == nil {
+			content = string(decoded)
+		}
+	}
 
 	condition := strings.ToLower(m.Condition)
 	if condition == "" {
@@ -172,6 +177,11 @@ func (e *MatcherEngine) matchWord(m *templates.Matcher, resp *Response) bool {
 // matchRegex checks for regex matches in the response.
 func (e *MatcherEngine) matchRegex(m *templates.Matcher, resp *Response) (bool, []string) {
 	content := e.getMatchPart(m.Part, resp)
+	if m.Encoding == "hex" {
+		if decoded, err := hexDecode(content); err == nil {
+			content = string(decoded)
+		}
+	}
 
 	condition := strings.ToLower(m.Condition)
 	if condition == "" {
@@ -232,7 +242,13 @@ func (e *MatcherEngine) matchSize(m *templates.Matcher, resp *Response) bool {
 
 // matchBinary checks for binary pattern matches.
 func (e *MatcherEngine) matchBinary(m *templates.Matcher, resp *Response) bool {
-	content := []byte(resp.Body)
+	rawContent := e.getMatchPart(m.Part, resp)
+	if m.Encoding == "hex" {
+		if decoded, err := hexDecode(rawContent); err == nil {
+			rawContent = string(decoded)
+		}
+	}
+	content := []byte(rawContent)
 
 	for _, hexPattern := range m.Binary {
 		pattern, err := hexDecode(hexPattern)
