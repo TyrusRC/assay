@@ -17,6 +17,7 @@ func NewDSLEngine() *DSLEngine {
 		functions: make(map[string]DSLFunction),
 	}
 	e.registerFunctions()
+	e.registerExtendedFunctions()
 	return e
 }
 
