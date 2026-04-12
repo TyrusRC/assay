@@ -132,12 +132,22 @@ func (e *Executor) executeRequest(ctx context.Context, tmpl *templates.Template,
 		req.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 	}
 
+	// Inject session cookies before executing
+	if cookieHeader := e.session.CookieHeader(requestURL); cookieHeader != "" {
+		if req.Headers["Cookie"] == "" {
+			req.Headers["Cookie"] = cookieHeader
+		}
+	}
+
 	// Execute request
 	resp, err := e.client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result
 	}
+
+	// Store response cookies in session
+	e.session.ParseResponseURL(requestURL, resp.Headers)
 
 	result.Request = fmt.Sprintf("%s %s", method, requestURL)
 
@@ -203,12 +213,22 @@ func (e *Executor) executeRawRequest(ctx context.Context, tmpl *templates.Templa
 		}
 	}
 
+	// Inject session cookies before executing
+	if cookieHeader := e.session.CookieHeader(requestURL); cookieHeader != "" {
+		if req.Headers["Cookie"] == "" {
+			req.Headers["Cookie"] = cookieHeader
+		}
+	}
+
 	// Execute request
 	resp, err := e.client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result
 	}
+
+	// Store response cookies in session
+	e.session.ParseResponseURL(requestURL, resp.Headers)
 
 	result.Request = interpolatedRaw
 
@@ -321,7 +341,7 @@ func (e *Executor) executeFuzzRequest(ctx context.Context, tmpl *templates.Templ
 		requestURL = targetURL
 	}
 
-	// Execute request
+	// Build request
 	req := &http.Request{
 		Method:  method,
 		URL:     requestURL,
@@ -329,11 +349,21 @@ func (e *Executor) executeFuzzRequest(ctx context.Context, tmpl *templates.Templ
 		Headers: headers,
 	}
 
+	// Inject session cookies before executing
+	if cookieHeader := e.session.CookieHeader(requestURL); cookieHeader != "" {
+		if req.Headers["Cookie"] == "" {
+			req.Headers["Cookie"] = cookieHeader
+		}
+	}
+
 	resp, err := e.client.Do(ctx, req)
 	if err != nil {
 		result.Error = err
 		return result
 	}
+
+	// Store response cookies in session
+	e.session.ParseResponseURL(requestURL, resp.Headers)
 
 	result.Request = fmt.Sprintf("%s %s [fuzz=%s]", method, requestURL, payload)
 

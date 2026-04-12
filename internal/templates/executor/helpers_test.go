@@ -11,11 +11,11 @@ func TestBuildVariables_BaseURLIncludesPath(t *testing.T) {
 	exec := New(nil)
 
 	tests := []struct {
-		name            string
-		targetURL       string
-		wantBaseURL     string
-		wantRootURL     string
-		wantFQDN        string
+		name        string
+		targetURL   string
+		wantBaseURL string
+		wantRootURL string
+		wantFQDN    string
 	}{
 		{
 			name:        "URL with path",

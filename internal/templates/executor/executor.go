@@ -18,6 +18,7 @@ type Executor struct {
 	config          *Config
 	dnsExecutor     *DNSExecutor
 	networkExecutor *NetworkExecutor
+	session         *Session
 }
 
 // Config configures executor behavior.
@@ -87,6 +88,7 @@ func New(config *Config) *Executor {
 		config:          config,
 		dnsExecutor:     NewDNSExecutor(dnsConfig),
 		networkExecutor: NewNetworkExecutor(networkConfig),
+		session:         NewSession(),
 	}
 }
 

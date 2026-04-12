@@ -1574,6 +1574,58 @@ func TestNewNetworkExecutor_CustomDialer(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Task 5: Cookie/session persistence
+// ---------------------------------------------------------------------------
+
+func TestSession_CookiePersistenceAcrossRequests(t *testing.T) {
+	// Server: first request sets a cookie; second request checks the cookie is present
+	var receivedCookie string
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// First request: set a session cookie
+			http.SetCookie(w, &http.Cookie{Name: "session", Value: "persist123"})
+			w.WriteHeader(200)
+			w.Write([]byte("set cookie"))
+		} else {
+			// Second request: record cookie header
+			receivedCookie = r.Header.Get("Cookie")
+			w.WriteHeader(200)
+			w.Write([]byte("ok"))
+		}
+	}))
+	defer server.Close()
+
+	tmpl := &templates.Template{
+		ID:   "cookie-persist",
+		Info: templates.Info{Name: "Cookie Persist", Severity: core.SeverityInfo},
+		HTTP: []templates.HTTPRequest{
+			{
+				Method: "GET",
+				Path:   []string{"{{BaseURL}}/step1", "{{BaseURL}}/step2"},
+				Matchers: []templates.Matcher{
+					{Type: "status", Status: []int{200}},
+				},
+			},
+		},
+	}
+
+	exec := New(&Config{Variables: map[string]interface{}{}})
+	results, err := exec.Execute(context.Background(), tmpl, server.URL)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("Expected results")
+	}
+	// The second request should have received the cookie set by the first
+	if !strings.Contains(receivedCookie, "session=persist123") {
+		t.Errorf("Expected second request to carry cookie 'session=persist123', got Cookie header: %q", receivedCookie)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Helpers for this test file
 // ---------------------------------------------------------------------------
 
