@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
+	"github.com/swiss-knife-for-web-security/skws/internal/headless"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
@@ -19,6 +20,11 @@ type Executor struct {
 	config            *Config
 	dnsExecutor       *DNSExecutor
 	networkExecutor   *NetworkExecutor
+	sslExecutor       *SSLExecutor
+	websocketExecutor *WebSocketExecutor
+	whoisExecutor     *WHOISExecutor
+	fileExecutor      *FileExecutor
+	headlessExecutor  *HeadlessExecutor
 	session           *Session
 	interactshHelper  *InteractshHelper
 }
@@ -49,6 +55,10 @@ type Config struct {
 	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
 	// When nil, placeholder values are used for interactsh template variables.
 	InteractshClient *oob.Client
+
+	// HeadlessPool provides browser instances for headless template steps.
+	// When nil, headless templates will return an error.
+	HeadlessPool *headless.Pool
 }
 
 // DefaultConfig returns sensible defaults.
@@ -88,14 +98,25 @@ func New(config *Config) *Executor {
 		networkConfig.Timeout = config.Timeout
 	}
 
+	sslConfig := DefaultSSLConfig()
+	sslConfig.Timeout = config.Timeout
+
+	wsConfig := DefaultWebSocketConfig()
+	wsConfig.Timeout = config.Timeout
+
 	return &Executor{
-		client:           client,
-		matcherEngine:    matchers.New(),
-		config:           config,
-		dnsExecutor:      NewDNSExecutor(dnsConfig),
-		networkExecutor:  NewNetworkExecutor(networkConfig),
-		session:          NewSession(),
-		interactshHelper: NewInteractshHelper(config.InteractshClient),
+		client:            client,
+		matcherEngine:     matchers.New(),
+		config:            config,
+		dnsExecutor:       NewDNSExecutor(dnsConfig),
+		networkExecutor:   NewNetworkExecutor(networkConfig),
+		sslExecutor:       NewSSLExecutor(sslConfig),
+		websocketExecutor: NewWebSocketExecutor(wsConfig),
+		whoisExecutor:     NewWHOISExecutor(config.Timeout),
+		fileExecutor:      NewFileExecutor(),
+		headlessExecutor:  NewHeadlessExecutor(config.HeadlessPool),
+		session:           NewSession(),
+		interactshHelper:  NewInteractshHelper(config.InteractshClient),
 	}
 }
 
@@ -111,6 +132,10 @@ func hasMatch(results []*templates.ExecutionResult) bool {
 
 // Execute runs a template against a target URL.
 func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, targetURL string) ([]*templates.ExecutionResult, error) {
+	if tmpl.SelfContained {
+		targetURL = "" // Templates provide their own URLs in paths
+	}
+
 	if tmpl.Flow != "" {
 		return e.executeWithFlow(ctx, tmpl, targetURL)
 	}
@@ -163,6 +188,69 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		results = append(results, tcpResults...)
 		if stopFirst && hasMatch(tcpResults) {
 			return results, nil
+		}
+	}
+
+	// Execute SSL probes
+	for i := range tmpl.SSL {
+		sslResults, err := e.executeSSL(ctx, tmpl, &tmpl.SSL[i], targetURL)
+		if err != nil && e.config.Verbose {
+			fmt.Printf("[!] SSL execution error: %v\n", err)
+		}
+		results = append(results, sslResults...)
+		if stopFirst && hasMatch(sslResults) {
+			return results, nil
+		}
+	}
+
+	// Execute WebSocket probes
+	for i := range tmpl.Websocket {
+		wsResult, err := e.websocketExecutor.Execute(ctx, targetURL, &tmpl.Websocket[i])
+		if err != nil && e.config.Verbose {
+			fmt.Printf("[!] WebSocket execution error: %v\n", err)
+		}
+		if wsResult != nil {
+			wsResult.TemplateID = tmpl.ID
+			wsResult.TemplateName = tmpl.Info.Name
+			wsResult.Severity = tmpl.Info.Severity
+			results = append(results, wsResult)
+			if stopFirst && wsResult.Matched {
+				return results, nil
+			}
+		}
+	}
+
+	// Execute WHOIS queries
+	for i := range tmpl.Whois {
+		whoisResult, err := e.whoisExecutor.Execute(ctx, targetURL, &tmpl.Whois[i])
+		if err != nil && e.config.Verbose {
+			fmt.Printf("[!] WHOIS execution error: %v\n", err)
+		}
+		if whoisResult != nil {
+			whoisResult.TemplateID = tmpl.ID
+			whoisResult.TemplateName = tmpl.Info.Name
+			whoisResult.Severity = tmpl.Info.Severity
+			results = append(results, whoisResult)
+			if stopFirst && whoisResult.Matched {
+				return results, nil
+			}
+		}
+	}
+
+	// Execute Headless steps
+	for i := range tmpl.Headless {
+		headlessResult, err := e.headlessExecutor.Execute(ctx, targetURL, &tmpl.Headless[i])
+		if err != nil && e.config.Verbose {
+			fmt.Printf("[!] Headless execution error: %v\n", err)
+		}
+		if headlessResult != nil {
+			headlessResult.TemplateID = tmpl.ID
+			headlessResult.TemplateName = tmpl.Info.Name
+			headlessResult.Severity = tmpl.Info.Severity
+			results = append(results, headlessResult)
+			if stopFirst && headlessResult.Matched {
+				return results, nil
+			}
 		}
 	}
 
@@ -223,6 +311,33 @@ func (e *Executor) executeNetwork(ctx context.Context, tmpl *templates.Template,
 	return []*templates.ExecutionResult{result}, nil
 }
 
+// executeSSL executes an SSL probe from a template and wraps the result into ExecutionResult.
+func (e *Executor) executeSSL(ctx context.Context, tmpl *templates.Template, probe *templates.SSLProbe, targetURL string) ([]*templates.ExecutionResult, error) {
+	sslResult, err := e.sslExecutor.Execute(ctx, targetURL, probe)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &templates.ExecutionResult{
+		TemplateID:    tmpl.ID,
+		TemplateName:  tmpl.Info.Name,
+		Severity:      tmpl.Info.Severity,
+		URL:           targetURL,
+		Matched:       sslResult.Matched,
+		MatchedAt:     fmt.Sprintf("%s:%s", sslResult.Host, sslResult.Port),
+		ExtractedData: sslResult.ExtractedData,
+		Timestamp:     time.Now(),
+		Request:       fmt.Sprintf("SSL %s:%s", sslResult.Host, sslResult.Port),
+		Response:      sslResult.Raw,
+	}
+
+	if sslResult.Error != nil {
+		result.Error = sslResult.Error
+	}
+
+	return []*templates.ExecutionResult{result}, nil
+}
+
 // executeWithFlow executes a template using the flow field for multi-protocol orchestration.
 func (e *Executor) executeWithFlow(ctx context.Context, tmpl *templates.Template, targetURL string) ([]*templates.ExecutionResult, error) {
 	flowEngine := NewFlowEngine()
@@ -244,8 +359,16 @@ func (e *Executor) executeWithFlow(ctx context.Context, tmpl *templates.Template
 			stepResults, err = e.executeFlowHTTP(ctx, tmpl, targetURL, step.Index)
 		case "dns":
 			stepResults, err = e.executeFlowDNS(ctx, tmpl, targetURL, step.Index)
+		case "ssl":
+			stepResults, err = e.executeFlowSSL(ctx, tmpl, targetURL, step.Index)
+		case "headless":
+			stepResults, err = e.executeFlowHeadless(ctx, tmpl, targetURL, step.Index)
+		case "websocket":
+			stepResults, err = e.executeFlowWebSocket(ctx, tmpl, targetURL, step.Index)
+		case "whois":
+			stepResults, err = e.executeFlowWHOIS(ctx, tmpl, targetURL, step.Index)
 		default:
-			// Protocols without executors yet return empty results
+			// Unrecognised protocols return empty results
 		}
 
 		if err != nil && e.config.Verbose {
@@ -292,6 +415,97 @@ func (e *Executor) executeFlowDNS(ctx context.Context, tmpl *templates.Template,
 			return results, err
 		}
 		results = append(results, dnsResults...)
+	}
+
+	return results, nil
+}
+
+// executeFlowSSL executes SSL blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowSSL(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.SSL {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		sslResults, err := e.executeSSL(ctx, tmpl, &tmpl.SSL[i], targetURL)
+		if err != nil {
+			return results, err
+		}
+		results = append(results, sslResults...)
+	}
+
+	return results, nil
+}
+
+// executeFlowHeadless executes Headless blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowHeadless(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.Headless {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		headlessResult, err := e.headlessExecutor.Execute(ctx, targetURL, &tmpl.Headless[i])
+		if err != nil {
+			return results, err
+		}
+		if headlessResult != nil {
+			headlessResult.TemplateID = tmpl.ID
+			headlessResult.TemplateName = tmpl.Info.Name
+			headlessResult.Severity = tmpl.Info.Severity
+			results = append(results, headlessResult)
+		}
+	}
+
+	return results, nil
+}
+
+// executeFlowWebSocket executes WebSocket blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowWebSocket(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.Websocket {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		wsResult, err := e.websocketExecutor.Execute(ctx, targetURL, &tmpl.Websocket[i])
+		if err != nil {
+			return results, err
+		}
+		if wsResult != nil {
+			wsResult.TemplateID = tmpl.ID
+			wsResult.TemplateName = tmpl.Info.Name
+			wsResult.Severity = tmpl.Info.Severity
+			results = append(results, wsResult)
+		}
+	}
+
+	return results, nil
+}
+
+// executeFlowWHOIS executes WHOIS blocks for a flow step.
+// When index is 0, all blocks are executed; otherwise only the 1-based index block is executed.
+func (e *Executor) executeFlowWHOIS(ctx context.Context, tmpl *templates.Template, targetURL string, index int) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+
+	for i := range tmpl.Whois {
+		if index > 0 && i+1 != index {
+			continue
+		}
+		whoisResult, err := e.whoisExecutor.Execute(ctx, targetURL, &tmpl.Whois[i])
+		if err != nil {
+			return results, err
+		}
+		if whoisResult != nil {
+			whoisResult.TemplateID = tmpl.ID
+			whoisResult.TemplateName = tmpl.Info.Name
+			whoisResult.Severity = tmpl.Info.Severity
+			results = append(results, whoisResult)
+		}
 	}
 
 	return results, nil
