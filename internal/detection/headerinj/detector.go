@@ -195,7 +195,7 @@ func (d *Detector) createFinding(target, param string, payload headerinj.Payload
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-15"}, // Testing for HTTP Splitting/Smuggling
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-113"},      // Improper Neutralization of CRLF Sequences in HTTP Headers
 	)
 

@@ -371,7 +371,7 @@ func (d *Detector) createFinding(target, param string, payload redirect.Payload,
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-04"}, // Client-side redirect testing
-		[]string{"A01:2021"},     // Broken Access Control
+		[]string{"A01:2025"},     // Broken Access Control
 		[]string{"CWE-601"},      // Open Redirect
 	)
 

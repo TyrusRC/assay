@@ -173,7 +173,7 @@ func (d *Detector) createFinding(targetURL, cname string, service subtakeover.Se
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-10"}, // Test for Subdomain Takeover
-		[]string{"A05:2021"},     // Security Misconfiguration
+		[]string{"A05:2025"},     // Security Misconfiguration
 		[]string{"CWE-284"},      // Improper Access Control
 	)
 

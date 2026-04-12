@@ -467,7 +467,7 @@ func (d *Detector) createFinding(target, param string, payload nosql.Payload, re
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-05"}, // Testing for NoSQL Injection
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-943"},      // Improper Neutralization of Special Elements in Data Query Logic
 	)
 

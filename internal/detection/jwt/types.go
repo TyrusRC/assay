@@ -160,7 +160,7 @@ func (f *JWTFinding) getWSTG() []string {
 }
 
 func (f *JWTFinding) getTop10() []string {
-	return []string{"A07:2021"}
+	return []string{"A07:2025"}
 }
 
 func (f *JWTFinding) getAPITop10() []string {

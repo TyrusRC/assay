@@ -231,7 +231,7 @@ func (d *Detector) createFinding(target string, payload exposure.Payload, resp *
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-04"},       // Testing for Backup and Unreferenced Files
-		[]string{"A05:2021"},           // Security Misconfiguration
+		[]string{"A05:2025"},           // Security Misconfiguration
 		[]string{"CWE-538", "CWE-200"}, // Insertion of Sensitive Info, Exposure of Sensitive Info
 	)
 

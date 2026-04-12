@@ -1,7 +1,6 @@
 # SKWS - Swiss Knife for Web Security
 
 ![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 A context-aware, behavior-based web security scanner. SKWS combines 31 built-in detection modules with external tool integration and maps every finding to OWASP frameworks (WSTG, Top 10 2021, API Top 10 2023).
 
@@ -12,7 +11,7 @@ flowchart TD
     CLI["CLI (cobra)"]
     Scanner["Scanner Engine"]
     HTTP["HTTP Client"]
-    Detection["Detection Modules\n(31 detectors)"]
+    Detection["Detection Modules (31 detectors)"]
     Tools["External Tools\n(SQLMap, Nuclei, ffuf)"]
     Templates["Template Engine"]
     Context["Context Analyzer"]
@@ -39,7 +38,6 @@ flowchart TD
 
     Reporter --> JSON["JSON"]
     Reporter --> Text["Text"]
-    Reporter --> SARIF["SARIF"]
 ```
 
 ## Features
@@ -52,7 +50,7 @@ flowchart TD
 - **External tool integration** - SQLMap, Nuclei, ffuf with normalized output
 - **Template engine** - extensible Nuclei-style templates for custom checks
 - **Technology fingerprinting** - wappalyzergo-based stack detection
-- **Multiple output formats** - JSON, text, and SARIF for CI/CD integration
+- **Multiple output formats** - JSON and text
 - **Proxy support** - route traffic through Burp, ZAP, or any HTTP proxy
 
 ## Scan Pipeline
@@ -88,7 +86,7 @@ sequenceDiagram
     Scanner->>OWASP: Map findings to frameworks
     OWASP-->>Scanner: WSTG + Top10 + API Top10
     Scanner->>Reporter: Generate report
-    Reporter-->>User: JSON / Text / SARIF
+    Reporter-->>User: JSON / Text
 ```
 
 ## Installation
@@ -134,9 +132,6 @@ skws scan --proxy http://127.0.0.1:8080 https://example.com
 # JSON output
 skws scan --json https://example.com > results.json
 
-# SARIF output for CI/CD
-skws scan --sarif https://example.com > results.sarif
-
 # Disable out-of-band testing
 skws scan --no-oob https://example.com
 
@@ -164,7 +159,6 @@ skws tools check
 | `--level` | | Scan level (1-5) | `1` |
 | `--risk` | | Risk level (1-3) | `1` |
 | `--json` | | JSON output | `false` |
-| `--sarif` | | SARIF output | `false` |
 | `--no-oob` | | Disable OOB testing | `false` |
 
 ## Detection Modules
@@ -282,8 +276,6 @@ flowchart LR
 
 **JSON** (`--json`) - Structured output with all finding fields for programmatic consumption.
 
-**SARIF** (`--sarif`) - Static Analysis Results Interchange Format for CI/CD integration with GitHub Actions, GitLab CI, and other platforms.
-
 ## Project Structure
 
 ```
@@ -297,7 +289,7 @@ internal/
   scanner/             Scan orchestration and concurrency
   templates/           Nuclei-style template engine
   tools/               External tool wrappers (SQLMap, Nuclei, ffuf)
-  reporting/           JSON, text, and SARIF report generation
+  reporting/           JSON and text report generation
 tests/
   integration/         Integration tests (require tool binaries)
   e2e/                 End-to-end scan tests
@@ -333,7 +325,3 @@ make bench            # Run benchmarks
 | Tests | All pass |
 | Coverage | >= 80% |
 | Race detector | No races |
-
-## License
-
-MIT

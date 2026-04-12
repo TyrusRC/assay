@@ -2,8 +2,10 @@ package http
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -662,5 +664,424 @@ func TestClient_ChainedBuilderMethods(t *testing.T) {
 	}
 	if !client.insecure {
 		t.Error("Insecure not set")
+	}
+}
+
+// --- Phase 3: Multi-Vector Injection Tests ---
+
+func TestClient_SendPayloadInHeader(t *testing.T) {
+	tests := []struct {
+		name       string
+		headerName string
+		payload    string
+		method     string
+	}{
+		{
+			name:       "inject into X-Forwarded-For header",
+			headerName: "X-Forwarded-For",
+			payload:    "127.0.0.1",
+			method:     "GET",
+		},
+		{
+			name:       "inject into Referer header",
+			headerName: "Referer",
+			payload:    "http://evil.com",
+			method:     "POST",
+		},
+		{
+			name:       "inject into custom header",
+			headerName: "X-Custom-Test",
+			payload:    "<script>alert(1)</script>",
+			method:     "GET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got := r.Header.Get(tt.headerName)
+				if got != tt.payload {
+					t.Errorf("Header %q = %q, want %q", tt.headerName, got, tt.payload)
+				}
+				if r.Method != tt.method {
+					t.Errorf("Method = %q, want %q", r.Method, tt.method)
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("header=" + got))
+			}))
+			defer server.Close()
+
+			client := NewClient()
+			resp, err := client.SendPayloadInHeader(context.Background(), server.URL, tt.headerName, tt.payload, tt.method)
+
+			if err != nil {
+				t.Fatalf("SendPayloadInHeader() error = %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+			if resp.Body != "header="+tt.payload {
+				t.Errorf("Body = %q, want %q", resp.Body, "header="+tt.payload)
+			}
+		})
+	}
+}
+
+func TestClient_SendPayloadInHeader_InvalidURL(t *testing.T) {
+	client := NewClient()
+	_, err := client.SendPayloadInHeader(context.Background(), "://invalid", "X-Test", "payload", "GET")
+	if err == nil {
+		t.Error("SendPayloadInHeader() should return error for invalid URL")
+	}
+}
+
+func TestClient_SendPayloadInCookie(t *testing.T) {
+	tests := []struct {
+		name       string
+		cookieName string
+		payload    string
+		method     string
+	}{
+		{
+			name:       "inject into session cookie",
+			cookieName: "session",
+			payload:    "abc123",
+			method:     "GET",
+		},
+		{
+			name:       "inject SQL payload into cookie",
+			cookieName: "user_id",
+			payload:    "1' OR '1'='1",
+			method:     "POST",
+		},
+		{
+			name:       "inject XSS payload into cookie",
+			cookieName: "token",
+			payload:    "<script>alert(1)</script>",
+			method:     "GET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				cookie := r.Header.Get("Cookie")
+				expected := tt.cookieName + "=" + tt.payload
+				if cookie != expected {
+					t.Errorf("Cookie = %q, want %q", cookie, expected)
+				}
+				if r.Method != tt.method {
+					t.Errorf("Method = %q, want %q", r.Method, tt.method)
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("ok"))
+			}))
+			defer server.Close()
+
+			client := NewClient()
+			resp, err := client.SendPayloadInCookie(context.Background(), server.URL, tt.cookieName, tt.payload, tt.method)
+
+			if err != nil {
+				t.Fatalf("SendPayloadInCookie() error = %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+		})
+	}
+}
+
+func TestClient_SendPayloadInCookie_InvalidURL(t *testing.T) {
+	client := NewClient()
+	_, err := client.SendPayloadInCookie(context.Background(), "://invalid", "session", "payload", "GET")
+	if err == nil {
+		t.Error("SendPayloadInCookie() should return error for invalid URL")
+	}
+}
+
+func TestClient_SendPayloadInJSON(t *testing.T) {
+	tests := []struct {
+		name       string
+		fieldPath  string
+		payload    string
+		wantBody   string
+	}{
+		{
+			name:      "inject into simple field",
+			fieldPath: "username",
+			payload:   "admin",
+			wantBody:  `{"username":"admin"}`,
+		},
+		{
+			name:      "inject SQL payload into field",
+			fieldPath: "search",
+			payload:   "' OR 1=1 --",
+			wantBody:  `{"search":"' OR 1=1 --"}`,
+		},
+		{
+			name:      "inject into id field",
+			fieldPath: "id",
+			payload:   "12345",
+			wantBody:  `{"id":"12345"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var receivedBody string
+			var receivedContentType string
+			var receivedMethod string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedMethod = r.Method
+				receivedContentType = r.Header.Get("Content-Type")
+				bodyBytes, _ := io.ReadAll(r.Body)
+				receivedBody = string(bodyBytes)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("ok"))
+			}))
+			defer server.Close()
+
+			client := NewClient()
+			resp, err := client.SendPayloadInJSON(context.Background(), server.URL, tt.fieldPath, tt.payload)
+
+			if err != nil {
+				t.Fatalf("SendPayloadInJSON() error = %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+			if receivedMethod != http.MethodPost {
+				t.Errorf("Method = %q, want POST", receivedMethod)
+			}
+			if receivedContentType != "application/json" {
+				t.Errorf("Content-Type = %q, want application/json", receivedContentType)
+			}
+			if receivedBody != tt.wantBody {
+				t.Errorf("Body = %q, want %q", receivedBody, tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestClient_SendPayloadInJSON_InvalidURL(t *testing.T) {
+	client := NewClient()
+	_, err := client.SendPayloadInJSON(context.Background(), "://invalid", "field", "payload")
+	if err == nil {
+		t.Error("SendPayloadInJSON() should return error for invalid URL")
+	}
+}
+
+func TestClient_SendPayloadInPath(t *testing.T) {
+	tests := []struct {
+		name         string
+		basePath     string
+		segmentIndex int
+		payload      string
+		method       string
+		wantPath     string
+	}{
+		{
+			name:         "replace second path segment",
+			basePath:     "/users/123/profile",
+			segmentIndex: 1,
+			payload:      "456",
+			method:       "GET",
+			wantPath:     "/users/456/profile",
+		},
+		{
+			name:         "replace first path segment",
+			basePath:     "/api/v1/items",
+			segmentIndex: 0,
+			payload:      "evil",
+			method:       "GET",
+			wantPath:     "/evil/v1/items",
+		},
+		{
+			name:         "replace last path segment",
+			basePath:     "/a/b/c",
+			segmentIndex: 2,
+			payload:      "injected",
+			method:       "POST",
+			wantPath:     "/a/b/injected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var receivedPath string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedPath = r.URL.Path
+				if r.Method != tt.method {
+					t.Errorf("Method = %q, want %q", r.Method, tt.method)
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("path=" + r.URL.Path))
+			}))
+			defer server.Close()
+
+			client := NewClient()
+			resp, err := client.SendPayloadInPath(context.Background(), server.URL+tt.basePath, tt.segmentIndex, tt.payload, tt.method)
+
+			if err != nil {
+				t.Fatalf("SendPayloadInPath() error = %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+			if receivedPath != tt.wantPath {
+				t.Errorf("Path = %q, want %q", receivedPath, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestClient_SendPayloadInPath_InvalidURL(t *testing.T) {
+	client := NewClient()
+	_, err := client.SendPayloadInPath(context.Background(), "://invalid", 0, "payload", "GET")
+	if err == nil {
+		t.Error("SendPayloadInPath() should return error for invalid URL")
+	}
+}
+
+func TestClient_SendPayloadInPath_IndexOutOfRange(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	_, err := client.SendPayloadInPath(context.Background(), server.URL+"/a/b", 5, "payload", "GET")
+	if err == nil {
+		t.Error("SendPayloadInPath() should return error for out-of-range segment index")
+	}
+}
+
+func TestClient_SendPayloadInPath_NegativeIndex(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	_, err := client.SendPayloadInPath(context.Background(), server.URL+"/a/b", -1, "payload", "GET")
+	if err == nil {
+		t.Error("SendPayloadInPath() should return error for negative segment index")
+	}
+}
+
+func TestClient_SendPayloadInXML(t *testing.T) {
+	tests := []struct {
+		name        string
+		elementName string
+		payload     string
+		wantBody    string
+	}{
+		{
+			name:        "inject into username element",
+			elementName: "username",
+			payload:     "admin",
+			wantBody:    "<username>admin</username>",
+		},
+		{
+			name:        "inject XXE payload",
+			elementName: "data",
+			payload:     "test-value",
+			wantBody:    "<data>test-value</data>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var receivedBody string
+			var receivedContentType string
+			var receivedMethod string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedMethod = r.Method
+				receivedContentType = r.Header.Get("Content-Type")
+				bodyBytes, _ := io.ReadAll(r.Body)
+				receivedBody = string(bodyBytes)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("ok"))
+			}))
+			defer server.Close()
+
+			client := NewClient()
+			resp, err := client.SendPayloadInXML(context.Background(), server.URL, tt.elementName, tt.payload)
+
+			if err != nil {
+				t.Fatalf("SendPayloadInXML() error = %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+			}
+			if receivedMethod != http.MethodPost {
+				t.Errorf("Method = %q, want POST", receivedMethod)
+			}
+			if receivedContentType != "text/xml" {
+				t.Errorf("Content-Type = %q, want text/xml", receivedContentType)
+			}
+			if receivedBody != tt.wantBody {
+				t.Errorf("Body = %q, want %q", receivedBody, tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestClient_SendPayloadInXML_InvalidURL(t *testing.T) {
+	client := NewClient()
+	_, err := client.SendPayloadInXML(context.Background(), "://invalid", "element", "payload")
+	if err == nil {
+		t.Error("SendPayloadInXML() should return error for invalid URL")
+	}
+}
+
+func TestClient_SendPayload_POST_BodyOnly(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// For POST, the payload should be in the body, NOT in the query string
+		queryVal := r.URL.Query().Get("id")
+		if queryVal != "" {
+			t.Errorf("POST should not have payload in query string, got id=%q", queryVal)
+		}
+		bodyBytes, _ := io.ReadAll(r.Body)
+		body := string(bodyBytes)
+		if !strings.Contains(body, "id=injected") {
+			t.Errorf("POST body should contain id=injected, got %q", body)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	resp, err := client.SendPayload(context.Background(), server.URL+"?id=original", "id", "injected", "POST")
+
+	if err != nil {
+		t.Fatalf("SendPayload() POST error = %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("StatusCode = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestClient_SendPayload_PUT_BodyOnly(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queryVal := r.URL.Query().Get("id")
+		if queryVal != "" {
+			t.Errorf("PUT should not have payload in query string, got id=%q", queryVal)
+		}
+		bodyBytes, _ := io.ReadAll(r.Body)
+		body := string(bodyBytes)
+		if !strings.Contains(body, "id=injected") {
+			t.Errorf("PUT body should contain id=injected, got %q", body)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	client := NewClient()
+	_, err := client.SendPayload(context.Background(), server.URL+"?id=original", "id", "injected", "PUT")
+	if err != nil {
+		t.Fatalf("SendPayload() PUT error = %v", err)
 	}
 }

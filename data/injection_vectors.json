@@ -1,0 +1,545 @@
+{
+  "metadata": {
+    "title": "Web Application Injection Vectors & Storage Mechanisms",
+    "version": "1.0.0",
+    "last_updated": "2026-01-31",
+    "sources": [
+      "OWASP WSTG v4.2 / v5.0-dev",
+      "OWASP Top 10:2025",
+      "OWASP API Security Top 10:2023",
+      "PortSwigger Web Security Academy",
+      "PayloadsAllTheThings",
+      "HackTricks"
+    ]
+  },
+  "injection_vector_categories": {
+    "url_parameters": {
+      "description": "Data injected via URL components",
+      "vectors": [
+        {
+          "name": "Query String Parameters",
+          "location": "URL after ? delimiter",
+          "example": "https://example.com/search?q=INJECT_HERE&page=1",
+          "affected_vulns": ["sqli", "xss", "ssrf", "lfi", "rfi", "open_redirect", "ssti", "nosql", "ldap", "xpath", "cmdi", "hpp"]
+        },
+        {
+          "name": "Path Parameters",
+          "location": "URL path segments",
+          "example": "https://example.com/users/INJECT_HERE/profile",
+          "affected_vulns": ["sqli", "lfi", "path_traversal", "idor", "ssti"]
+        },
+        {
+          "name": "Fragment Identifiers",
+          "location": "URL after # delimiter (client-side only)",
+          "example": "https://example.com/page#INJECT_HERE",
+          "affected_vulns": ["dom_xss", "open_redirect"]
+        },
+        {
+          "name": "URL Path Itself",
+          "location": "Full URL path before query string",
+          "example": "https://example.com/INJECT_HERE",
+          "affected_vulns": ["path_traversal", "lfi", "sqli", "xss"]
+        },
+        {
+          "name": "URL Encoded Values",
+          "location": "Percent-encoded data in URL",
+          "example": "https://example.com/search?q=%27%20OR%201%3D1--",
+          "affected_vulns": ["sqli", "xss", "lfi", "cmdi"]
+        },
+        {
+          "name": "Matrix Parameters",
+          "location": "Semicolon-separated params in path",
+          "example": "https://example.com/resource;param=INJECT_HERE",
+          "affected_vulns": ["sqli", "xss", "path_traversal"]
+        }
+      ]
+    },
+    "http_headers": {
+      "description": "Data injected via HTTP request headers",
+      "vectors": [
+        {
+          "name": "Host",
+          "header": "Host",
+          "example": "Host: INJECT_HERE",
+          "affected_vulns": ["host_header_injection", "ssrf", "cache_poisoning", "password_reset_poisoning", "open_redirect"],
+          "wstg": "WSTG-INPV-17"
+        },
+        {
+          "name": "Referer",
+          "header": "Referer",
+          "example": "Referer: https://INJECT_HERE",
+          "affected_vulns": ["sqli", "xss", "open_redirect", "log_injection"]
+        },
+        {
+          "name": "User-Agent",
+          "header": "User-Agent",
+          "example": "User-Agent: INJECT_HERE",
+          "affected_vulns": ["sqli", "xss", "log_injection", "stored_xss", "cmdi"]
+        },
+        {
+          "name": "X-Forwarded-For",
+          "header": "X-Forwarded-For",
+          "example": "X-Forwarded-For: INJECT_HERE",
+          "affected_vulns": ["sqli", "xss", "log_injection", "access_control_bypass", "ssrf"]
+        },
+        {
+          "name": "X-Forwarded-Host",
+          "header": "X-Forwarded-Host",
+          "example": "X-Forwarded-Host: INJECT_HERE",
+          "affected_vulns": ["host_header_injection", "cache_poisoning", "ssrf", "open_redirect"]
+        },
+        {
+          "name": "X-Original-URL / X-Rewrite-URL",
+          "header": "X-Original-URL",
+          "example": "X-Original-URL: INJECT_HERE",
+          "affected_vulns": ["access_control_bypass", "path_traversal"]
+        },
+        {
+          "name": "Cookie",
+          "header": "Cookie",
+          "example": "Cookie: session=INJECT_HERE",
+          "affected_vulns": ["sqli", "xss", "session_hijacking", "deserialization", "jwt_attacks"]
+        },
+        {
+          "name": "Accept",
+          "header": "Accept",
+          "example": "Accept: INJECT_HERE",
+          "affected_vulns": ["xxe", "content_type_confusion"]
+        },
+        {
+          "name": "Content-Type",
+          "header": "Content-Type",
+          "example": "Content-Type: INJECT_HERE",
+          "affected_vulns": ["xxe", "deserialization", "content_type_confusion", "request_smuggling"]
+        },
+        {
+          "name": "Authorization",
+          "header": "Authorization",
+          "example": "Authorization: Bearer INJECT_HERE",
+          "affected_vulns": ["jwt_attacks", "auth_bypass", "sqli"]
+        },
+        {
+          "name": "Content-Length",
+          "header": "Content-Length",
+          "example": "Content-Length: INJECT_HERE",
+          "affected_vulns": ["request_smuggling"]
+        },
+        {
+          "name": "Transfer-Encoding",
+          "header": "Transfer-Encoding",
+          "example": "Transfer-Encoding: chunked",
+          "affected_vulns": ["request_smuggling"]
+        },
+        {
+          "name": "Origin",
+          "header": "Origin",
+          "example": "Origin: https://INJECT_HERE",
+          "affected_vulns": ["cors_misconfiguration", "csrf"]
+        },
+        {
+          "name": "Accept-Language",
+          "header": "Accept-Language",
+          "example": "Accept-Language: INJECT_HERE",
+          "affected_vulns": ["sqli", "log_injection"]
+        },
+        {
+          "name": "If-None-Match / If-Modified-Since",
+          "header": "If-None-Match",
+          "example": "If-None-Match: INJECT_HERE",
+          "affected_vulns": ["cache_poisoning", "sqli"]
+        },
+        {
+          "name": "X-HTTP-Method-Override",
+          "header": "X-HTTP-Method-Override",
+          "example": "X-HTTP-Method-Override: PUT",
+          "affected_vulns": ["http_verb_tampering", "access_control_bypass"]
+        },
+        {
+          "name": "Forwarded",
+          "header": "Forwarded",
+          "example": "Forwarded: for=INJECT_HERE",
+          "affected_vulns": ["ssrf", "log_injection", "host_header_injection"]
+        },
+        {
+          "name": "X-Custom-Headers",
+          "header": "X-*",
+          "example": "X-Api-Key: INJECT_HERE",
+          "affected_vulns": ["sqli", "auth_bypass", "log_injection"]
+        }
+      ]
+    },
+    "request_body": {
+      "description": "Data injected via HTTP request body",
+      "vectors": [
+        {
+          "name": "Form URL-Encoded",
+          "content_type": "application/x-www-form-urlencoded",
+          "example": "username=INJECT_HERE&password=test",
+          "affected_vulns": ["sqli", "xss", "cmdi", "ldap", "ssti", "nosql", "mass_assignment"]
+        },
+        {
+          "name": "JSON Body",
+          "content_type": "application/json",
+          "example": "{\"user\": \"INJECT_HERE\", \"role\": \"admin\"}",
+          "affected_vulns": ["sqli", "nosql", "mass_assignment", "prototype_pollution", "deserialization", "ssti"]
+        },
+        {
+          "name": "XML Body",
+          "content_type": "application/xml",
+          "example": "<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><data>&xxe;</data>",
+          "affected_vulns": ["xxe", "xml_injection", "xpath", "sqli", "deserialization"]
+        },
+        {
+          "name": "Multipart Form Data",
+          "content_type": "multipart/form-data",
+          "example": "Content-Disposition: form-data; name=\"file\"; filename=\"INJECT_HERE\"",
+          "affected_vulns": ["file_upload", "path_traversal", "xss", "cmdi", "xxe"]
+        },
+        {
+          "name": "SOAP Envelope",
+          "content_type": "text/xml",
+          "example": "<soap:Envelope>...<param>INJECT_HERE</param>...</soap:Envelope>",
+          "affected_vulns": ["sqli", "xxe", "xml_injection", "xpath", "cmdi"]
+        },
+        {
+          "name": "GraphQL Query",
+          "content_type": "application/json",
+          "example": "{\"query\": \"{ user(id: \\\"INJECT_HERE\\\") { name } }\"}",
+          "affected_vulns": ["sqli", "nosql", "ssrf", "idor", "info_disclosure", "dos"]
+        },
+        {
+          "name": "gRPC Protobuf",
+          "content_type": "application/grpc",
+          "example": "Binary protobuf with injected field values",
+          "affected_vulns": ["sqli", "cmdi", "deserialization", "mass_assignment"]
+        },
+        {
+          "name": "Raw Text / CSV",
+          "content_type": "text/plain",
+          "example": "INJECT_HERE,field2,field3",
+          "affected_vulns": ["csv_injection", "formula_injection", "cmdi"]
+        },
+        {
+          "name": "YAML Body",
+          "content_type": "application/x-yaml",
+          "example": "key: !!python/object/apply:os.system ['INJECT_HERE']",
+          "affected_vulns": ["deserialization", "cmdi", "code_injection"]
+        }
+      ]
+    },
+    "file_uploads": {
+      "description": "Data injected via file upload mechanisms",
+      "vectors": [
+        {
+          "name": "Filename",
+          "location": "Content-Disposition filename parameter",
+          "example": "filename=\"../../../etc/cron.d/shell.sh\"",
+          "affected_vulns": ["path_traversal", "xss", "cmdi", "sqli"]
+        },
+        {
+          "name": "File Content",
+          "location": "Body of uploaded file",
+          "example": "PHP webshell, SVG with XSS, polyglot files",
+          "affected_vulns": ["rce", "xss", "xxe", "deserialization"]
+        },
+        {
+          "name": "MIME Type",
+          "location": "Content-Type in multipart",
+          "example": "Content-Type: image/svg+xml (with XSS payload)",
+          "affected_vulns": ["xss", "content_type_bypass", "xxe"]
+        },
+        {
+          "name": "File Extension",
+          "location": "Extension of uploaded file",
+          "example": "shell.php.jpg, shell.phtml, shell.php%00.jpg",
+          "affected_vulns": ["rce", "content_type_bypass"]
+        },
+        {
+          "name": "EXIF / Image Metadata",
+          "location": "EXIF tags in image files",
+          "example": "EXIF Comment field containing <script>alert(1)</script>",
+          "affected_vulns": ["stored_xss", "blind_xss", "sqli"]
+        },
+        {
+          "name": "Document Properties",
+          "location": "PDF/Office metadata fields",
+          "example": "Author field with XSS payload, macros in DOCX",
+          "affected_vulns": ["stored_xss", "rce", "ssrf"]
+        },
+        {
+          "name": "SVG File Content",
+          "location": "SVG XML body",
+          "example": "<svg onload=\"alert(1)\"/> or SVG with XXE",
+          "affected_vulns": ["xss", "xxe", "ssrf"]
+        },
+        {
+          "name": "ZIP/Archive Content",
+          "location": "Files within archives",
+          "example": "Zip slip: ../../evil.sh inside archive",
+          "affected_vulns": ["path_traversal", "rce", "dos"]
+        }
+      ]
+    },
+    "websocket_messages": {
+      "description": "Data injected via WebSocket communications",
+      "vectors": [
+        {
+          "name": "WebSocket Text Frame",
+          "location": "ws:// or wss:// message body",
+          "example": "{\"message\": \"INJECT_HERE\"}",
+          "affected_vulns": ["xss", "sqli", "cmdi", "nosql", "cswsh"],
+          "wstg": "WSTG-CLNT-10"
+        },
+        {
+          "name": "WebSocket Handshake Headers",
+          "location": "HTTP Upgrade request headers",
+          "example": "Sec-WebSocket-Protocol: INJECT_HERE",
+          "affected_vulns": ["header_injection", "auth_bypass"]
+        },
+        {
+          "name": "WebSocket Binary Frame",
+          "location": "Binary WebSocket message",
+          "example": "Serialized object in binary frame",
+          "affected_vulns": ["deserialization", "buffer_overflow"]
+        }
+      ]
+    },
+    "graphql": {
+      "description": "Data injected via GraphQL operations",
+      "vectors": [
+        {
+          "name": "Query Arguments",
+          "location": "Arguments in GraphQL queries",
+          "example": "{ user(id: \"1' OR '1'='1\") { name email } }",
+          "affected_vulns": ["sqli", "nosql", "idor"],
+          "wstg": "WSTG-APIT-01"
+        },
+        {
+          "name": "Mutation Inputs",
+          "location": "Input objects in mutations",
+          "example": "mutation { updateUser(input: {role: \"admin\"}) { id } }",
+          "affected_vulns": ["mass_assignment", "sqli", "auth_bypass"]
+        },
+        {
+          "name": "Variable Values",
+          "location": "Variables JSON block",
+          "example": "{\"variables\": {\"input\": \"INJECT_HERE\"}}",
+          "affected_vulns": ["sqli", "nosql", "ssrf", "cmdi"]
+        },
+        {
+          "name": "Directive Arguments",
+          "location": "Custom directive parameters",
+          "example": "@custom(value: \"INJECT_HERE\")",
+          "affected_vulns": ["sqli", "code_injection"]
+        },
+        {
+          "name": "Introspection Queries",
+          "location": "__schema and __type queries",
+          "example": "{ __schema { types { name fields { name } } } }",
+          "affected_vulns": ["info_disclosure"]
+        },
+        {
+          "name": "Batch / Alias Abuse",
+          "location": "Multiple aliased queries",
+          "example": "{ a1: login(p:\"pass1\") a2: login(p:\"pass2\") ... }",
+          "affected_vulns": ["brute_force", "rate_limit_bypass", "dos"]
+        },
+        {
+          "name": "Subscription Messages",
+          "location": "WebSocket subscription payloads",
+          "example": "subscription { onMessage(channel: \"INJECT_HERE\") { data } }",
+          "affected_vulns": ["auth_bypass", "idor", "dos"]
+        }
+      ]
+    },
+    "api_endpoints": {
+      "description": "Data injected via various API protocols",
+      "vectors": [
+        {
+          "name": "REST Path Parameters",
+          "location": "/api/v1/resource/{id}",
+          "example": "/api/v1/users/1%20OR%201=1/profile",
+          "affected_vulns": ["sqli", "idor", "path_traversal"]
+        },
+        {
+          "name": "REST Query Filters",
+          "location": "Filter/sort/pagination params",
+          "example": "/api/users?filter[role]=admin&sort=INJECT_HERE",
+          "affected_vulns": ["sqli", "nosql", "mass_assignment", "idor"]
+        },
+        {
+          "name": "SOAP Parameters",
+          "location": "SOAP body elements",
+          "example": "<getUserById><id>INJECT_HERE</id></getUserById>",
+          "affected_vulns": ["sqli", "xxe", "xml_injection", "xpath"]
+        },
+        {
+          "name": "gRPC Method Parameters",
+          "location": "Protobuf message fields",
+          "example": "message Request { string query = 1; } // query = INJECT_HERE",
+          "affected_vulns": ["sqli", "cmdi", "deserialization"]
+        },
+        {
+          "name": "OData Query Options",
+          "location": "$filter, $orderby, $expand",
+          "example": "/odata/Users?$filter=Name eq 'INJECT_HERE'",
+          "affected_vulns": ["sqli", "info_disclosure", "dos"]
+        },
+        {
+          "name": "JSON-RPC Parameters",
+          "location": "params array/object in JSON-RPC",
+          "example": "{\"method\":\"getUser\",\"params\":[\"INJECT_HERE\"]}",
+          "affected_vulns": ["sqli", "cmdi", "ssrf"]
+        }
+      ]
+    }
+  },
+  "storage_based_vectors": {
+    "cookies": {
+      "description": "Browser cookies used for state management",
+      "sub_vectors": [
+        {
+          "name": "Session Cookies",
+          "example": "PHPSESSID=INJECT_HERE; JSESSIONID=INJECT_HERE",
+          "risks": ["session_hijacking", "session_fixation", "sqli", "deserialization"],
+          "wstg": ["WSTG-SESS-01", "WSTG-SESS-02", "WSTG-SESS-03"]
+        },
+        {
+          "name": "Tracking / Analytics Cookies",
+          "example": "_ga=INJECT_HERE; _utm_source=INJECT_HERE",
+          "risks": ["xss", "log_injection", "privacy_violation"]
+        },
+        {
+          "name": "JWT in Cookies",
+          "example": "auth_token=eyJhbGciOiJIUzI1NiJ9.INJECT_HERE.signature",
+          "risks": ["jwt_none_alg", "jwt_alg_confusion", "jwt_kid_injection", "jwt_jku_spoofing"],
+          "wstg": ["WSTG-SESS-10"]
+        },
+        {
+          "name": "Serialized Objects in Cookies",
+          "example": "prefs=O:4:\"User\":2:{s:4:\"name\";s:5:\"admin\";}",
+          "risks": ["deserialization", "rce", "privilege_escalation"]
+        },
+        {
+          "name": "Preference / State Cookies",
+          "example": "theme=INJECT_HERE; lang=INJECT_HERE",
+          "risks": ["xss", "sqli", "ssti"]
+        }
+      ],
+      "attributes_to_test": [
+        "Secure flag missing (transmitted over HTTP)",
+        "HttpOnly flag missing (accessible via JavaScript)",
+        "SameSite attribute missing or Lax (CSRF possible)",
+        "Domain attribute too broad (cookie scope leak)",
+        "Path attribute too broad",
+        "Expires/Max-Age too long (persistent session)",
+        "Cookie value not encrypted or signed"
+      ]
+    },
+    "session_storage_server": {
+      "description": "Server-side session data storage",
+      "sub_vectors": [
+        {
+          "name": "Session Data in Database",
+          "risks": ["second_order_sqli", "deserialization", "session_fixation"]
+        },
+        {
+          "name": "Session Data in File System",
+          "risks": ["lfi", "deserialization", "session_fixation"]
+        },
+        {
+          "name": "Session Data in Redis/Memcached",
+          "risks": ["deserialization", "session_hijacking", "crlf_injection"]
+        },
+        {
+          "name": "Session Fixation",
+          "description": "Attacker sets a known session ID before victim authenticates",
+          "risks": ["session_hijacking", "account_takeover"],
+          "wstg": ["WSTG-SESS-03"]
+        }
+      ]
+    },
+    "browser_storage": {
+      "description": "Client-side storage mechanisms accessible via JavaScript",
+      "sub_vectors": [
+        {
+          "name": "localStorage",
+          "description": "Persistent key-value storage per origin, no expiry",
+          "capacity": "5-10 MB",
+          "risks": ["dom_xss", "token_theft", "data_tampering", "prototype_pollution"],
+          "wstg": ["WSTG-CLNT-12"]
+        },
+        {
+          "name": "sessionStorage",
+          "description": "Per-tab key-value storage, cleared on tab close",
+          "capacity": "5-10 MB",
+          "risks": ["dom_xss", "token_theft", "data_tampering"],
+          "wstg": ["WSTG-CLNT-12"]
+        },
+        {
+          "name": "IndexedDB",
+          "description": "Structured client-side database with large capacity",
+          "capacity": "50MB+",
+          "risks": ["dom_xss", "data_exfiltration", "stored_xss_via_idb", "prototype_pollution"]
+        },
+        {
+          "name": "Cache Storage (Service Worker)",
+          "description": "Request/response cache managed by service workers",
+          "capacity": "Origin-dependent",
+          "risks": ["cache_poisoning", "stale_content_serving", "offline_attack"]
+        },
+        {
+          "name": "Web SQL / SQLite",
+          "description": "Deprecated SQL database in browser (Chrome legacy)",
+          "capacity": "Varies",
+          "risks": ["sqli", "data_exfiltration"]
+        },
+        {
+          "name": "Broadcast Channel / SharedWorker",
+          "description": "Cross-tab communication channels",
+          "risks": ["data_injection_across_tabs", "xss_propagation"]
+        }
+      ]
+    },
+    "other_storage": {
+      "description": "Additional data persistence mechanisms",
+      "sub_vectors": [
+        {
+          "name": "Database Records",
+          "description": "Data stored in backend databases rendered later",
+          "risks": ["second_order_sqli", "stored_xss", "blind_xss"]
+        },
+        {
+          "name": "Log Files",
+          "description": "Application/server logs containing user input",
+          "risks": ["log_injection", "log_forging", "blind_xss", "lfi_to_rce"]
+        },
+        {
+          "name": "Email Content",
+          "description": "User input embedded in emails",
+          "risks": ["email_header_injection", "stored_xss_in_webmail", "phishing"]
+        },
+        {
+          "name": "File Metadata (EXIF/Properties)",
+          "description": "Metadata fields in uploaded files",
+          "risks": ["stored_xss", "blind_xss", "sqli"]
+        },
+        {
+          "name": "DNS Records / TXT Records",
+          "description": "DNS-based data exfiltration or injection",
+          "risks": ["dns_rebinding", "data_exfiltration", "ssrf"]
+        },
+        {
+          "name": "HTTP Cache (CDN/Proxy)",
+          "description": "Cached HTTP responses at CDN or proxy layer",
+          "risks": ["cache_poisoning", "web_cache_deception", "xss_via_cache"]
+        },
+        {
+          "name": "Message Queues",
+          "description": "Async message systems (RabbitMQ, Kafka, SQS)",
+          "risks": ["deserialization", "injection_via_delayed_processing"]
+        }
+      ]
+    }
+  }
+}

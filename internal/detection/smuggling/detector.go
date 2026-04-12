@@ -59,7 +59,7 @@ func (d *Detector) Description() string {
 func (d *Detector) OWASPMapping() OWASPMapping {
 	return OWASPMapping{
 		WSTG:     []string{"WSTG-INPV-15"},
-		Top10:    []string{"A05:2021-Security Misconfiguration"},
+		Top10:    []string{"A05:2025-Security Misconfiguration"},
 		APITop10: []string{"API8:2023-Security Misconfiguration"},
 		CWE:      []string{"CWE-444"},
 	}

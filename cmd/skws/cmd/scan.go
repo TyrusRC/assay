@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/url"
@@ -27,8 +28,14 @@ var (
 	level       int
 	risk        int
 	jsonOutput  bool
-	sarifOutput bool
+	htmlOutput  bool
 	disableOOB  bool
+	noDiscovery bool
+	storageInj  bool
+	chromePath  string
+	targetList  string
+	templateDir string
+	profile     string
 )
 
 // scanCmd represents the scan command.
@@ -53,9 +60,14 @@ Examples:
   # Aggressive scan (level 5, risk 3)
   skws scan --level 5 --risk 3 https://example.com/page?id=1
 
-  # Output as SARIF for CI/CD
-  skws scan --sarif https://example.com/page?id=1`,
-	Args: cobra.ExactArgs(1),
+  # Scan from a target list file
+  skws scan -l targets.txt
+
+  # Scan from stdin
+  cat targets.txt | skws scan
+
+`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runScan,
 }
 
@@ -72,20 +84,32 @@ func init() {
 	scanCmd.Flags().IntVar(&level, "level", 1, "Scan level (1-5)")
 	scanCmd.Flags().IntVar(&risk, "risk", 1, "Risk level (1-3)")
 	scanCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
-	scanCmd.Flags().BoolVar(&sarifOutput, "sarif", false, "Output results as SARIF (for CI/CD integration)")
-	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
+	scanCmd.Flags().BoolVar(&htmlOutput, "html", false, "Output results as HTML report")
+scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
+	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
+	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
+	scanCmd.Flags().StringVar(&chromePath, "chrome-path", "", "Explicit Chrome/Chromium binary path for headless testing")
+	scanCmd.Flags().StringVarP(&targetList, "list", "l", "", "File containing target URLs (one per line)")
+	scanCmd.Flags().StringVar(&templateDir, "templates", "", "Path to nuclei-style template directory")
+	scanCmd.Flags().StringVar(&profile, "profile", "", "Scan profile (quick, normal, thorough)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
-	target := args[0]
-
-	// Validate target URL
-	parsedURL, err := url.Parse(target)
-	if err != nil || parsedURL.Host == "" {
-		return fmt.Errorf("invalid target URL: %s (must include scheme, e.g. https://example.com)", target)
+	// Collect targets from args, file, or stdin.
+	targets, err := collectTargets(args)
+	if err != nil {
+		return err
 	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("unsupported URL scheme %q: only http and https are supported", parsedURL.Scheme)
+
+	// Validate each target URL.
+	for _, target := range targets {
+		parsedURL, err := url.Parse(target)
+		if err != nil || parsedURL.Host == "" {
+			return fmt.Errorf("invalid target URL: %s (must include scheme, e.g. https://example.com)", target)
+		}
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return fmt.Errorf("unsupported URL scheme %q: only http and https are supported", parsedURL.Scheme)
+		}
 	}
 
 	// Validate level and risk bounds
@@ -123,19 +147,38 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	s.SetConfig(config)
 
-	// Configure internal scanner (OOB enabled by default, can disable with --no-oob)
+	// Configure internal scanner - start with profile if specified
 	internalConfig := scanner.DefaultInternalConfig()
+	if profile != "" {
+		p := scanner.GetProfile(profile)
+		internalConfig = p.Config
+	}
+	if templateDir != "" {
+		internalConfig.EnableTemplates = true
+		internalConfig.TemplatePaths = []string{templateDir}
+	}
 	if disableOOB {
 		internalConfig.EnableOOB = false
+	}
+	if noDiscovery {
+		internalConfig.EnableDiscovery = false
+	}
+	if storageInj {
+		internalConfig.EnableStorageInj = true
+	}
+	if chromePath != "" {
+		internalConfig.ChromePath = chromePath
 	}
 	internalConfig.Verbose = verbose
 	if err := s.SetInternalConfig(internalConfig); err != nil && verbose {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to configure internal scanner: %v\n", err)
 	}
 
-	// Add target
-	if err := s.AddTarget(target); err != nil {
-		return fmt.Errorf("invalid target: %w", err)
+	// Add all targets
+	for _, target := range targets {
+		if err := s.AddTarget(target); err != nil {
+			return fmt.Errorf("invalid target: %w", err)
+		}
 	}
 
 	// Register tools
@@ -158,8 +201,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}()
 
 	// Print scan start
-	if !jsonOutput && !sarifOutput {
-		printScanHeader(target)
+	if !jsonOutput && !htmlOutput {
+		if len(targets) == 1 {
+			printScanHeader(targets[0])
+		} else {
+			printScanHeader(fmt.Sprintf("%d targets", len(targets)))
+		}
 	}
 
 	// Run scan
@@ -175,11 +222,59 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return report.WriteJSON(os.Stdout)
 	}
 
-	if sarifOutput {
-		return report.WriteSARIF(os.Stdout)
+	if htmlOutput {
+		return report.WriteHTML(os.Stdout)
 	}
 
 	return report.WriteText(os.Stdout)
+}
+
+// collectTargets gathers target URLs from CLI args, a file, or stdin.
+func collectTargets(args []string) ([]string, error) {
+	// Case 1: target list file specified via --list / -l
+	if targetList != "" {
+		f, err := os.Open(targetList)
+		if err != nil {
+			return nil, fmt.Errorf("cannot open target list file: %w", err)
+		}
+		defer f.Close()
+		targets := readTargetsFromReader(f)
+		if len(targets) == 0 {
+			return nil, fmt.Errorf("no valid targets found in %s", targetList)
+		}
+		return targets, nil
+	}
+
+	// Case 2: target provided as positional argument
+	if len(args) > 0 {
+		return []string{args[0]}, nil
+	}
+
+	// Case 3: read from stdin if piped
+	stat, err := os.Stdin.Stat()
+	if err == nil && stat.Mode()&os.ModeCharDevice == 0 {
+		targets := readTargetsFromReader(os.Stdin)
+		if len(targets) > 0 {
+			return targets, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no targets provided: specify a URL argument, use --list, or pipe URLs via stdin")
+}
+
+// readTargetsFromReader reads URLs from an io.Reader, one per line.
+// Empty lines and lines starting with '#' are skipped.
+func readTargetsFromReader(r *os.File) []string {
+	var targets []string
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		targets = append(targets, line)
+	}
+	return targets
 }
 
 func registerTools(s *scanner.Scanner) {

@@ -207,18 +207,6 @@ install-tools:
 	go install mvdan.cc/gofumpt@latest
 	@echo "Development tools installed!"
 
-# ==================== Docker ====================
-
-## docker-build: Build Docker image
-docker-build:
-	@echo "Building Docker image..."
-	docker build -t $(BINARY_NAME):$(VERSION) .
-
-## docker-run: Run Docker container
-docker-run:
-	@echo "Running Docker container..."
-	docker run --rm -it $(BINARY_NAME):$(VERSION) $(ARGS)
-
 # ==================== Clean ====================
 
 ## clean: Remove build artifacts
@@ -245,23 +233,6 @@ docs:
 	else \
 		echo "godoc not installed. Install with: go install golang.org/x/tools/cmd/godoc@latest"; \
 	fi
-
-# ==================== Release ====================
-
-## release: Create a release (requires goreleaser)
-release:
-	@echo "Creating release..."
-	@if command -v goreleaser >/dev/null 2>&1; then \
-		goreleaser release --clean; \
-	else \
-		echo "goreleaser not installed. Install from https://goreleaser.com"; \
-		exit 1; \
-	fi
-
-## release-snapshot: Create a snapshot release (for testing)
-release-snapshot:
-	@echo "Creating snapshot release..."
-	goreleaser release --snapshot --clean
 
 # ==================== Help ====================
 

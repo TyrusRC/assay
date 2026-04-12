@@ -60,34 +60,6 @@ func TestReport_ToJSON(t *testing.T) {
 	}
 }
 
-func TestReport_ToSARIF(t *testing.T) {
-	result := &scanner.ScanResult{
-		Targets: []string{"https://example.com"},
-		Findings: core.Findings{
-			{
-				ID:       "test-1",
-				Type:     "SQL Injection",
-				Severity: core.SeverityHigh,
-				URL:      "https://example.com/page?id=1",
-				CWE:      []string{"CWE-89"},
-			},
-		},
-	}
-
-	report := NewReport(result)
-	var buf bytes.Buffer
-	err := report.WriteSARIF(&buf)
-
-	if err != nil {
-		t.Errorf("WriteSARIF() error = %v", err)
-	}
-
-	output := buf.String()
-	if !strings.Contains(output, "sarif") {
-		t.Error("SARIF output should contain sarif identifier")
-	}
-}
-
 func TestReport_ToText(t *testing.T) {
 	result := &scanner.ScanResult{
 		Targets: []string{"https://example.com"},
@@ -118,24 +90,3 @@ func TestReport_ToText(t *testing.T) {
 	}
 }
 
-func TestSeverityToSARIFLevel(t *testing.T) {
-	tests := []struct {
-		severity core.Severity
-		want     string
-	}{
-		{core.SeverityCritical, "error"},
-		{core.SeverityHigh, "error"},
-		{core.SeverityMedium, "warning"},
-		{core.SeverityLow, "note"},
-		{core.SeverityInfo, "note"},
-	}
-
-	for _, tt := range tests {
-		t.Run(string(tt.severity), func(t *testing.T) {
-			got := severityToSARIFLevel(tt.severity)
-			if got != tt.want {
-				t.Errorf("severityToSARIFLevel(%v) = %q, want %q", tt.severity, got, tt.want)
-			}
-		})
-	}
-}

@@ -309,7 +309,7 @@ func (d *Detector) createDefaultCredFinding(loginURL string, cred auth.DefaultCr
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-ATHN-02"}, // Testing for Default Credentials
-		[]string{"A07:2021"},     // Identification and Authentication Failures
+		[]string{"A07:2025"},     // Identification and Authentication Failures
 		[]string{"CWE-798"},      // Use of Hard-coded Credentials
 	)
 
@@ -339,7 +339,7 @@ func (d *Detector) createEnumerationFinding(loginURL string, payload auth.Enumer
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-IDNT-04"}, // Testing for Account Enumeration
-		[]string{"A07:2021"},     // Identification and Authentication Failures
+		[]string{"A07:2025"},     // Identification and Authentication Failures
 		[]string{"CWE-204"},      // Observable Response Discrepancy
 	)
 
@@ -366,7 +366,7 @@ func (d *Detector) createRateLimitFinding(loginURL string, attempts int) *core.F
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-ATHN-03"}, // Testing for Weak Lock Out Mechanism
-		[]string{"A07:2021"},     // Identification and Authentication Failures
+		[]string{"A07:2025"},     // Identification and Authentication Failures
 		[]string{"CWE-307"},      // Improper Restriction of Excessive Authentication Attempts
 	)
 

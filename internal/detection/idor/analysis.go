@@ -477,7 +477,7 @@ func (d *Detector) createFinding(targetURL string, param IDParameter, evidence *
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-ATHZ-04"}, // Testing for Insecure Direct Object References
-		[]string{"A01:2021"},     // Broken Access Control
+		[]string{"A01:2025"},     // Broken Access Control
 		[]string{"CWE-639"},      // Authorization Bypass Through User-Controlled Key
 	)
 

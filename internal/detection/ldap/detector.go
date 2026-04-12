@@ -186,7 +186,7 @@ func (d *Detector) createFinding(target, param string, payload ldap.Payload, res
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-06"}, // Testing for LDAP Injection
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-90"},       // Improper Neutralization of Special Elements in LDAP Query
 	)
 

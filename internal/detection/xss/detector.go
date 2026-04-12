@@ -342,7 +342,7 @@ func (d *Detector) createFinding(target, param string, payload xss.Payload, resp
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-02"}, // XSS testing
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-79"},       // XSS
 	)
 

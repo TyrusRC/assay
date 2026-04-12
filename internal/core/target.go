@@ -151,11 +151,26 @@ func (e *EntryPoint) GetParametersByLocation(location string) []Parameter {
 
 // Parameter represents an input parameter.
 type Parameter struct {
-	Name     string `json:"name"`
-	Location string `json:"location"` // query, body, header, cookie, path
-	Value    string `json:"value"`
-	Type     string `json:"type,omitempty"` // string, number, boolean, array, object
+	Name           string `json:"name"`
+	Location       string `json:"location"` // query, body, header, cookie, path
+	Value          string `json:"value"`
+	Type           string `json:"type,omitempty"`           // string, number, boolean, array, object
+	Reflected      bool   `json:"reflected,omitempty"`      // whether value is reflected in response
+	Classification string `json:"classification,omitempty"` // detected category (id, file, url, search, command, template, generic)
+	ContentType    string `json:"content_type,omitempty"`   // response content type when this param was probed
+	SegmentIndex   int    `json:"segment_index,omitempty"`  // for path params, the segment position
 }
+
+// Parameter classification constants.
+const (
+	ParamClassID       = "id"
+	ParamClassFile     = "file"
+	ParamClassURL      = "url"
+	ParamClassSearch   = "search"
+	ParamClassCommand  = "command"
+	ParamClassTemplate = "template"
+	ParamClassGeneric  = "generic"
+)
 
 // vulnerableExactNames contains parameter names that suggest vulnerability.
 var vulnerableExactNames = map[string]bool{
@@ -170,8 +185,13 @@ var vulnerableSubstrings = []string{
 	"user", "file", "path", "url", "_id",
 }
 
-// IsPotentiallyVulnerable checks if the parameter name suggests vulnerability.
+// IsPotentiallyVulnerable checks if the parameter name or classification suggests vulnerability.
 func (p *Parameter) IsPotentiallyVulnerable() bool {
+	// Classification-based check takes precedence when set
+	if p.Classification != "" {
+		return p.Classification != ParamClassGeneric
+	}
+
 	nameLower := strings.ToLower(p.Name)
 
 	if vulnerableExactNames[nameLower] {
@@ -187,11 +207,62 @@ func (p *Parameter) IsPotentiallyVulnerable() bool {
 	return false
 }
 
+// classificationExactNames maps exact parameter names to classifications.
+var classificationExactNames = map[string]string{
+	"id": ParamClassID, "uid": ParamClassID, "pid": ParamClassID,
+	"file": ParamClassFile, "document": ParamClassFile, "doc": ParamClassFile,
+	"include": ParamClassFile, "page": ParamClassGeneric, "dir": ParamClassFile,
+	"url": ParamClassURL, "uri": ParamClassURL, "redirect": ParamClassURL,
+	"callback": ParamClassURL, "return": ParamClassURL, "next": ParamClassURL,
+	"dest": ParamClassURL, "target": ParamClassURL, "href": ParamClassURL,
+	"src": ParamClassURL, "link": ParamClassURL,
+	"query": ParamClassSearch, "search": ParamClassSearch, "q": ParamClassSearch,
+	"keyword": ParamClassSearch, "term": ParamClassSearch,
+	"cmd": ParamClassCommand, "exec": ParamClassCommand, "command": ParamClassCommand,
+	"run": ParamClassCommand, "execute": ParamClassCommand,
+	"template": ParamClassTemplate, "tpl": ParamClassTemplate, "view": ParamClassTemplate,
+}
+
+// classificationSubstrings maps substrings to classifications.
+var classificationSubstrings = []struct {
+	substr string
+	class  string
+}{
+	{"_id", ParamClassID},
+	{"Id", ParamClassID},
+	{"file", ParamClassFile},
+	{"path", ParamClassFile},
+	{"fname", ParamClassFile},
+	{"redirect", ParamClassURL},
+	{"url", ParamClassURL},
+}
+
+// Classify sets the Classification field based on parameter name heuristics.
+func (p *Parameter) Classify() {
+	nameLower := strings.ToLower(p.Name)
+
+	if class, ok := classificationExactNames[nameLower]; ok {
+		p.Classification = class
+		return
+	}
+
+	for _, entry := range classificationSubstrings {
+		if strings.Contains(p.Name, entry.substr) || strings.Contains(nameLower, strings.ToLower(entry.substr)) {
+			p.Classification = entry.class
+			return
+		}
+	}
+
+	p.Classification = ParamClassGeneric
+}
+
 // ParameterLocation constants.
 const (
-	ParamLocationQuery  = "query"
-	ParamLocationBody   = "body"
-	ParamLocationHeader = "header"
-	ParamLocationCookie = "cookie"
-	ParamLocationPath   = "path"
+	ParamLocationQuery          = "query"
+	ParamLocationBody           = "body"
+	ParamLocationHeader         = "header"
+	ParamLocationCookie         = "cookie"
+	ParamLocationPath           = "path"
+	ParamLocationLocalStorage   = "localstorage"
+	ParamLocationSessionStorage = "sessionstorage"
 )

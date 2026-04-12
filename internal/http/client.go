@@ -298,6 +298,8 @@ func (c *Client) SendRawBody(ctx context.Context, url, method, body, contentType
 }
 
 // SendPayload sends a request with a payload injected into a parameter.
+// For GET requests, the payload is placed in the query string.
+// For POST/PUT/PATCH requests, the payload goes into the form body only.
 func (c *Client) SendPayload(ctx context.Context, baseURL, param, payload, method string) (*Response, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -308,12 +310,16 @@ func (c *Client) SendPayload(ctx context.Context, baseURL, param, payload, metho
 	originalValue := query.Get(param)
 
 	// For GET and similar methods, inject into query parameters.
-	// For POST and similar methods, inject into the request body.
+	// For POST and similar methods, inject into the request body only.
 	req := &Request{Method: method}
 	if method == "POST" || method == "PUT" || method == "PATCH" {
-		query.Set(param, payload)
+		bodyParams := url.Values{}
+		bodyParams.Set(param, payload)
+		// Strip the injected param from the URL query to avoid duplication
+		query.Del(param)
+		parsedURL.RawQuery = query.Encode()
 		req.URL = parsedURL.String()
-		req.Body = query.Encode()
+		req.Body = bodyParams.Encode()
 		req.ContentType = "application/x-www-form-urlencoded"
 	} else {
 		query.Set(param, payload)
@@ -327,4 +333,96 @@ func (c *Client) SendPayload(ctx context.Context, baseURL, param, payload, metho
 	}
 
 	return resp, err
+}
+
+// SendPayloadInHeader sends a request with a payload injected as an HTTP header value.
+func (c *Client) SendPayloadInHeader(ctx context.Context, baseURL, headerName, payload, method string) (*Response, error) {
+	req := &Request{
+		Method:  method,
+		URL:     baseURL,
+		Headers: map[string]string{headerName: payload},
+	}
+	return c.Do(ctx, req)
+}
+
+// SendPayloadInCookie sends a request with a payload injected as a cookie value.
+func (c *Client) SendPayloadInCookie(ctx context.Context, baseURL, cookieName, payload, method string) (*Response, error) {
+	cookieStr := cookieName + "=" + payload
+	req := &Request{
+		Method:  method,
+		URL:     baseURL,
+		Headers: map[string]string{"Cookie": cookieStr},
+	}
+	return c.Do(ctx, req)
+}
+
+// SendPayloadInJSON sends a POST request with a JSON body containing the payload
+// at the specified field path. The fieldPath is a single-level field name.
+func (c *Client) SendPayloadInJSON(ctx context.Context, baseURL, fieldPath, payload string) (*Response, error) {
+	// Escape payload for JSON string value
+	escaped := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		"\n", `\n`,
+		"\r", `\r`,
+		"\t", `\t`,
+	).Replace(payload)
+
+	jsonBody := fmt.Sprintf(`{%q:%q}`, fieldPath, escaped)
+
+	req := &Request{
+		Method:      "POST",
+		URL:         baseURL,
+		Body:        jsonBody,
+		ContentType: "application/json",
+	}
+	return c.Do(ctx, req)
+}
+
+// SendPayloadInPath sends a request with a payload injected into a URL path segment.
+// The segmentIndex is 0-based and counts non-empty segments after splitting on '/'.
+func (c *Client) SendPayloadInPath(ctx context.Context, baseURL string, segmentIndex int, payload, method string) (*Response, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Split path into non-empty segments
+	rawSegments := strings.Split(parsedURL.Path, "/")
+	var segments []string
+	var segmentPositions []int
+	for i, seg := range rawSegments {
+		if seg != "" {
+			segments = append(segments, seg)
+			segmentPositions = append(segmentPositions, i)
+		}
+	}
+
+	if segmentIndex < 0 || segmentIndex >= len(segments) {
+		return nil, fmt.Errorf("segment index %d out of range (path has %d segments)", segmentIndex, len(segments))
+	}
+
+	// Replace the segment at the specified index
+	rawSegments[segmentPositions[segmentIndex]] = payload
+	parsedURL.Path = strings.Join(rawSegments, "/")
+
+	req := &Request{
+		Method: method,
+		URL:    parsedURL.String(),
+	}
+	return c.Do(ctx, req)
+}
+
+// SendPayloadInXML sends a POST request with an XML body wrapping the payload
+// in the specified element name.
+func (c *Client) SendPayloadInXML(ctx context.Context, baseURL, elementName, payload string) (*Response, error) {
+	xmlBody := fmt.Sprintf("<%s>%s</%s>", elementName, payload, elementName)
+
+	req := &Request{
+		Method:      "POST",
+		URL:         baseURL,
+		Body:        xmlBody,
+		ContentType: "text/xml",
+	}
+	return c.Do(ctx, req)
 }

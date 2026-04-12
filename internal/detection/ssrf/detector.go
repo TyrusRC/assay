@@ -379,7 +379,7 @@ func (d *Detector) createFinding(target, param string, payload ssrf.Payload, res
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"}, // SSRF testing
-		[]string{"A10:2021"},     // Server-Side Request Forgery
+		[]string{"A10:2025"},     // Server-Side Request Forgery
 		[]string{"CWE-918"},      // SSRF
 	)
 

@@ -43,7 +43,6 @@ dist/
 # Scanner output
 reports/
 findings/
-*.sarif
 *.har
 
 # Tool outputs
@@ -56,8 +55,14 @@ findings/
 credentials.json
 secrets.yaml
 
+# Claude Code
+.claude/
+
 # Binary
 /skws
+
+# Plans and docs
+docs/superpowers/
 
 # Markdown files (except CLAUDE.md and README.md)
 *.md

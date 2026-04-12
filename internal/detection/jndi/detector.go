@@ -265,7 +265,7 @@ func (d *Detector) createFinding(target, injPoint, injType, payload string, resp
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-11"},       // Testing for Code Injection
-		[]string{"A06:2021"},           // Vulnerable and Outdated Components
+		[]string{"A06:2025"},           // Vulnerable and Outdated Components
 		[]string{"CWE-917", "CWE-502"}, // Expression Language Injection, Deserialization
 	)
 

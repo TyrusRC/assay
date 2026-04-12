@@ -362,7 +362,7 @@ func (d *Detector) createFinding(target, param string, payload lfi.Payload, resp
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-11"},     // LFI testing
-		[]string{"A01:2021"},         // Broken Access Control
+		[]string{"A01:2025"},         // Broken Access Control
 		[]string{"CWE-22", "CWE-98"}, // Path Traversal, LFI
 	)
 

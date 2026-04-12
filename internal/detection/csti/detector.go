@@ -172,7 +172,7 @@ func (d *Detector) createFinding(target, param string, payload csti.Payload, res
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-11"}, // Testing for Client-side Template Injection
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-79"},       // Improper Neutralization of Input During Web Page Generation
 	)
 

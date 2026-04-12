@@ -263,7 +263,7 @@ func (d *Detector) createFinding(target, param string, payload cmdi.Payload, res
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-12"}, // OS Command Injection
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-78"},       // OS Command Injection
 	)
 

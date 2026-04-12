@@ -130,7 +130,7 @@ func (d *Detector) createFinding(target, param string, payload ssti.Payload, res
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-18"},       // Server-Side Template Injection
-		[]string{"A03:2021"},           // Injection
+		[]string{"A03:2025"},           // Injection
 		[]string{"CWE-94", "CWE-1336"}, // Code Injection, Template Injection
 	)
 

@@ -224,7 +224,7 @@ func (d *Detector) createFinding(checkURL, bucketName string, check cloud.Bucket
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-11"},       // Test Cloud Storage
-		[]string{"A05:2021"},           // Security Misconfiguration
+		[]string{"A05:2025"},           // Security Misconfiguration
 		[]string{"CWE-284", "CWE-732"}, // Improper Access Control, Incorrect Permission Assignment
 	)
 

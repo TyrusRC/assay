@@ -146,6 +146,30 @@ func TestEntryPoint_HasParameter(t *testing.T) {
 	}
 }
 
+func TestParameterLocationConstants(t *testing.T) {
+	tests := []struct {
+		name     string
+		constant string
+		expected string
+	}{
+		{"query", ParamLocationQuery, "query"},
+		{"body", ParamLocationBody, "body"},
+		{"header", ParamLocationHeader, "header"},
+		{"cookie", ParamLocationCookie, "cookie"},
+		{"path", ParamLocationPath, "path"},
+		{"localstorage", ParamLocationLocalStorage, "localstorage"},
+		{"sessionstorage", ParamLocationSessionStorage, "sessionstorage"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.constant != tt.expected {
+				t.Errorf("ParamLocation constant = %q, want %q", tt.constant, tt.expected)
+			}
+		})
+	}
+}
+
 func TestParameter_IsPotentiallyVulnerable(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -172,5 +196,128 @@ func TestParameter_IsPotentiallyVulnerable(t *testing.T) {
 					tt.paramName, !tt.vulnerable, tt.vulnerable)
 			}
 		})
+	}
+}
+
+func TestParameter_IsPotentiallyVulnerable_WithClassification(t *testing.T) {
+	tests := []struct {
+		name           string
+		paramName      string
+		classification string
+		vulnerable     bool
+	}{
+		{"generic param with id classification", "x", ParamClassID, true},
+		{"generic param with file classification", "x", ParamClassFile, true},
+		{"generic param with url classification", "x", ParamClassURL, true},
+		{"generic param with search classification", "x", ParamClassSearch, true},
+		{"generic param with command classification", "x", ParamClassCommand, true},
+		{"generic param with template classification", "x", ParamClassTemplate, true},
+		{"generic param with generic classification", "x", ParamClassGeneric, false},
+		{"known name still vulnerable without classification", "id", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := Parameter{Name: tt.paramName, Classification: tt.classification}
+			if p.IsPotentiallyVulnerable() != tt.vulnerable {
+				t.Errorf("Parameter{Name: %q, Classification: %q}.IsPotentiallyVulnerable() = %v, want %v",
+					tt.paramName, tt.classification, !tt.vulnerable, tt.vulnerable)
+			}
+		})
+	}
+}
+
+func TestParamClassificationConstants(t *testing.T) {
+	tests := []struct {
+		name     string
+		constant string
+		expected string
+	}{
+		{"id", ParamClassID, "id"},
+		{"file", ParamClassFile, "file"},
+		{"url", ParamClassURL, "url"},
+		{"search", ParamClassSearch, "search"},
+		{"command", ParamClassCommand, "command"},
+		{"template", ParamClassTemplate, "template"},
+		{"generic", ParamClassGeneric, "generic"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.constant != tt.expected {
+				t.Errorf("ParamClass constant = %q, want %q", tt.constant, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParameter_Classify(t *testing.T) {
+	tests := []struct {
+		name               string
+		paramName          string
+		expectedClassification string
+	}{
+		{"id param", "id", ParamClassID},
+		{"user_id param", "user_id", ParamClassID},
+		{"item_id param", "item_id", ParamClassID},
+		{"file param", "file", ParamClassFile},
+		{"filepath param", "filepath", ParamClassFile},
+		{"document param", "document", ParamClassFile},
+		{"include param", "include", ParamClassFile},
+		{"url param", "url", ParamClassURL},
+		{"redirect param", "redirect", ParamClassURL},
+		{"callback param", "callback", ParamClassURL},
+		{"next param", "next", ParamClassURL},
+		{"dest param", "dest", ParamClassURL},
+		{"return param", "return", ParamClassURL},
+		{"href param", "href", ParamClassURL},
+		{"src param", "src", ParamClassURL},
+		{"query param", "query", ParamClassSearch},
+		{"search param", "search", ParamClassSearch},
+		{"q param", "q", ParamClassSearch},
+		{"keyword param", "keyword", ParamClassSearch},
+		{"cmd param", "cmd", ParamClassCommand},
+		{"exec param", "exec", ParamClassCommand},
+		{"command param", "command", ParamClassCommand},
+		{"template param", "template", ParamClassTemplate},
+		{"random param", "foobar", ParamClassGeneric},
+		{"page param", "page", ParamClassGeneric},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Parameter{Name: tt.paramName}
+			p.Classify()
+			if p.Classification != tt.expectedClassification {
+				t.Errorf("Parameter{Name: %q}.Classify() classification = %q, want %q",
+					tt.paramName, p.Classification, tt.expectedClassification)
+			}
+		})
+	}
+}
+
+func TestParameter_NewFields(t *testing.T) {
+	p := Parameter{
+		Name:           "test",
+		Location:       ParamLocationQuery,
+		Value:          "value",
+		Type:           "string",
+		Reflected:      true,
+		Classification: ParamClassID,
+		ContentType:    "text/html",
+		SegmentIndex:   3,
+	}
+
+	if !p.Reflected {
+		t.Error("Reflected should be true")
+	}
+	if p.Classification != ParamClassID {
+		t.Errorf("Classification = %q, want %q", p.Classification, ParamClassID)
+	}
+	if p.ContentType != "text/html" {
+		t.Errorf("ContentType = %q, want %q", p.ContentType, "text/html")
+	}
+	if p.SegmentIndex != 3 {
+		t.Errorf("SegmentIndex = %d, want 3", p.SegmentIndex)
 	}
 }

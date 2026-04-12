@@ -178,7 +178,7 @@ func (d *Detector) createFinding(target, param string, payload rfi.Payload, resp
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-11"}, // Testing for Code Injection
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-98"},       // Improper Control of Filename for Include
 	)
 

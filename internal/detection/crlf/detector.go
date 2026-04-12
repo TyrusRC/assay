@@ -427,7 +427,7 @@ func (d *Detector) createFinding(target, param string, payload crlf.Payload, res
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-15"}, // HTTP Splitting/Smuggling
-		[]string{"A03:2021"},     // Injection
+		[]string{"A03:2025"},     // Injection
 		[]string{"CWE-93"},       // CRLF Injection
 	)
 

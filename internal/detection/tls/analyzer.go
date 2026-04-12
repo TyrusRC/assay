@@ -222,7 +222,7 @@ func (a *Analyzer) createNoHTTPSFinding(target string) *core.Finding {
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"}, // Testing for Weak Transport Layer Security
-		[]string{"A02:2021"},     // Cryptographic Failures
+		[]string{"A02:2025"},     // Cryptographic Failures
 		[]string{"CWE-319"},      // Cleartext Transmission of Sensitive Information
 	)
 
@@ -247,7 +247,7 @@ func (a *Analyzer) createWeakTLSFinding(target, version string) *core.Finding {
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"},
-		[]string{"A02:2021"},
+		[]string{"A02:2025"},
 		[]string{"CWE-326"}, // Inadequate Encryption Strength
 	)
 
@@ -273,7 +273,7 @@ func (a *Analyzer) createExpiredCertFinding(target string, cert *x509.Certificat
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"},
-		[]string{"A02:2021"},
+		[]string{"A02:2025"},
 		[]string{"CWE-295"}, // Improper Certificate Validation
 	)
 
@@ -300,7 +300,7 @@ func (a *Analyzer) createExpiringSoonFinding(target string, cert *x509.Certifica
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"},
-		[]string{"A02:2021"},
+		[]string{"A02:2025"},
 		[]string{"CWE-298"}, // Improper Validation of Certificate Expiration
 	)
 
@@ -325,7 +325,7 @@ func (a *Analyzer) createHostnameMismatchFinding(target, host string, cert *x509
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"},
-		[]string{"A02:2021"},
+		[]string{"A02:2025"},
 		[]string{"CWE-295"},
 	)
 
@@ -348,7 +348,7 @@ func (a *Analyzer) createSelfSignedFinding(target string, cert *x509.Certificate
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CRYP-01"},
-		[]string{"A02:2021"},
+		[]string{"A02:2025"},
 		[]string{"CWE-295"},
 	)
 

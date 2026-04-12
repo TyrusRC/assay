@@ -377,7 +377,7 @@ func (d *Detector) createFinding(target string, payload xxe.Payload, resp *http.
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-07"}, // XXE testing
-		[]string{"A05:2021"},     // Security Misconfiguration (XXE was A4 in 2017)
+		[]string{"A05:2025"},     // Security Misconfiguration (XXE was A4 in 2017)
 		[]string{"CWE-611"},      // XXE
 	)
 

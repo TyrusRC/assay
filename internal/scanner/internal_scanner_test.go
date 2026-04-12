@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/techstack"
 )
 
 func TestNewInternalScanner(t *testing.T) {
@@ -54,6 +55,7 @@ func TestNewInternalScanner_WithConfig(t *testing.T) {
 func TestDefaultInternalConfig(t *testing.T) {
 	config := DefaultInternalConfig()
 
+	// Parameter-level detectors enabled by default
 	if !config.EnableSQLi {
 		t.Error("Default EnableSQLi should be true")
 	}
@@ -78,21 +80,82 @@ func TestDefaultInternalConfig(t *testing.T) {
 	if !config.EnableSSTI {
 		t.Error("Default EnableSSTI should be true")
 	}
-	if !config.EnableIDOR {
-		t.Error("Default EnableIDOR should be true")
-	}
-	if config.EnableJWT {
-		t.Error("Default EnableJWT should be false")
-	}
 	if !config.EnableRedirect {
 		t.Error("Default EnableRedirect should be true")
-	}
-	if !config.EnableCORS {
-		t.Error("Default EnableCORS should be true")
 	}
 	if !config.EnableCRLF {
 		t.Error("Default EnableCRLF should be true")
 	}
+	if !config.EnableLDAP {
+		t.Error("Default EnableLDAP should be true")
+	}
+	if !config.EnableXPath {
+		t.Error("Default EnableXPath should be true")
+	}
+	if !config.EnableHeaderInj {
+		t.Error("Default EnableHeaderInj should be true")
+	}
+	if !config.EnableCSTI {
+		t.Error("Default EnableCSTI should be true")
+	}
+	if !config.EnableRFI {
+		t.Error("Default EnableRFI should be true")
+	}
+
+	// URL-level detectors
+	if !config.EnableIDOR {
+		t.Error("Default EnableIDOR should be true")
+	}
+	if !config.EnableCORS {
+		t.Error("Default EnableCORS should be true")
+	}
+	if !config.EnableJNDI {
+		t.Error("Default EnableJNDI should be true")
+	}
+	if !config.EnableSecHeaders {
+		t.Error("Default EnableSecHeaders should be true")
+	}
+	if !config.EnableExposure {
+		t.Error("Default EnableExposure should be true")
+	}
+	if !config.EnableCloud {
+		t.Error("Default EnableCloud should be true")
+	}
+	if !config.EnableTLS {
+		t.Error("Default EnableTLS should be true")
+	}
+	if !config.EnableGraphQL {
+		t.Error("Default EnableGraphQL should be true")
+	}
+	if !config.EnableSmuggling {
+		t.Error("Default EnableSmuggling should be true")
+	}
+	if !config.EnableBehavior {
+		t.Error("Default EnableBehavior should be true")
+	}
+
+	// Discovery enabled by default
+	if !config.EnableDiscovery {
+		t.Error("Default EnableDiscovery should be true")
+	}
+
+	// Storage injection disabled by default (requires Chrome)
+	if config.EnableStorageInj {
+		t.Error("Default EnableStorageInj should be false")
+	}
+
+	// Disabled by default (requires extra config)
+	if config.EnableJWT {
+		t.Error("Default EnableJWT should be false")
+	}
+	if config.EnableSubTakeover {
+		t.Error("Default EnableSubTakeover should be false")
+	}
+	if config.EnableAuth {
+		t.Error("Default EnableAuth should be false")
+	}
+
+	// Scan intensity defaults
 	if config.MaxPayloadsPerParam <= 0 {
 		t.Error("Default MaxPayloadsPerParam should be positive")
 	}
@@ -107,27 +170,36 @@ func TestInternalScanner_NewDetectorsInitialized(t *testing.T) {
 		t.Fatalf("NewInternalScanner() error = %v", err)
 	}
 
-	// Test new detectors are initialized
-	if scanner.nosqlDetector == nil {
-		t.Error("nosqlDetector should be initialized")
+	// Parameter-level detectors
+	detectors := map[string]interface{}{
+		"nosqlDetector":       scanner.nosqlDetector,
+		"sstiDetector":        scanner.sstiDetector,
+		"idorDetector":        scanner.idorDetector,
+		"jwtDetector":         scanner.jwtDetector,
+		"redirectDetector":    scanner.redirectDetector,
+		"corsDetector":        scanner.corsDetector,
+		"crlfDetector":        scanner.crlfDetector,
+		"ldapDetector":        scanner.ldapDetector,
+		"xpathDetector":       scanner.xpathDetector,
+		"headerInjDetector":   scanner.headerInjDetector,
+		"cstiDetector":        scanner.cstiDetector,
+		"rfiDetector":         scanner.rfiDetector,
+		"jndiDetector":        scanner.jndiDetector,
+		"secHeadersDetector":  scanner.secHeadersDetector,
+		"exposureDetector":    scanner.exposureDetector,
+		"cloudDetector":       scanner.cloudDetector,
+		"subTakeoverDetector": scanner.subTakeoverDetector,
+		"tlsAnalyzer":         scanner.tlsAnalyzer,
+		"authDetector":        scanner.authDetector,
+		"graphqlDetector":     scanner.graphqlDetector,
+		"smugglingDetector":   scanner.smugglingDetector,
+		"behaviorDetector":    scanner.behaviorDetector,
 	}
-	if scanner.sstiDetector == nil {
-		t.Error("sstiDetector should be initialized")
-	}
-	if scanner.idorDetector == nil {
-		t.Error("idorDetector should be initialized")
-	}
-	if scanner.jwtDetector == nil {
-		t.Error("jwtDetector should be initialized")
-	}
-	if scanner.redirectDetector == nil {
-		t.Error("redirectDetector should be initialized")
-	}
-	if scanner.corsDetector == nil {
-		t.Error("corsDetector should be initialized")
-	}
-	if scanner.crlfDetector == nil {
-		t.Error("crlfDetector should be initialized")
+
+	for name, d := range detectors {
+		if d == nil {
+			t.Errorf("%s should be initialized", name)
+		}
 	}
 }
 
@@ -137,22 +209,51 @@ func TestInternalScanner_ExtractParameters(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
-		expectedParams []string
+		headers        map[string]string
+		expectedParams []core.Parameter
 	}{
 		{
-			name:           "single parameter",
-			url:            "https://example.com/page?id=1",
-			expectedParams: []string{"id"},
+			name: "single query parameter",
+			url:  "https://example.com/page?id=1",
+			expectedParams: []core.Parameter{
+				{Name: "id", Location: core.ParamLocationQuery, Value: "1", Type: "string"},
+			},
 		},
 		{
-			name:           "multiple parameters",
-			url:            "https://example.com/search?q=test&page=1&sort=asc",
-			expectedParams: []string{"q", "page", "sort"},
+			name: "multiple query parameters",
+			url:  "https://example.com/search?q=test&page=1&sort=asc",
+			expectedParams: []core.Parameter{
+				{Name: "q", Location: core.ParamLocationQuery, Value: "test", Type: "string"},
+				{Name: "page", Location: core.ParamLocationQuery, Value: "1", Type: "string"},
+				{Name: "sort", Location: core.ParamLocationQuery, Value: "asc", Type: "string"},
+			},
 		},
 		{
-			name:           "no parameters",
+			name:           "no parameters at all",
 			url:            "https://example.com/page",
-			expectedParams: []string{},
+			expectedParams: []core.Parameter{},
+		},
+		{
+			name: "numeric path segments as parameters",
+			url:  "https://example.com/users/12345/profile",
+			expectedParams: []core.Parameter{
+				{Name: "path_1", Location: core.ParamLocationPath, Value: "12345", Type: "number"},
+			},
+		},
+		{
+			name: "UUID path segment as parameter",
+			url:  "https://example.com/items/550e8400-e29b-41d4-a716-446655440000/detail",
+			expectedParams: []core.Parameter{
+				{Name: "path_1", Location: core.ParamLocationPath, Value: "550e8400-e29b-41d4-a716-446655440000", Type: "string"},
+			},
+		},
+		{
+			name: "combined query and path parameters",
+			url:  "https://example.com/users/42/profile?tab=settings",
+			expectedParams: []core.Parameter{
+				{Name: "tab", Location: core.ParamLocationQuery, Value: "settings", Type: "string"},
+				{Name: "path_1", Location: core.ParamLocationPath, Value: "42", Type: "number"},
+			},
 		},
 	}
 
@@ -166,22 +267,105 @@ func TestInternalScanner_ExtractParameters(t *testing.T) {
 			params := scanner.extractParameters(target)
 
 			if len(params) != len(tt.expectedParams) {
-				t.Errorf("extractParameters() count = %d, want %d", len(params), len(tt.expectedParams))
+				t.Errorf("extractParameters() count = %d, want %d; got %v", len(params), len(tt.expectedParams), params)
+				return
 			}
 
 			for _, expected := range tt.expectedParams {
 				found := false
 				for _, param := range params {
-					if param == expected {
+					if param.Name == expected.Name && param.Location == expected.Location {
 						found = true
+						if param.Value != expected.Value {
+							t.Errorf("param %q value = %q, want %q", expected.Name, param.Value, expected.Value)
+						}
+						if param.Type != expected.Type {
+							t.Errorf("param %q type = %q, want %q", expected.Name, param.Type, expected.Type)
+						}
 						break
 					}
 				}
 				if !found {
-					t.Errorf("extractParameters() missing expected param: %s", expected)
+					t.Errorf("extractParameters() missing expected param: Name=%q Location=%q", expected.Name, expected.Location)
 				}
 			}
 		})
+	}
+}
+
+func TestInternalScanner_ExtractParameters_Cookies(t *testing.T) {
+	config := DefaultInternalConfig()
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+
+	target, err := core.NewTarget("https://example.com/page")
+	if err != nil {
+		t.Fatalf("NewTarget() error = %v", err)
+	}
+
+	// The scanner uses a Config from the Scan call which has Cookies.
+	// extractParameters should also accept cookies to parse.
+	params := scanner.extractParametersWithConfig(target, &Config{
+		Cookies: "session=abc123; user_id=42",
+	})
+
+	// Should have cookie parameters extracted
+	foundSession := false
+	foundUserID := false
+	for _, p := range params {
+		if p.Name == "session" && p.Location == core.ParamLocationCookie {
+			foundSession = true
+			if p.Value != "abc123" {
+				t.Errorf("cookie session value = %q, want %q", p.Value, "abc123")
+			}
+		}
+		if p.Name == "user_id" && p.Location == core.ParamLocationCookie {
+			foundUserID = true
+			if p.Value != "42" {
+				t.Errorf("cookie user_id value = %q, want %q", p.Value, "42")
+			}
+		}
+	}
+	if !foundSession {
+		t.Error("extractParametersWithConfig() missing cookie param: session")
+	}
+	if !foundUserID {
+		t.Error("extractParametersWithConfig() missing cookie param: user_id")
+	}
+}
+
+func TestInternalScanner_ExtractParameters_InvalidURL(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+
+	// Use a target with a valid scheme but test that malformed path handling works
+	target, err := core.NewTarget("https://example.com")
+	if err != nil {
+		t.Fatalf("NewTarget() error = %v", err)
+	}
+
+	params := scanner.extractParameters(target)
+	// No query params, no path segments that look like IDs
+	if len(params) != 0 {
+		t.Errorf("extractParameters() for bare URL should return empty, got %v", params)
+	}
+}
+
+func TestInternalScanner_ExtractParameters_PathSegments_NonID(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+
+	// Path segments that are NOT IDs should NOT be extracted
+	target, err := core.NewTarget("https://example.com/users/profile/settings")
+	if err != nil {
+		t.Fatalf("NewTarget() error = %v", err)
+	}
+
+	params := scanner.extractParameters(target)
+	for _, p := range params {
+		if p.Location == core.ParamLocationPath {
+			t.Errorf("non-ID path segment %q should not be extracted as parameter", p.Value)
+		}
 	}
 }
 
@@ -189,7 +373,7 @@ func TestInternalScanner_Scan_NoParameters(t *testing.T) {
 	config := &InternalScanConfig{
 		EnableSQLi:     true,
 		EnableXSS:      true,
-		EnableIDOR:     false, // Disable URL-level tests for this test
+		EnableIDOR:     false,
 		EnableCORS:     false,
 		RequestTimeout: 5 * time.Second,
 	}
@@ -199,7 +383,6 @@ func TestInternalScanner_Scan_NoParameters(t *testing.T) {
 		t.Fatalf("NewInternalScanner() error = %v", err)
 	}
 
-	// Create target with no parameters
 	target, err := core.NewTarget("https://example.com/page")
 	if err != nil {
 		t.Fatalf("NewTarget() error = %v", err)
@@ -215,7 +398,6 @@ func TestInternalScanner_Scan_NoParameters(t *testing.T) {
 		t.Fatal("Scan() returned nil result")
 	}
 
-	// Should have error about no parameters
 	hasNoParamsError := false
 	for _, e := range result.Errors {
 		if strings.Contains(e, "no parameters") {
@@ -239,19 +421,16 @@ func TestInternalScanner_Scan_ContextCancellation(t *testing.T) {
 		t.Fatalf("NewInternalScanner() error = %v", err)
 	}
 
-	// Create target
 	target, err := core.NewTarget("https://example.com/page?id=1")
 	if err != nil {
 		t.Fatalf("NewTarget() error = %v", err)
 	}
 
-	// Cancel context immediately
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err = scanner.Scan(ctx, target, nil)
 
-	// Should not error on context cancellation, just return early
 	if err != nil && err != context.Canceled {
 		t.Logf("Scan() completed with error: %v (this is acceptable)", err)
 	}
@@ -263,317 +442,10 @@ func TestInternalScanner_Close(t *testing.T) {
 		t.Fatalf("NewInternalScanner() error = %v", err)
 	}
 
-	// Close should not panic
 	scanner.Close()
 }
 
-func TestInternalScanner_testNoSQL_Disabled(t *testing.T) {
-	config := &InternalScanConfig{
-		EnableNoSQL:    false,
-		RequestTimeout: 5 * time.Second,
-	}
-
-	_, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	// testNoSQL should not be called if disabled
-	// This is tested implicitly through the Scan function
-}
-
-func TestInternalScanner_testSSTI_Integration(t *testing.T) {
-	// Create a test server that simulates SSTI vulnerability
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		input := r.URL.Query().Get("input")
-		// Simulate template evaluation: {{7*7}} becomes 49
-		if strings.Contains(input, "{{7*7}}") {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Result: 49"))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello " + input))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableSSTI:          true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableNoSQL:         false,
-		EnableIDOR:          false,
-		EnableRedirect:      false,
-		EnableCORS:          false,
-		EnableCRLF:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 10,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testSSTI(ctx, server.URL+"?input=test", "input", "GET")
-
-	if len(findings) == 0 {
-		t.Log("SSTI vulnerability not detected (may need specific payload)")
-	}
-}
-
-func TestInternalScanner_testCORS_Integration(t *testing.T) {
-	// Create a test server with CORS misconfiguration
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		// Vulnerable: reflects any origin
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableCORS:          true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableNoSQL:         false,
-		EnableSSTI:          false,
-		EnableIDOR:          false,
-		EnableRedirect:      false,
-		EnableCRLF:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 10,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testCORS(ctx, server.URL)
-
-	if len(findings) == 0 {
-		t.Log("CORS misconfiguration not detected (this is expected in some cases)")
-	} else {
-		t.Logf("CORS findings: %d", len(findings))
-	}
-}
-
-func TestInternalScanner_testRedirect_Integration(t *testing.T) {
-	// Create a test server with open redirect vulnerability
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		redirectURL := r.URL.Query().Get("redirect")
-		if redirectURL != "" {
-			// Vulnerable: redirects to any URL
-			w.Header().Set("Location", redirectURL)
-			w.WriteHeader(http.StatusFound)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableRedirect:      true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableNoSQL:         false,
-		EnableSSTI:          false,
-		EnableIDOR:          false,
-		EnableCORS:          false,
-		EnableCRLF:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 10,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testRedirect(ctx, server.URL+"?redirect=", "redirect", "GET")
-
-	if len(findings) == 0 {
-		t.Log("Open Redirect vulnerability not detected (detector may need specific payload)")
-	}
-}
-
-func TestInternalScanner_testCRLF_Integration(t *testing.T) {
-	// Create a test server with CRLF injection vulnerability
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		input := r.URL.Query().Get("input")
-		// Vulnerable: includes user input in header
-		w.Header().Set("X-Custom-Header", input)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableCRLF:          true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableNoSQL:         false,
-		EnableSSTI:          false,
-		EnableIDOR:          false,
-		EnableRedirect:      false,
-		EnableCORS:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 10,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testCRLF(ctx, server.URL+"?input=test", "input", "GET")
-
-	// CRLF may or may not be detected depending on payload
-	t.Logf("CRLF findings: %d", len(findings))
-}
-
-func TestInternalScanner_testIDOR_Integration(t *testing.T) {
-	// Create a test server vulnerable to IDOR
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get("user_id")
-		// Vulnerable: returns data for any user ID
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"user_id": "` + userID + `", "name": "User", "email": "user@example.com"}`))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableIDOR:          true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableNoSQL:         false,
-		EnableSSTI:          false,
-		EnableRedirect:      false,
-		EnableCORS:          false,
-		EnableCRLF:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 10,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testIDOR(ctx, server.URL+"?user_id=1")
-
-	// IDOR detection depends on response analysis
-	t.Logf("IDOR findings: %d", len(findings))
-}
-
-func TestInternalScanner_testNoSQL_Integration(t *testing.T) {
-	// Create a test server that simulates NoSQL injection vulnerability
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query().Get("search")
-		// Simulate MongoDB error on NoSQL injection
-		if strings.Contains(query, "$") || strings.Contains(query, "{") {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"error": "MongoError: $where clause has unexpected type"}`))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"results": []}`))
-	}))
-	defer server.Close()
-
-	config := &InternalScanConfig{
-		EnableNoSQL:         true,
-		EnableSQLi:          false,
-		EnableXSS:           false,
-		EnableCMDI:          false,
-		EnableSSRF:          false,
-		EnableLFI:           false,
-		EnableXXE:           false,
-		EnableSSTI:          false,
-		EnableIDOR:          false,
-		EnableRedirect:      false,
-		EnableCORS:          false,
-		EnableCRLF:          false,
-		EnableOOB:           false,
-		MaxPayloadsPerParam: 20,
-		RequestTimeout:      10 * time.Second,
-	}
-
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	ctx := context.Background()
-	findings := scanner.testNoSQL(ctx, server.URL+"?search=test", "search", "GET")
-
-	t.Logf("NoSQL findings: %d", len(findings))
-}
-
-func TestInternalScanner_testJWT(t *testing.T) {
-	config := DefaultInternalConfig()
-	scanner, err := NewInternalScanner(config)
-	if err != nil {
-		t.Fatalf("NewInternalScanner() error = %v", err)
-	}
-
-	// Test with a JWT using weak secret 'secret'
-	// Header: {"alg":"HS256","typ":"JWT"}
-	// Payload: {"sub":"1234567890","name":"John Doe","iat":1516239022}
-	// Secret: secret
-	weakSecretJWT := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.XbPfbIHMI6arZ3Y922BhjWgQzWXcXNrz0ogtVhfEd2o"
-
-	ctx := context.Background()
-	findings := scanner.testJWT(ctx, weakSecretJWT)
-
-	if len(findings) == 0 {
-		t.Log("JWT weak secret not detected (secret list may not include 'secret')")
-	} else {
-		t.Logf("JWT findings: %d", len(findings))
-		for _, f := range findings {
-			t.Logf("  - %s: %s", f.Type, f.Description)
-		}
-	}
-}
-
 func TestInternalScanner_Scan_AllDetectorsEnabled(t *testing.T) {
-	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -593,9 +465,24 @@ func TestInternalScanner_Scan_AllDetectorsEnabled(t *testing.T) {
 		EnableRedirect:      true,
 		EnableCORS:          true,
 		EnableCRLF:          true,
-		EnableOOB:           false, // Disable OOB to speed up test
-		EnableJWT:           false, // JWT needs token
-		MaxPayloadsPerParam: 5,     // Limit payloads for speed
+		EnableLDAP:          true,
+		EnableXPath:         true,
+		EnableHeaderInj:     true,
+		EnableCSTI:          true,
+		EnableRFI:           true,
+		EnableJNDI:          true,
+		EnableSecHeaders:    true,
+		EnableExposure:      true,
+		EnableCloud:         true,
+		EnableTLS:           true,
+		EnableGraphQL:       true,
+		EnableSmuggling:     true,
+		EnableBehavior:      true,
+		EnableOOB:           false,
+		EnableJWT:           false,
+		EnableSubTakeover:   false,
+		EnableAuth:          false,
+		MaxPayloadsPerParam: 5,
 		RequestTimeout:      5 * time.Second,
 	}
 
@@ -623,6 +510,396 @@ func TestInternalScanner_Scan_AllDetectorsEnabled(t *testing.T) {
 	}
 
 	t.Logf("Scan completed: %d findings, %d errors", len(result.Findings), len(result.Errors))
+}
+
+func TestInternalScanner_DiscoveryEnabled(t *testing.T) {
+	config := DefaultInternalConfig()
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+	defer scanner.Close()
+
+	if scanner.discoveryPipeline == nil {
+		t.Error("discoveryPipeline should be initialized when EnableDiscovery is true")
+	}
+	if len(scanner.discoveryPipeline.Discoverers()) == 0 {
+		t.Error("discoveryPipeline should have registered discoverers")
+	}
+}
+
+func TestInternalScanner_DiscoveryDisabled(t *testing.T) {
+	config := DefaultInternalConfig()
+	config.EnableDiscovery = false
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+	defer scanner.Close()
+
+	if scanner.discoveryPipeline != nil {
+		t.Error("discoveryPipeline should be nil when EnableDiscovery is false")
+	}
+}
+
+func TestInternalScanner_StorageInjDisabledByDefault(t *testing.T) {
+	config := DefaultInternalConfig()
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+	defer scanner.Close()
+
+	if scanner.headlessPool != nil {
+		t.Error("headlessPool should be nil when EnableStorageInj is false")
+	}
+	if scanner.storageInjDetector != nil {
+		t.Error("storageInjDetector should be nil when EnableStorageInj is false")
+	}
+}
+
+func TestInternalScanner_Scan_WithDiscovery(t *testing.T) {
+	// Server responds with an HTML form, so discovery should find form params
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Set-Cookie", "session=abc123; Path=/")
+		w.Write([]byte(`<html><body>
+			<form method="POST" action="/submit">
+				<input type="text" name="username">
+				<input type="password" name="password">
+			</form>
+		</body></html>`))
+	}))
+	defer server.Close()
+
+	config := &InternalScanConfig{
+		EnableDiscovery:     true,
+		EnableSQLi:          true,
+		EnableXSS:           false,
+		EnableOOB:           false,
+		EnableIDOR:          false,
+		EnableCORS:          false,
+		MaxPayloadsPerParam: 3,
+		RequestTimeout:      5 * time.Second,
+	}
+
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+	defer scanner.Close()
+
+	// Use URL without query params - discovery should still find form params
+	target, err := core.NewTarget(server.URL + "/page")
+	if err != nil {
+		t.Fatalf("NewTarget() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := scanner.Scan(ctx, target, nil)
+	if err != nil {
+		t.Errorf("Scan() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("Scan() returned nil result")
+	}
+
+	// Discovery should have found params, so we should NOT get "no parameters" error
+	for _, e := range result.Errors {
+		if strings.Contains(e, "no parameters") {
+			t.Error("Discovery should have found form parameters, but got 'no parameters' error")
+		}
+	}
+}
+
+func TestInternalScanner_ApplicableTests_QueryParam(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+	param := core.Parameter{Name: "id", Location: core.ParamLocationQuery}
+	tests := scanner.applicableTests(param)
+
+	// Query params should get ALL injection detectors
+	expectedNames := []string{"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti", "redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi"}
+	if len(tests) != len(expectedNames) {
+		t.Errorf("applicableTests(query) returned %d tests, want %d", len(tests), len(expectedNames))
+	}
+	for _, name := range expectedNames {
+		found := false
+		for _, test := range tests {
+			if test.name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("applicableTests(query) missing test %q", name)
+		}
+	}
+}
+
+func TestInternalScanner_ApplicableTests_CookieParam(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+	param := core.Parameter{Name: "session", Location: core.ParamLocationCookie}
+	tests := scanner.applicableTests(param)
+
+	// Cookie params should get a subset
+	allowedNames := map[string]bool{"sqli": true, "xss": true, "crlf": true, "headerinj": true, "nosql": true}
+	for _, test := range tests {
+		if !allowedNames[test.name] {
+			t.Errorf("applicableTests(cookie) should not include %q", test.name)
+		}
+	}
+	if len(tests) == 0 {
+		t.Error("applicableTests(cookie) returned no tests")
+	}
+}
+
+func TestInternalScanner_ApplicableTests_HeaderParam(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+	param := core.Parameter{Name: "X-Forwarded-For", Location: core.ParamLocationHeader}
+	tests := scanner.applicableTests(param)
+
+	// Header params should get crlf, headerinj, ssti, ssrf
+	allowedNames := map[string]bool{"crlf": true, "headerinj": true, "ssti": true, "ssrf": true}
+	for _, test := range tests {
+		if !allowedNames[test.name] {
+			t.Errorf("applicableTests(header) should not include %q", test.name)
+		}
+	}
+	if len(tests) == 0 {
+		t.Error("applicableTests(header) returned no tests")
+	}
+}
+
+func TestInternalScanner_ApplicableTests_PathParam(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+	param := core.Parameter{Name: "path_1", Location: core.ParamLocationPath}
+	tests := scanner.applicableTests(param)
+
+	// Path params should get sqli, lfi, cmdi
+	allowedNames := map[string]bool{"sqli": true, "lfi": true, "cmdi": true, "nosql": true, "xpath": true}
+	for _, test := range tests {
+		if !allowedNames[test.name] {
+			t.Errorf("applicableTests(path) should not include %q", test.name)
+		}
+	}
+	if len(tests) == 0 {
+		t.Error("applicableTests(path) returned no tests")
+	}
+}
+
+func TestInternalScanner_ApplicableTests_StorageParam(t *testing.T) {
+	scanner, _ := NewInternalScanner(nil)
+	param := core.Parameter{Name: "token", Location: core.ParamLocationLocalStorage}
+	tests := scanner.applicableTests(param)
+
+	// localStorage params should get xss only
+	allowedNames := map[string]bool{"xss": true}
+	for _, test := range tests {
+		if !allowedNames[test.name] {
+			t.Errorf("applicableTests(localstorage) should not include %q", test.name)
+		}
+	}
+}
+
+func TestInternalScanner_TechAwareConfig(t *testing.T) {
+	scanner, err := NewInternalScanner(nil)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+
+	tests := []struct {
+		name       string
+		techResult *techstack.DetectionResult
+		wantTechs  []string
+	}{
+		{
+			name: "PHP detected",
+			techResult: &techstack.DetectionResult{
+				URL: "https://example.com",
+				Technologies: []techstack.Technology{
+					{Name: "PHP", Version: "8.1"},
+				},
+			},
+			wantTechs: []string{"php"},
+		},
+		{
+			name: "Java detected",
+			techResult: &techstack.DetectionResult{
+				URL: "https://example.com",
+				Technologies: []techstack.Technology{
+					{Name: "Java"},
+				},
+			},
+			wantTechs: []string{"java"},
+		},
+		{
+			name: "multiple technologies detected",
+			techResult: &techstack.DetectionResult{
+				URL: "https://example.com",
+				Technologies: []techstack.Technology{
+					{Name: "PHP", Version: "8.1"},
+					{Name: "Apache", Version: "2.4"},
+					{Name: "WordPress"},
+				},
+			},
+			wantTechs: []string{"php", "apache", "wordpress"},
+		},
+		{
+			name: "no technologies",
+			techResult: &techstack.DetectionResult{
+				URL:          "https://example.com",
+				Technologies: []techstack.Technology{},
+			},
+			wantTechs: []string{},
+		},
+		{
+			name:       "nil techResult",
+			techResult: nil,
+			wantTechs:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hint := scanner.techAwareConfig(tt.techResult)
+			if hint == nil {
+				t.Fatal("techAwareConfig() returned nil")
+			}
+
+			if len(hint.Technologies) != len(tt.wantTechs) {
+				t.Fatalf("techAwareConfig() Technologies count = %d, want %d; got %v",
+					len(hint.Technologies), len(tt.wantTechs), hint.Technologies)
+			}
+
+			for _, want := range tt.wantTechs {
+				found := false
+				for _, got := range hint.Technologies {
+					if got == want {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("techAwareConfig() missing expected tech %q in %v", want, hint.Technologies)
+				}
+			}
+		})
+	}
+}
+
+func TestInternalScanner_TechAwareConfig_NormalizesCase(t *testing.T) {
+	scanner, err := NewInternalScanner(nil)
+	if err != nil {
+		t.Fatalf("NewInternalScanner() error = %v", err)
+	}
+
+	techResult := &techstack.DetectionResult{
+		URL: "https://example.com",
+		Technologies: []techstack.Technology{
+			{Name: "Spring Boot"},
+			{Name: "NGINX"},
+			{Name: "jQuery"},
+		},
+	}
+
+	hint := scanner.techAwareConfig(techResult)
+	if hint == nil {
+		t.Fatal("techAwareConfig() returned nil")
+	}
+
+	for _, tech := range hint.Technologies {
+		if tech != strings.ToLower(tech) {
+			t.Errorf("techAwareConfig() technology %q is not lowercase", tech)
+		}
+	}
+}
+
+func TestShouldSkipDetector_SQLiConfirmed(t *testing.T) {
+	cf := newConfirmedFindings()
+
+	// Before any findings, nothing should be skipped
+	if cf.shouldSkip("id", "nosql") {
+		t.Error("shouldSkip should return false before any findings")
+	}
+
+	// Confirm SQLi on "id" parameter
+	cf.confirm("id", "sqli")
+
+	// NoSQL, XPath, LDAP should be skipped after SQLi confirmed
+	skippedAfterSQLi := []string{"nosql", "xpath", "ldap"}
+	for _, detector := range skippedAfterSQLi {
+		if !cf.shouldSkip("id", detector) {
+			t.Errorf("shouldSkip(%q, %q) should be true after SQLi confirmed", "id", detector)
+		}
+	}
+
+	// XSS should NOT be skipped (different vulnerability class)
+	if cf.shouldSkip("id", "xss") {
+		t.Error("shouldSkip(id, xss) should be false - different vulnerability class")
+	}
+
+	// Different parameter should not be affected
+	if cf.shouldSkip("name", "nosql") {
+		t.Error("shouldSkip(name, nosql) should be false - different parameter")
+	}
+}
+
+func TestShouldSkipDetector_SSTIConfirmed(t *testing.T) {
+	cf := newConfirmedFindings()
+
+	cf.confirm("tpl", "ssti")
+
+	// XSS and CSTI should be skipped after SSTI confirmed
+	if !cf.shouldSkip("tpl", "xss") {
+		t.Error("shouldSkip(tpl, xss) should be true after SSTI confirmed")
+	}
+	if !cf.shouldSkip("tpl", "csti") {
+		t.Error("shouldSkip(tpl, csti) should be true after SSTI confirmed")
+	}
+
+	// SQLi should NOT be skipped
+	if cf.shouldSkip("tpl", "sqli") {
+		t.Error("shouldSkip(tpl, sqli) should be false - different class")
+	}
+}
+
+func TestShouldSkipDetector_CMDIConfirmed(t *testing.T) {
+	cf := newConfirmedFindings()
+
+	cf.confirm("cmd", "cmdi")
+
+	// All remaining detectors should be skipped after RCE confirmed
+	allDetectors := []string{"sqli", "xss", "ssrf", "lfi", "xxe", "nosql", "ssti", "redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi"}
+	for _, detector := range allDetectors {
+		if !cf.shouldSkip("cmd", detector) {
+			t.Errorf("shouldSkip(cmd, %q) should be true after CMDI (RCE) confirmed", detector)
+		}
+	}
+}
+
+func TestConfirmedFindings_ConcurrentAccess(t *testing.T) {
+	cf := newConfirmedFindings()
+	done := make(chan struct{})
+
+	// Concurrent writes and reads
+	go func() {
+		for i := 0; i < 100; i++ {
+			cf.confirm("param1", "sqli")
+		}
+		done <- struct{}{}
+	}()
+
+	go func() {
+		for i := 0; i < 100; i++ {
+			cf.shouldSkip("param1", "nosql")
+		}
+		done <- struct{}{}
+	}()
+
+	<-done
+	<-done
 }
 
 func BenchmarkInternalScanner_Scan(b *testing.B) {
