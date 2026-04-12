@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
@@ -13,6 +14,12 @@ import (
 
 // executeHTTP executes an HTTP request from a template.
 func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string) ([]*templates.ExecutionResult, error) {
+	// Race condition mode: send multiple concurrent requests.
+	if httpReq.Race && httpReq.RaceCount > 0 {
+		vars := e.buildVariables(tmpl, targetURL)
+		return e.executeHTTPRace(ctx, tmpl, httpReq, targetURL, vars)
+	}
+
 	// Use req-condition path when all responses must be collected before matching.
 	if httpReq.ReqCondition {
 		return e.executeHTTPWithReqCondition(ctx, tmpl, httpReq, targetURL)
@@ -99,6 +106,32 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 		results = append(results, fuzzResults...)
 	}
 
+	return results, nil
+}
+
+// executeHTTPRace sends RaceCount concurrent requests for each path and collects all results.
+func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string, vars map[string]interface{}) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, path := range httpReq.Path {
+		interpolatedPath := e.interpolate(path, vars)
+		requestURL := e.buildURL(targetURL, interpolatedPath)
+
+		for i := 0; i < httpReq.RaceCount; i++ {
+			wg.Add(1)
+			go func(url string) {
+				defer wg.Done()
+				result := e.executeRequest(ctx, tmpl, httpReq, url, httpReq.Method, httpReq.Body, vars)
+				mu.Lock()
+				results = append(results, result)
+				mu.Unlock()
+			}(requestURL)
+		}
+	}
+
+	wg.Wait()
 	return results, nil
 }
 
