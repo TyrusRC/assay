@@ -248,6 +248,19 @@ func (e *MatcherEngine) matchBinary(m *templates.Matcher, resp *Response) bool {
 
 // matchDSL evaluates DSL expressions.
 func (e *MatcherEngine) matchDSL(m *templates.Matcher, resp *Response, data map[string]interface{}) bool {
+	// Build full header string
+	var headerSb strings.Builder
+	for k, v := range resp.Headers {
+		headerSb.WriteString(k)
+		headerSb.WriteString(": ")
+		headerSb.WriteString(v)
+		headerSb.WriteString("\n")
+	}
+	headerStr := headerSb.String()
+
+	// Build raw = headers + body
+	rawStr := headerStr + "\n" + resp.Body
+
 	// Build context for DSL evaluation
 	ctx := map[string]interface{}{
 		"status_code":    resp.StatusCode,
@@ -255,9 +268,13 @@ func (e *MatcherEngine) matchDSL(m *templates.Matcher, resp *Response, data map[
 		"content_type":   resp.ContentType,
 		"body":           resp.Body,
 		"url":            resp.URL,
+		"header":         headerStr,
+		"all_headers":    headerStr,
+		"raw":            rawStr,
+		"duration":       resp.Duration.Seconds(),
 	}
 
-	// Add headers
+	// Add individual header_* fields
 	for k, v := range resp.Headers {
 		ctx["header_"+strings.ToLower(strings.ReplaceAll(k, "-", "_"))] = v
 	}

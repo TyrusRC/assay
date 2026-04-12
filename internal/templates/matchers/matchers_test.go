@@ -2,6 +2,7 @@ package matchers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/templates"
 )
@@ -281,6 +282,164 @@ func TestMatch_DSL(t *testing.T) {
 			result := e.Match(matcher, resp, nil)
 			if result.Matched != tt.expectMatch {
 				t.Errorf("Match() = %v, want %v", result.Matched, tt.expectMatch)
+			}
+		})
+	}
+}
+
+func TestMatchDSL_HeaderVariable(t *testing.T) {
+	e := New()
+
+	tests := []struct {
+		name        string
+		resp        *Response
+		dsl         string
+		expectMatch bool
+	}{
+		{
+			name: "header variable contains header name",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "hello",
+				Headers: map[string]string{
+					"X-Powered-By": "PHP/7.4",
+				},
+			},
+			dsl:         `contains(header, "X-Powered-By")`,
+			expectMatch: true,
+		},
+		{
+			name: "all_headers alias works",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "hello",
+				Headers: map[string]string{
+					"Content-Type": "text/html",
+				},
+			},
+			dsl:         `contains(all_headers, "Content-Type")`,
+			expectMatch: true,
+		},
+		{
+			name: "header variable does not match missing header",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "hello",
+				Headers:    map[string]string{},
+			},
+			dsl:         `contains(header, "X-Powered-By")`,
+			expectMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := &templates.Matcher{Type: "dsl", DSL: []string{tt.dsl}}
+			result := e.Match(matcher, tt.resp, nil)
+			if result.Matched != tt.expectMatch {
+				t.Errorf("Match() = %v, want %v for DSL: %q", result.Matched, tt.expectMatch, tt.dsl)
+			}
+		})
+	}
+}
+
+func TestMatchDSL_RawVariable(t *testing.T) {
+	e := New()
+
+	tests := []struct {
+		name        string
+		resp        *Response
+		dsl         string
+		expectMatch bool
+	}{
+		{
+			name: "raw contains body content",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "body content here",
+				Headers: map[string]string{
+					"Header-Name": "header-value",
+				},
+			},
+			dsl:         `contains(raw, "body content")`,
+			expectMatch: true,
+		},
+		{
+			name: "raw contains header and body",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "body content here",
+				Headers: map[string]string{
+					"Header-Name": "header-value",
+				},
+			},
+			dsl:         `contains(raw, "body content") && contains(raw, "Header-Name")`,
+			expectMatch: true,
+		},
+		{
+			name: "raw does not contain missing content",
+			resp: &Response{
+				StatusCode: 200,
+				Body:       "body content",
+				Headers:    map[string]string{},
+			},
+			dsl:         `contains(raw, "missing-string")`,
+			expectMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := &templates.Matcher{Type: "dsl", DSL: []string{tt.dsl}}
+			result := e.Match(matcher, tt.resp, nil)
+			if result.Matched != tt.expectMatch {
+				t.Errorf("Match() = %v, want %v for DSL: %q", result.Matched, tt.expectMatch, tt.dsl)
+			}
+		})
+	}
+}
+
+func TestMatchDSL_DurationVariable(t *testing.T) {
+	e := New()
+
+	tests := []struct {
+		name        string
+		duration    time.Duration
+		dsl         string
+		expectMatch bool
+	}{
+		{
+			name:        "duration greater than 1 second",
+			duration:    2 * time.Second,
+			dsl:         "duration > 1",
+			expectMatch: true,
+		},
+		{
+			name:        "duration less than expected",
+			duration:    500 * time.Millisecond,
+			dsl:         "duration > 1",
+			expectMatch: false,
+		},
+		{
+			name:        "duration equals check",
+			duration:    2 * time.Second,
+			dsl:         "duration >= 2",
+			expectMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &Response{
+				StatusCode: 200,
+				Body:       "response",
+				Headers:    map[string]string{},
+				Duration:   tt.duration,
+			}
+			matcher := &templates.Matcher{Type: "dsl", DSL: []string{tt.dsl}}
+			result := e.Match(matcher, resp, nil)
+			if result.Matched != tt.expectMatch {
+				t.Errorf("Match() = %v, want %v for DSL: %q (duration=%v)", result.Matched, tt.expectMatch, tt.dsl, tt.duration)
 			}
 		})
 	}

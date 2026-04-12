@@ -10,14 +10,12 @@ import (
 )
 
 // runExtractors runs extractors against a response.
+// Internal extractors store their first extracted value into vars for subsequent request interpolation.
 func (e *Executor) runExtractors(extractors []templates.Extractor, resp *matchers.Response, vars map[string]interface{}) map[string][]string {
 	result := make(map[string][]string)
+	dslEngine := matchers.NewDSLEngine()
 
 	for _, ext := range extractors {
-		if ext.Internal {
-			continue
-		}
-
 		var extracted []string
 		content := e.getExtractPart(ext.Part, resp)
 
@@ -30,14 +28,35 @@ func (e *Executor) runExtractors(extractors []templates.Extractor, resp *matcher
 			extracted = extractJSON(ext.JSON, content)
 		case "xpath":
 			extracted = extractXPath(ext.XPath, content)
+		case "dsl":
+			extracted = extractDSL(dslEngine, ext.DSL, vars)
 		}
 
-		if len(extracted) > 0 && ext.Name != "" {
+		if len(extracted) == 0 || ext.Name == "" {
+			continue
+		}
+
+		if ext.Internal {
+			// Store first value in vars for subsequent request interpolation
+			vars[ext.Name] = extracted[0]
+		} else {
 			result[ext.Name] = extracted
 		}
 	}
 
 	return result
+}
+
+// extractDSL evaluates DSL expressions and returns their string results.
+func extractDSL(engine *matchers.DSLEngine, expressions []string, ctx map[string]interface{}) []string {
+	var results []string
+	for _, expr := range expressions {
+		val := engine.EvaluateString(expr, ctx)
+		if val != "" {
+			results = append(results, val)
+		}
+	}
+	return results
 }
 
 // getExtractPart gets the part of response to extract from.
@@ -76,9 +95,10 @@ func (e *Executor) buildVariables(tmpl *templates.Template, targetURL string) ma
 	// Add target info
 	parsedURL, err := url.Parse(targetURL)
 	if err == nil {
-		vars["BaseURL"] = fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+		vars["BaseURL"] = targetURL // Full URL with path, matching Nuclei's {{BaseURL}}
 		vars["RootURL"] = fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 		vars["Hostname"] = parsedURL.Hostname()
+		vars["FQDN"] = parsedURL.Hostname() // DNS alias for Hostname
 		vars["Host"] = parsedURL.Host
 		vars["Port"] = parsedURL.Port()
 		vars["Path"] = parsedURL.Path

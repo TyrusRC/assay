@@ -27,6 +27,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 
 			result := e.executeRequest(ctx, tmpl, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
 			results = append(results, result)
+			e.mergeExtractedIntoVars(result, vars)
 
 			if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
 				return results, nil
@@ -40,6 +41,7 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 			// Parse and execute raw request
 			result := e.executeRawRequest(ctx, tmpl, httpReq, raw, targetURL, vars)
 			results = append(results, result)
+			e.mergeExtractedIntoVars(result, vars)
 
 			if result.Matched && (httpReq.StopAtFirstMatch || e.config.StopAtFirstMatch) {
 				return results, nil
@@ -336,6 +338,19 @@ func (e *Executor) generateFuzzPayloads(rule *templates.FuzzingRule, vars map[st
 	return payloads
 }
 
+// mergeExtractedIntoVars merges extracted data from a result into the vars map,
+// making values available for interpolation in subsequent requests.
+func (e *Executor) mergeExtractedIntoVars(result *templates.ExecutionResult, vars map[string]interface{}) {
+	if result.ExtractedData == nil {
+		return
+	}
+	for k, v := range result.ExtractedData {
+		if len(v) > 0 {
+			vars[k] = v[0]
+		}
+	}
+}
+
 // buildMatcherResponse constructs a matchers.Response from an HTTP response.
 func buildMatcherResponse(resp *http.Response) *matchers.Response {
 	return &matchers.Response{
@@ -346,5 +361,6 @@ func buildMatcherResponse(resp *http.Response) *matchers.Response {
 		ContentType:   resp.ContentType,
 		URL:           resp.URL,
 		Raw:           fmt.Sprintf("HTTP/1.1 %s\n%s", resp.Status, resp.Body),
+		Duration:      resp.Duration,
 	}
 }

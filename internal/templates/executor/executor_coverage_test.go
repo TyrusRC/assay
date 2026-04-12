@@ -13,6 +13,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
 	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
 )
 
 // ---------------------------------------------------------------------------
@@ -1585,29 +1586,13 @@ type matcherResp struct {
 	body string
 }
 
-func buildTestMatcherResponse(stub *matchers_response_stub) *matchersResponseWrapper {
-	return &matchersResponseWrapper{
-		body:    stub.body,
-		headers: stub.headers,
+func buildTestMatcherResponse(stub *matchers_response_stub) *matchers.Response {
+	return &matchers.Response{
+		Body:    stub.body,
+		Headers: stub.headers,
 	}
 }
 
-type matchersResponseWrapper struct {
-	body    string
-	headers map[string]string
-}
-
-func buildMatcherRespFromStub(stub *matcherResp) *matchersRespW {
-	return &matchersRespW{body: stub.body}
-}
-
-type matchersRespW struct {
-	body string
-}
-
-// We need to use the actual matchers.Response type. Let me fix the helpers
-// to use the real types from the matchers package.
-
-func init() {
-	// Placeholder - actual test helpers use real types from executor package
+func buildMatcherRespFromStub(stub *matcherResp) *matchers.Response {
+	return &matchers.Response{Body: stub.body}
 }
