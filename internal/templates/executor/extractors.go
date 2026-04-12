@@ -58,16 +58,34 @@ func extractKVal(keys []string, headers map[string]string) []string {
 }
 
 // extractJSON extracts data from JSON using simple path expressions.
+// It supports JQ-like pipe syntax for array iteration, e.g. ".[] | .name".
 func extractJSON(paths []string, content string) []string {
 	var results []string
 
-	// Parse JSON
 	var data interface{}
 	if err := json.Unmarshal([]byte(content), &data); err != nil {
 		return results
 	}
 
 	for _, path := range paths {
+		if strings.Contains(path, "|") {
+			parts := strings.SplitN(path, "|", 2)
+			selector := strings.TrimSpace(parts[0])
+			field := strings.TrimSpace(parts[1])
+			if selector == ".[]" {
+				fieldName := strings.TrimPrefix(field, ".")
+				if arr, ok := data.([]interface{}); ok {
+					for _, item := range arr {
+						if m, ok := item.(map[string]interface{}); ok {
+							if v, ok := m[fieldName]; ok {
+								results = append(results, fmt.Sprintf("%v", v))
+							}
+						}
+					}
+				}
+			}
+			continue
+		}
 		value := extractJSONPath(data, path)
 		if value != "" {
 			results = append(results, value)
