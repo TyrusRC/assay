@@ -1139,7 +1139,7 @@ func TestGetExtractPart(t *testing.T) {
 		{"body", "<html>test</html>"},
 		{"header", "X-Header"},
 		{"headers", "X-Header"},
-		{"", "<html>test</html>"},       // default is body
+		{"", "<html>test</html>"},        // default is body
 		{"unknown", "<html>test</html>"}, // default is body
 	}
 
@@ -1570,6 +1570,128 @@ func TestNewNetworkExecutor_CustomDialer(t *testing.T) {
 	exec := NewNetworkExecutor(config)
 	if exec.dialer != dialer {
 		t.Error("Custom dialer should be used")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Task 6: Multi-request correlation (req-condition)
+// ---------------------------------------------------------------------------
+
+func TestExecuteHTTP_ReqCondition(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		switch callCount {
+		case 1:
+			w.Header().Set("X-Token", "secret123")
+			w.WriteHeader(200)
+			w.Write([]byte("first response"))
+		case 2:
+			w.WriteHeader(201)
+			w.Write([]byte("second response"))
+		default:
+			w.WriteHeader(200)
+		}
+	}))
+	defer server.Close()
+
+	tmpl := &templates.Template{
+		ID:   "req-condition-test",
+		Info: templates.Info{Name: "ReqCondition Test", Severity: core.SeverityInfo},
+		HTTP: []templates.HTTPRequest{
+			{
+				Method:       "GET",
+				Path:         []string{"{{BaseURL}}/first", "{{BaseURL}}/second"},
+				ReqCondition: true,
+				// DSL matchers referencing indexed vars
+				MatchersCondition: "and",
+				Matchers: []templates.Matcher{
+					{Type: "dsl", DSL: []string{"status_code_1 == 200"}},
+					{Type: "dsl", DSL: []string{"status_code_2 == 201"}},
+				},
+			},
+		},
+	}
+
+	exec := New(&Config{Variables: map[string]interface{}{}})
+	results, err := exec.Execute(context.Background(), tmpl, server.URL)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("Expected at least one result")
+	}
+	// The last result should be matched because both status codes match
+	last := results[len(results)-1]
+	if !last.Matched {
+		t.Errorf("Expected last result to be matched with req-condition, got Matched=%v", last.Matched)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 requests to be made, got %d", callCount)
+	}
+}
+
+func TestExecuteHTTP_ReqCondition_NoMatch(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	tmpl := &templates.Template{
+		ID:   "req-condition-nomatch",
+		Info: templates.Info{Name: "ReqCondition No Match", Severity: core.SeverityInfo},
+		HTTP: []templates.HTTPRequest{
+			{
+				Method:            "GET",
+				Path:              []string{"{{BaseURL}}/a", "{{BaseURL}}/b"},
+				ReqCondition:      true,
+				MatchersCondition: "and",
+				// Require second request to return 404 - it won't
+				Matchers: []templates.Matcher{
+					{Type: "dsl", DSL: []string{"status_code_1 == 200"}},
+					{Type: "dsl", DSL: []string{"status_code_2 == 404"}},
+				},
+			},
+		},
+	}
+
+	exec := New(&Config{Variables: map[string]interface{}{}})
+	results, err := exec.Execute(context.Background(), tmpl, server.URL)
+	if err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("Expected results")
+	}
+	last := results[len(results)-1]
+	if last.Matched {
+		t.Error("Expected no match when conditions are not all met")
+	}
+}
+
+func TestExecuteHTTP_ReqCondition_NoPaths(t *testing.T) {
+	tmpl := &templates.Template{
+		ID:   "req-condition-empty",
+		Info: templates.Info{Name: "ReqCondition Empty", Severity: core.SeverityInfo},
+		HTTP: []templates.HTTPRequest{
+			{
+				Method:       "GET",
+				Path:         []string{},
+				ReqCondition: true,
+			},
+		},
+	}
+
+	exec := New(&Config{Variables: map[string]interface{}{}})
+	results, err := exec.Execute(context.Background(), tmpl, "http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("Execute() should not error on empty paths: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results for empty paths, got %d", len(results))
 	}
 }
 

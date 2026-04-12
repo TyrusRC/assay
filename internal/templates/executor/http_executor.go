@@ -13,6 +13,11 @@ import (
 
 // executeHTTP executes an HTTP request from a template.
 func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string) ([]*templates.ExecutionResult, error) {
+	// Use req-condition path when all responses must be collected before matching.
+	if httpReq.ReqCondition {
+		return e.executeHTTPWithReqCondition(ctx, tmpl, httpReq, targetURL)
+	}
+
 	var results []*templates.ExecutionResult
 
 	// Build variables context
@@ -95,6 +100,130 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 	}
 
 	return results, nil
+}
+
+// executeHTTPWithReqCondition executes all path-based requests sequentially,
+// accumulates indexed variables (status_code_N, body_N, header_N, content_length_N),
+// then evaluates matchers once against the last response with all accumulated vars.
+func (e *Executor) executeHTTPWithReqCondition(ctx context.Context, tmpl *templates.Template, httpReq *templates.HTTPRequest, targetURL string) ([]*templates.ExecutionResult, error) {
+	vars := e.buildVariables(tmpl, targetURL)
+
+	type responseEntry struct {
+		result      *templates.ExecutionResult
+		matcherResp *matchers.Response
+		requestURL  string
+	}
+
+	var entries []responseEntry
+
+	// Collect all path-based responses
+	for _, path := range httpReq.Path {
+		interpolatedPath := e.interpolate(path, vars)
+		requestURL := e.buildURL(targetURL, interpolatedPath)
+
+		resp, reqStr, err := e.doRequest(ctx, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
+
+		result := &templates.ExecutionResult{
+			TemplateID:   tmpl.ID,
+			TemplateName: tmpl.Info.Name,
+			Severity:     tmpl.Info.Severity,
+			URL:          requestURL,
+			Timestamp:    time.Now(),
+		}
+
+		if err != nil {
+			result.Error = err
+			entries = append(entries, responseEntry{result: result, requestURL: requestURL})
+			continue
+		}
+
+		result.Request = reqStr
+		mr := buildMatcherResponse(resp)
+		entries = append(entries, responseEntry{result: result, matcherResp: mr, requestURL: requestURL})
+	}
+
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	// Build accumulated vars with indexed keys
+	for i, entry := range entries {
+		n := i + 1
+		if entry.matcherResp != nil {
+			vars[fmt.Sprintf("status_code_%d", n)] = entry.matcherResp.StatusCode
+			vars[fmt.Sprintf("body_%d", n)] = entry.matcherResp.Body
+			vars[fmt.Sprintf("content_length_%d", n)] = entry.matcherResp.ContentLength
+			// Flatten headers to a single string for header_N
+			headerStr := ""
+			for k, v := range entry.matcherResp.Headers {
+				headerStr += k + ": " + v + "\n"
+			}
+			vars[fmt.Sprintf("header_%d", n)] = headerStr
+		}
+	}
+
+	// Evaluate matchers against the last successful response
+	last := entries[len(entries)-1]
+	if last.matcherResp != nil {
+		matched, extracts := e.matcherEngine.MatchAll(httpReq.Matchers, httpReq.MatchersCondition, last.matcherResp, vars)
+		if matched {
+			last.result.Matched = true
+			last.result.MatchedAt = last.requestURL
+			last.result.ExtractedData = extracts
+			last.result.Response = last.matcherResp.Body
+			if len(last.result.Response) > 500 {
+				last.result.Response = last.result.Response[:500] + "..."
+			}
+		}
+	}
+
+	results := make([]*templates.ExecutionResult, 0, len(entries))
+	for _, entry := range entries {
+		results = append(results, entry.result)
+	}
+	return results, nil
+}
+
+// doRequest builds and executes an HTTP request, returning the response, request string, and any error.
+// It injects session cookies before the request and stores response cookies afterward.
+func (e *Executor) doRequest(ctx context.Context, httpReq *templates.HTTPRequest, requestURL, method, body string, vars map[string]interface{}) (*http.Response, string, error) {
+	if method == "" {
+		method = "GET"
+	}
+
+	interpolatedBody := e.interpolate(body, vars)
+
+	req := &http.Request{
+		Method:  method,
+		URL:     requestURL,
+		Body:    interpolatedBody,
+		Headers: make(map[string]string),
+	}
+
+	for k, v := range httpReq.Headers {
+		req.Headers[k] = e.interpolate(v, vars)
+	}
+
+	if method == "POST" && req.Body != "" && req.Headers["Content-Type"] == "" {
+		req.Headers["Content-Type"] = "application/x-www-form-urlencoded"
+	}
+
+	// Inject session cookies before executing
+	if cookieHeader := e.session.CookieHeader(requestURL); cookieHeader != "" {
+		if req.Headers["Cookie"] == "" {
+			req.Headers["Cookie"] = cookieHeader
+		}
+	}
+
+	resp, err := e.client.Do(ctx, req)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Store response cookies in session
+	e.session.ParseResponseURL(requestURL, resp.Headers)
+
+	return resp, fmt.Sprintf("%s %s", method, requestURL), nil
 }
 
 // executeRequest executes a single HTTP request and evaluates matchers.
