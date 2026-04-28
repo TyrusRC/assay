@@ -19,10 +19,11 @@ type Config struct {
 	Verbose     bool
 
 	// Request settings
-	Headers map[string]string
-	Cookies string
-	Data    string
-	Method  string
+	Headers   map[string]string
+	Cookies   string
+	Data      string
+	Method    string
+	UserAgent string
 
 	// Network settings
 	ProxyURL string
@@ -187,6 +188,19 @@ func (s *Scanner) SetConfig(config *Config) {
 	s.mu.Unlock()
 }
 
+// Close releases resources held by the scanner, including the internal
+// scanner's headless browser pool and OOB client. It is safe to call
+// multiple times and safe to call on a scanner that never ran.
+func (s *Scanner) Close() {
+	s.mu.RLock()
+	internal := s.internalScanner
+	s.mu.RUnlock()
+
+	if internal != nil {
+		internal.Close()
+	}
+}
+
 // Config returns the current configuration.
 func (s *Scanner) Config() *Config {
 	s.mu.RLock()
@@ -222,9 +236,27 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, config.Timeout)
 	defer cancel()
 
-	// Collect findings from all tools
+	// Collect findings and errors from all tools. Both channels are drained
+	// by dedicated collector goroutines started before any producers, so a
+	// burst of errors (or findings) exceeding the channel buffer cannot
+	// block producer goroutines and wedge wg.Wait().
 	findingsChan := make(chan *core.Finding, 100)
 	errorsChan := make(chan string, 10)
+
+	var collectWg sync.WaitGroup
+	collectWg.Add(2)
+	go func() {
+		defer collectWg.Done()
+		for f := range findingsChan {
+			result.Findings = append(result.Findings, f)
+		}
+	}()
+	go func() {
+		defer collectWg.Done()
+		for e := range errorsChan {
+			result.Errors = append(result.Errors, e)
+		}
+	}()
 
 	// Semaphore for concurrency limiting
 	semaphore := make(chan struct{}, config.Concurrency)
@@ -368,22 +400,11 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 		}(tool)
 	}
 
-	// Wait for all tools to complete in a goroutine
-	go func() {
-		wg.Wait()
-		close(findingsChan)
-		close(errorsChan)
-	}()
-
-	// Collect findings
-	for finding := range findingsChan {
-		result.Findings = append(result.Findings, finding)
-	}
-
-	// Collect errors
-	for err := range errorsChan {
-		result.Errors = append(result.Errors, err)
-	}
+	// Wait for all producers, then close channels so collectors drain and exit.
+	wg.Wait()
+	close(findingsChan)
+	close(errorsChan)
+	collectWg.Wait()
 
 	// Deduplicate findings
 	result.Findings = result.Findings.Deduplicate()

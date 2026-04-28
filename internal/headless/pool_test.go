@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -350,6 +351,53 @@ func TestPool_ReleaseNilPage(t *testing.T) {
 
 	// Should not panic
 	pool.Release(nil)
+}
+
+// TestPool_ReleaseConcurrentWithClose stress-tests the Release/Close race.
+// Before the fix, Release could send on a channel that Close had already
+// closed, panicking with "send on closed channel".
+func TestPool_ReleaseConcurrentWithClose(t *testing.T) {
+	// Construct a Pool directly so this runs on machines without Chrome;
+	// we only exercise the mutex/channel bookkeeping, not browser code.
+	// Repeat trials to amplify the race window.
+	for trial := 0; trial < 50; trial++ {
+		pool := &Pool{
+			config:      PoolConfig{MaxBrowsers: 4},
+			pages:       make(chan *Page, 4),
+			allocCancel: func() {},
+		}
+
+		const releasers = 32
+		var wg sync.WaitGroup
+		panicCh := make(chan interface{}, releasers+1)
+
+		record := func() {
+			if r := recover(); r != nil {
+				panicCh <- r
+			}
+			wg.Done()
+		}
+
+		wg.Add(releasers + 1)
+		for i := 0; i < releasers; i++ {
+			go func() {
+				defer record()
+				// Page.close() is safe with a nil cancel func.
+				pool.Release(&Page{})
+			}()
+		}
+		go func() {
+			defer record()
+			pool.Close()
+		}()
+
+		wg.Wait()
+		close(panicCh)
+
+		for p := range panicCh {
+			t.Fatalf("trial %d: pool operation panicked: %v", trial, p)
+		}
+	}
 }
 
 func TestSplitCookieString(t *testing.T) {

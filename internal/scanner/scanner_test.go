@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -243,6 +245,82 @@ func TestScanResult_HasCritical(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScanner_Close verifies Close is safe on uninitialized scanners, safe
+// to call twice, and propagates to the internal scanner when set.
+func TestScanner_Close(t *testing.T) {
+	// 1. Close on a fresh scanner with no internal config set: no panic.
+	s := New()
+	s.Close()
+	s.Close() // idempotent
+
+	// 2. Close after configuring the internal scanner: no panic.
+	s2 := New()
+	if err := s2.SetInternalConfig(DefaultInternalConfig()); err != nil {
+		t.Fatalf("SetInternalConfig: %v", err)
+	}
+	s2.Close()
+	s2.Close() // idempotent
+}
+
+// TestScanner_Scan_ManyErrors_NoDeadlock verifies that a scan producing
+// more errors than errorsChan's buffer does not deadlock. Before the fix,
+// errorsChan was drained serially only after findingsChan closed, so the
+// 11th error-producing goroutine blocked forever on a full channel and
+// wg.Wait never returned.
+func TestScanner_Scan_ManyErrors_NoDeadlock(t *testing.T) {
+	s := New()
+	s.EnableInternalScanner(false)
+
+	// 50 targets × 1 tool yields 50 sequential error sends; buffer is 10.
+	for i := 0; i < 50; i++ {
+		if err := s.AddTarget(fmt.Sprintf("https://example.com/%d", i)); err != nil {
+			t.Fatalf("AddTarget: %v", err)
+		}
+	}
+	s.RegisterTool(&errorTool{name: "err-tool", err: errors.New("boom")})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	var result *ScanResult
+	var scanErr error
+	go func() {
+		result, scanErr = s.Scan(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Scan did not return within 5s — deadlocked on errorsChan")
+	}
+
+	if scanErr != nil {
+		t.Fatalf("Scan unexpected error: %v", scanErr)
+	}
+	if result == nil {
+		t.Fatal("Scan returned nil result")
+	}
+	if len(result.Errors) < 11 {
+		t.Errorf("expected >=11 collected errors (buffer+overflow), got %d", len(result.Errors))
+	}
+}
+
+// errorTool always fails Execute — used to stress the error-collection path.
+type errorTool struct {
+	name string
+	err  error
+}
+
+func (t *errorTool) Name() string       { return t.name }
+func (t *errorTool) Version() string    { return "1.0.0" }
+func (t *errorTool) IsAvailable() bool  { return true }
+func (t *errorTool) HealthCheck() error { return nil }
+func (t *errorTool) Execute(ctx context.Context, req *tools.ToolRequest) (*tools.ToolResult, error) {
+	return nil, t.err
 }
 
 // mockTool is a mock implementation of tools.Tool for testing.

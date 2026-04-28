@@ -115,18 +115,20 @@ func (p *Pool) Release(page *Page) {
 		return
 	}
 
+	// Hold the mutex across the closed check AND the channel send so a
+	// concurrent Close() can't close(p.pages) between the two. The send
+	// is non-blocking (select/default), so holding the lock is safe.
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
 		page.close()
 		return
 	}
-	p.mu.Unlock()
-
-	// Try to return to pool, or close if full
 	select {
 	case p.pages <- page:
+		p.mu.Unlock()
 	default:
+		p.mu.Unlock()
 		page.close()
 	}
 }

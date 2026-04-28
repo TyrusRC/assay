@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -45,6 +46,15 @@ type TemplateScanConfig struct {
 	// ProxyURL routes all template traffic through a proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
 	ProxyURL string
 
+	// Headers, Cookies, UserAgent are applied to every HTTP request the
+	// template engine issues — same as for the rest of the scanner — so
+	// authenticated scans and Burp-Suite proxying behave consistently
+	// across native detectors and templates.
+	Headers   map[string]string
+	Cookies   string
+	UserAgent string
+	Insecure  bool
+
 	// InteractshClient enables OOB/blind vulnerability detection via interactsh.
 	InteractshClient *oob.Client
 
@@ -78,6 +88,10 @@ func NewTemplateScanner(config *TemplateScanConfig) (*TemplateScanner, error) {
 		Verbose:          config.Verbose,
 		Variables:        config.Variables,
 		ProxyURL:         config.ProxyURL,
+		Headers:          config.Headers,
+		Cookies:          config.Cookies,
+		UserAgent:        config.UserAgent,
+		Insecure:         config.Insecure,
 	}
 
 	execConfig.InteractshClient = config.InteractshClient
@@ -108,7 +122,7 @@ func (s *TemplateScanner) LoadTemplates() ([]*templates.Template, error) {
 		tmpl, err := s.parser.ParseFile(path)
 		if err != nil {
 			if s.config.Verbose {
-				fmt.Printf("[!] Failed to load template %s: %v\n", path, err)
+				fmt.Fprintf(os.Stderr,"[!] Failed to load template %s: %v\n", path, err)
 			}
 			continue
 		}
@@ -151,7 +165,7 @@ func (s *TemplateScanner) Scan(ctx context.Context, target *core.Target, tmpls [
 	targetURL := target.URL()
 
 	if s.config.Verbose {
-		fmt.Printf("[*] Template scanner starting for: %s (%d templates)\n", targetURL, len(tmpls))
+		fmt.Fprintf(os.Stderr,"[*] Template scanner starting for: %s (%d templates)\n", targetURL, len(tmpls))
 	}
 
 	var wg sync.WaitGroup
@@ -181,7 +195,7 @@ templateLoop:
 			execResults, err := s.executor.Execute(ctx, t, targetURL)
 			if err != nil {
 				if s.config.Verbose {
-					fmt.Printf("[!] Template %s error: %v\n", t.ID, err)
+					fmt.Fprintf(os.Stderr,"[!] Template %s error: %v\n", t.ID, err)
 				}
 				return
 			}

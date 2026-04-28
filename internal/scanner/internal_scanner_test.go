@@ -5,12 +5,73 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/techstack"
 )
+
+// TestInternalScanner_OOBReady_ConcurrentAccess exercises the internal
+// bookkeeping for s.oobReady. Readers (waitForOOBClient) must not race
+// with writers (startOOBClientAsync). Most effective under `go test -race`.
+func TestInternalScanner_OOBReady_ConcurrentAccess(t *testing.T) {
+	s := &InternalScanner{
+		config: &InternalScanConfig{EnableOOB: true},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			// Simulates what startOOBClientAsync does: set up oobReady
+			// under the mutex. (We skip the real oob.NewClient to keep
+			// the test hermetic — no network.)
+			s.mu.Lock()
+			if s.oobReady == nil {
+				ch := make(chan struct{})
+				close(ch)
+				s.oobReady = ch
+			}
+			s.mu.Unlock()
+		}()
+		go func() {
+			defer wg.Done()
+			_ = s.waitForOOBClient(10 * time.Millisecond)
+		}()
+	}
+	wg.Wait()
+}
+
+// TestInternalScanner_TechHint_ConcurrentWrites verifies that concurrent
+// writes to s.techHint are serialized under s.mu. Meaningful under -race.
+func TestInternalScanner_TechHint_ConcurrentWrites(t *testing.T) {
+	s := &InternalScanner{
+		config: &InternalScanConfig{},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hint := &TechHint{Technologies: []string{"php"}}
+			s.mu.Lock()
+			s.techHint = hint
+			s.mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	s.mu.Lock()
+	got := s.techHint
+	s.mu.Unlock()
+	if got == nil {
+		t.Error("techHint should be set after concurrent writes")
+	}
+}
 
 func TestNewInternalScanner(t *testing.T) {
 	scanner, err := NewInternalScanner(nil)
@@ -369,6 +430,11 @@ func TestInternalScanner_ExtractParameters_PathSegments_NonID(t *testing.T) {
 	}
 }
 
+// TestInternalScanner_Scan_NoParameters confirms that a target with zero
+// discoverable parameters still produces a usable scan result. URL-level
+// detectors (secheaders, TLS, smuggling, WS, etc.) audit the host, not
+// individual parameters, and must run regardless. The previous behavior
+// was a hard early-return that incorrectly skipped them.
 func TestInternalScanner_Scan_NoParameters(t *testing.T) {
 	config := &InternalScanConfig{
 		EnableSQLi:     true,
@@ -396,17 +462,6 @@ func TestInternalScanner_Scan_NoParameters(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Scan() returned nil result")
-	}
-
-	hasNoParamsError := false
-	for _, e := range result.Errors {
-		if strings.Contains(e, "no parameters") {
-			hasNoParamsError = true
-			break
-		}
-	}
-	if !hasNoParamsError {
-		t.Error("Expected 'no parameters' error in result")
 	}
 }
 
@@ -620,7 +675,7 @@ func TestInternalScanner_ApplicableTests_QueryParam(t *testing.T) {
 	tests := scanner.applicableTests(param)
 
 	// Query params should get ALL injection detectors
-	expectedNames := []string{"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti", "redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi"}
+	expectedNames := []string{"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti", "redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi", "csvinj"}
 	if len(tests) != len(expectedNames) {
 		t.Errorf("applicableTests(query) returned %d tests, want %d", len(tests), len(expectedNames))
 	}
@@ -900,6 +955,116 @@ func TestConfirmedFindings_ConcurrentAccess(t *testing.T) {
 
 	<-done
 	<-done
+}
+
+// TestInternalScanner_GlobalProxyHeadersUserAgent verifies that the
+// per-scan Config (Proxy, Headers, UserAgent, Cookies) is propagated to
+// EVERY HTTP request the scanner makes — not just the SQLi/classify
+// hot paths. Burp Suite integration depends on this, and so does any
+// authenticated scan that needs a session cookie or bearer header.
+//
+// Strategy: a single httptest server doubles as both the target and the
+// HTTP proxy. When a client uses the server as a proxy, the request line
+// carries an absolute URL (and arrives back at the same handler). We
+// then assert that ALL recorded requests carry the configured UA, the
+// configured custom header, and arrive via the proxy path (absolute URL).
+func TestInternalScanner_GlobalProxyHeadersUserAgent(t *testing.T) {
+	const (
+		wantUA     = "SKWS-test/9.9"
+		wantHdr    = "global-marker"
+		wantCookie = "skws-session=abc"
+	)
+
+	var (
+		mu       sync.Mutex
+		total    int
+		badUA    int
+		badHdr   int
+		badCk    int
+		notProxy int
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		total++
+		if r.Header.Get("User-Agent") != wantUA {
+			badUA++
+		}
+		if r.Header.Get("X-Test-Header") != wantHdr {
+			badHdr++
+		}
+		if !strings.Contains(r.Header.Get("Cookie"), wantCookie) {
+			badCk++
+		}
+		// A proxied request has an absolute URL on the request line.
+		if !r.URL.IsAbs() {
+			notProxy++
+		}
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'")
+		w.Header().Set("Strict-Transport-Security", "max-age=63072000")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html><body>ok</body></html>"))
+	}))
+	defer server.Close()
+
+	// Trim everything to a tight, fast scan but exercise multiple
+	// detector code paths so we cover both the SQLi hot path and the
+	// "other detector" paths that previously bypassed scanClient.
+	config := &InternalScanConfig{
+		EnableSQLi:          true,
+		EnableXSS:           true,
+		EnableSSTI:          true,
+		EnableRedirect:      true,
+		EnableCRLF:          true,
+		EnableHeaderInj:     true,
+		EnableSecHeaders:    true,
+		EnableTechScan:      false,
+		EnableOOB:           false,
+		EnableDiscovery:     false,
+		MaxPayloadsPerParam: 2,
+		RequestTimeout:      5 * time.Second,
+	}
+	scanner, err := NewInternalScanner(config)
+	if err != nil {
+		t.Fatalf("NewInternalScanner: %v", err)
+	}
+	defer scanner.Close()
+
+	target, _ := core.NewTarget(server.URL + "?id=1")
+
+	scanCfg := &Config{
+		Headers:   map[string]string{"X-Test-Header": wantHdr},
+		Cookies:   wantCookie,
+		ProxyURL:  server.URL, // server doubles as proxy
+		UserAgent: wantUA,
+	}
+
+	if _, err := scanner.Scan(context.Background(), target, scanCfg); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if total == 0 {
+		t.Fatal("scanner made zero HTTP requests")
+	}
+	if badUA != 0 {
+		t.Errorf("custom User-Agent missing on %d/%d requests", badUA, total)
+	}
+	if badHdr != 0 {
+		t.Errorf("custom header missing on %d/%d requests", badHdr, total)
+	}
+	if badCk != 0 {
+		t.Errorf("custom cookie missing on %d/%d requests", badCk, total)
+	}
+	if notProxy != 0 {
+		t.Errorf("%d/%d requests bypassed the configured proxy", notProxy, total)
+	}
 }
 
 func BenchmarkInternalScanner_Scan(b *testing.B) {

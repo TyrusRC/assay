@@ -4,6 +4,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
@@ -50,6 +51,14 @@ type Config struct {
 	// ProxyURL routes all HTTP and protocol traffic through a proxy (e.g. http://127.0.0.1:8080 for Burp Suite).
 	ProxyURL string
 
+	// Headers, Cookies, UserAgent apply to every template HTTP request,
+	// matching the behavior of the native detectors so Burp-Suite
+	// proxying and authenticated scans work consistently.
+	Headers   map[string]string
+	Cookies   string
+	UserAgent string
+	Insecure  bool
+
 	// DNS configuration
 	DNSConfig *DNSConfig
 
@@ -90,6 +99,18 @@ func New(config *Config) *Executor {
 
 	if config.ProxyURL != "" {
 		client = client.WithProxy(config.ProxyURL)
+	}
+	if len(config.Headers) > 0 {
+		client = client.WithHeaders(config.Headers)
+	}
+	if config.Cookies != "" {
+		client = client.WithCookies(config.Cookies)
+	}
+	if config.UserAgent != "" {
+		client = client.WithUserAgent(config.UserAgent)
+	}
+	if config.Insecure {
+		client = client.WithInsecure(true)
 	}
 
 	// Initialize DNS executor
@@ -168,7 +189,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for _, httpReq := range tmpl.HTTP {
 		httpResults, err := e.executeHTTP(ctx, tmpl, &httpReq, targetURL)
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] HTTP execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] HTTP execution error: %v\n", err)
 		}
 		results = append(results, httpResults...)
 		if (stopFirst || httpReq.StopAtFirstMatch) && hasMatch(httpResults) {
@@ -180,7 +201,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.DNS {
 		dnsResults, err := e.executeDNS(ctx, tmpl, &tmpl.DNS[i], targetURL)
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] DNS execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] DNS execution error: %v\n", err)
 		}
 		results = append(results, dnsResults...)
 		if stopFirst && hasMatch(dnsResults) {
@@ -192,7 +213,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.Network {
 		networkResults, err := e.executeNetwork(ctx, tmpl, &tmpl.Network[i], targetURL)
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] Network execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] Network execution error: %v\n", err)
 		}
 		results = append(results, networkResults...)
 		if stopFirst && hasMatch(networkResults) {
@@ -204,7 +225,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.TCP {
 		tcpResults, err := e.executeNetwork(ctx, tmpl, &tmpl.TCP[i], targetURL)
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] TCP execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] TCP execution error: %v\n", err)
 		}
 		results = append(results, tcpResults...)
 		if stopFirst && hasMatch(tcpResults) {
@@ -216,7 +237,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.SSL {
 		sslResults, err := e.executeSSL(ctx, tmpl, &tmpl.SSL[i], targetURL)
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] SSL execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] SSL execution error: %v\n", err)
 		}
 		results = append(results, sslResults...)
 		if stopFirst && hasMatch(sslResults) {
@@ -228,7 +249,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.Websocket {
 		wsResult, err := e.websocketExecutor.Execute(ctx, targetURL, &tmpl.Websocket[i])
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] WebSocket execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] WebSocket execution error: %v\n", err)
 		}
 		if wsResult != nil {
 			stampResult(wsResult, tmpl, targetURL)
@@ -243,7 +264,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.Whois {
 		whoisResult, err := e.whoisExecutor.Execute(ctx, targetURL, &tmpl.Whois[i])
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] WHOIS execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] WHOIS execution error: %v\n", err)
 		}
 		if whoisResult != nil {
 			stampResult(whoisResult, tmpl, targetURL)
@@ -258,7 +279,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 	for i := range tmpl.Headless {
 		headlessResult, err := e.headlessExecutor.Execute(ctx, targetURL, &tmpl.Headless[i])
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] Headless execution error: %v\n", err)
+			fmt.Fprintf(os.Stderr,"[!] Headless execution error: %v\n", err)
 		}
 		if headlessResult != nil {
 			stampResult(headlessResult, tmpl, targetURL)
@@ -387,7 +408,7 @@ func (e *Executor) executeWithFlow(ctx context.Context, tmpl *templates.Template
 		}
 
 		if err != nil && e.config.Verbose {
-			fmt.Printf("[!] flow step %s(%d) error: %v\n", step.Protocol, step.Index, err)
+			fmt.Fprintf(os.Stderr,"[!] flow step %s(%d) error: %v\n", step.Protocol, step.Index, err)
 		}
 
 		allResults = append(allResults, stepResults...)

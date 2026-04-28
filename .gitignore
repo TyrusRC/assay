@@ -68,3 +68,6 @@ docs/superpowers/
 *.md
 !CLAUDE.md
 !README.md
+
+# Scan results output
+scan-output/

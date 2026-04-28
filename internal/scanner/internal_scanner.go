@@ -1,11 +1,8 @@
 package scanner
 
 import (
-	"context"
 	"fmt"
-	"net/url"
-	"regexp"
-	"strings"
+	"os"
 	"sync"
 	"time"
 
@@ -22,6 +19,8 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/fileupload"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/graphql"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/headerinj"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/hosthdr"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/oauth"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/idor"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/injection"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/jndi"
@@ -42,6 +41,7 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/storageinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/subtakeover"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/verbtamper"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/ws"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/techstack"
 	tlsdetect "github.com/swiss-knife-for-web-security/skws/internal/detection/tls"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/xpath"
@@ -102,6 +102,9 @@ type InternalScanner struct {
 	pathNormDetector    *pathnorm.Detector
 	raceCondDetector    *racecond.Detector
 	csvInjDetector      *csvinj.Detector
+	wsDetector          *ws.Detector
+	hostHdrDetector     *hosthdr.Detector
+	oauthDetector       *oauth.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -152,6 +155,9 @@ type InternalScanConfig struct {
 	EnablePathNorm    bool
 	EnableRaceCond    bool
 	EnableCSVInj      bool
+	EnableWS          bool
+	EnableHostHdr     bool
+	EnableOAuth       bool
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -219,6 +225,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnablePathNorm:      true,
 		EnableRaceCond:      false, // Aggressive, sends many parallel requests
 		EnableCSVInj:        true,
+		EnableWS:            true,
+		EnableHostHdr:       true,
+		EnableOAuth:         true,
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		HeadlessMaxBrowsers: 3,
@@ -242,7 +251,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	// Create tech detector (may fail if wappalyzer can't initialize)
 	techDetector, techErr := techstack.NewDetector()
 	if techErr != nil && config.Verbose {
-		fmt.Printf("[!] Tech stack detection unavailable: %v\n", techErr)
+		fmt.Fprintf(os.Stderr,"[!] Tech stack detection unavailable: %v\n", techErr)
 	}
 
 	scanner := &InternalScanner{
@@ -282,6 +291,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		pathNormDetector:    pathnorm.New(httpClient),
 		raceCondDetector:    racecond.New(httpClient),
 		csvInjDetector:      csvinj.New(httpClient),
+		wsDetector:          ws.New(httpClient),
+		hostHdrDetector:     hosthdr.New(httpClient),
+		oauthDetector:       oauth.New(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}
@@ -320,7 +332,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		pool, poolErr := headless.NewPool(poolConfig)
 		if poolErr != nil {
 			if config.Verbose {
-				fmt.Printf("[!] Headless browser unavailable: %v (storage injection will be skipped)\n", poolErr)
+				fmt.Fprintf(os.Stderr,"[!] Headless browser unavailable: %v (storage injection will be skipped)\n", poolErr)
 			}
 		} else {
 			scanner.headlessPool = pool
@@ -359,12 +371,12 @@ func (s *InternalScanner) startOOBClientAsync() {
 		if err != nil {
 			s.oobInitErr = err
 			if s.config.Verbose {
-				fmt.Printf("[!] OOB testing unavailable: %v\n", err)
+				fmt.Fprintf(os.Stderr,"[!] OOB testing unavailable: %v\n", err)
 			}
 		} else {
 			s.oobClient = oobClient
 			if s.config.Verbose {
-				fmt.Printf("[+] OOB testing enabled with URL: %s\n", oobClient.GetURL())
+				fmt.Fprintf(os.Stderr,"[+] OOB testing enabled with URL: %s\n", oobClient.GetURL())
 			}
 		}
 	}()
@@ -373,34 +385,39 @@ func (s *InternalScanner) startOOBClientAsync() {
 // waitForOOBClient waits for OOB client to be ready with a timeout.
 // Returns true if OOB client is available, false otherwise.
 func (s *InternalScanner) waitForOOBClient(timeout time.Duration) bool {
-	if s.oobReady == nil {
+	s.mu.Lock()
+	oobReady := s.oobReady
+	s.mu.Unlock()
+	if oobReady == nil {
 		return false
 	}
 
 	select {
-	case <-s.oobReady:
+	case <-oobReady:
 		s.mu.Lock()
 		available := s.oobClient != nil
 		s.mu.Unlock()
 		return available
 	case <-time.After(timeout):
 		if s.config.Verbose {
-			fmt.Printf("[!] OOB initialization timeout after %v\n", timeout)
+			fmt.Fprintf(os.Stderr,"[!] OOB initialization timeout after %v\n", timeout)
 		}
 		return false
 	}
 }
 
-// Close releases resources.
+// Close releases resources. Safe to call multiple times.
 func (s *InternalScanner) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.oobClient != nil {
 		s.oobClient.Close()
+		s.oobClient = nil
 	}
 	if s.headlessPool != nil {
 		s.headlessPool.Close()
+		s.headlessPool = nil
 	}
 }
 
@@ -411,711 +428,29 @@ type InternalScanResult struct {
 	Errors       []string
 }
 
-// Scan performs internal vulnerability scanning on a target.
-func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanConfig *Config) (*InternalScanResult, error) {
-	result := &InternalScanResult{
-		Findings: make(core.Findings, 0),
-	}
-
-	targetURL := target.URL()
-
-	if s.config.Verbose {
-		fmt.Printf("[*] Internal scanner starting for: %s\n", targetURL)
-	}
-
-	// Start OOB initialization in background immediately (non-blocking)
-	// This gives OOB time to initialize while we run other tests
-	if s.config.EnableOOB {
-		s.startOOBClientAsync()
-		if s.config.Verbose {
-			fmt.Printf("[*] OOB initialization started in background...\n")
-		}
-	}
-
-	// Create a scan-specific client to avoid race conditions when modifying settings.
-	// Each scan gets its own client instance with the scan-specific configuration.
-	scanClient := http.NewClient().WithTimeout(s.config.RequestTimeout)
-
-	// Configure the scan-specific HTTP client with scan settings
-	if scanConfig != nil {
-		scanClient = scanClient.
-			WithHeaders(scanConfig.Headers).
-			WithCookies(scanConfig.Cookies)
-		if scanConfig.ProxyURL != "" {
-			scanClient = scanClient.WithProxy(scanConfig.ProxyURL)
-		}
-		if scanConfig.Insecure {
-			scanClient = scanClient.WithInsecure(true)
-		}
-	}
-
-	// 1. Technology detection (fast, provides context)
-	if s.config.EnableTechScan && s.techDetector != nil {
-		if s.config.Verbose {
-			fmt.Printf("[*] Running tech stack detection...\n")
-		}
-		techResult := s.detectTechnologiesWithClient(ctx, targetURL, scanClient)
-		result.Technologies = techResult
-		if s.config.Verbose && techResult != nil {
-			fmt.Printf("[+] Detected %d technologies\n", len(techResult.Technologies))
-		}
-
-		// Derive tech-aware hints for downstream detectors
-		s.techHint = s.techAwareConfig(techResult)
-	}
-
-	// 2. Run discovery pipeline to auto-discover injectable points
-	var discoveredParams []core.Parameter
-	if s.config.EnableDiscovery && s.discoveryPipeline != nil {
-		if s.config.Verbose {
-			fmt.Printf("[*] Running auto-discovery pipeline...\n")
-		}
-		discoveryResult, discoveryErr := s.discoveryPipeline.Run(ctx, targetURL)
-		if discoveryErr != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("discovery: %v", discoveryErr))
-		} else if discoveryResult != nil {
-			discoveredParams = discoveryResult.Parameters
-			if s.config.Verbose {
-				fmt.Printf("[+] Discovery found %d parameters from %d sources\n",
-					len(discoveredParams), len(discoveryResult.Sources))
-			}
-		}
-	}
-
-	// 3. Extract parameters from target config (query, cookie, path)
-	params := s.extractParametersWithConfig(target, scanConfig)
-
-	// Merge discovered params into params (deduplicate by Name+Location)
-	if len(discoveredParams) > 0 {
-		seen := make(map[string]bool)
-		for _, p := range params {
-			seen[p.Name+":"+p.Location] = true
-		}
-		for _, dp := range discoveredParams {
-			key := dp.Name + ":" + dp.Location
-			if !seen[key] {
-				seen[key] = true
-				params = append(params, dp)
-			}
-		}
-	}
-
-	if len(params) == 0 {
-		result.Errors = append(result.Errors, "no parameters found to test")
-		if s.config.Verbose {
-			fmt.Printf("[!] No parameters found to test\n")
-		}
-		return result, nil
-	}
-
-	// Extract parameter names for logging
-	paramNames := make([]string, 0, len(params))
-	for _, p := range params {
-		paramNames = append(paramNames, p.Name+"("+p.Location+")")
-	}
-
-	if s.config.Verbose {
-		fmt.Printf("[*] Testing %d parameters: %v\n", len(params), paramNames)
-	}
-
-	// 3. Test each parameter for vulnerabilities (SQLi and XSS first, then OOB)
-	var wg sync.WaitGroup
-	findingsChan := make(chan *core.Finding, 100)
-
-	method := "GET"
-	if scanConfig != nil && scanConfig.Method != "" {
-		method = scanConfig.Method
-	}
-
-	// Classify parameters (detect reflection, set content type)
-	ClassifyParameters(ctx, scanClient, targetURL, params, method)
-
-	// Drain findings concurrently to prevent channel deadlock
-	var collectedFindings core.Findings
-	var collectWg sync.WaitGroup
-	collectWg.Add(1)
-	go func() {
-		defer collectWg.Done()
-		for finding := range findingsChan {
-			collectedFindings = append(collectedFindings, finding)
-		}
-	}()
-
-	// Phase 1: Run all injection tests (don't wait for OOB)
-	s.runParameterTests(ctx, &wg, findingsChan, params, targetURL, method, scanClient)
-
-	// Wait for parameter-based tests to complete
-	wg.Wait()
-
-	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
-	s.runURLLevelTests(ctx, &wg, findingsChan, targetURL)
-
-	// Wait for URL-level tests
-	wg.Wait()
-
-	// Phase 1.75: Template scanning (after URL-level tests, before OOB)
-	if s.config.EnableTemplates && len(s.config.TemplatePaths) > 0 {
-		proxyURL := ""
-		if scanConfig != nil {
-			proxyURL = scanConfig.ProxyURL
-		}
-		s.runTemplateTests(ctx, &wg, findingsChan, target, proxyURL)
-		wg.Wait()
-	}
-
-	// Phase 2: OOB detection (after SQLi/XSS, wait for OOB client with timeout)
-	s.runOOBTests(ctx, &wg, findingsChan, result, params, targetURL, method, scanClient)
-
-	wg.Wait()
-
-	// Close channel and wait for collector to finish
-	close(findingsChan)
-	collectWg.Wait()
-
-	// Deduplicate findings
-	result.Findings = collectedFindings.Deduplicate()
-
-	return result, nil
-}
-
-// detectTechnologiesWithClient detects web technologies using the provided client.
-func (s *InternalScanner) detectTechnologiesWithClient(ctx context.Context, targetURL string, client *http.Client) *techstack.DetectionResult {
-	// Make a request to get headers and body
-	resp, err := client.Get(ctx, targetURL)
-	if err != nil {
-		return nil
-	}
-
-	// Response headers are already map[string]string
-	return s.techDetector.Analyze(targetURL, resp.Headers, resp.Body)
-}
-
-// techAwareConfig adjusts scan configuration based on detected technologies.
-// It enables/disables detectors and sets priority hints.
-func (s *InternalScanner) techAwareConfig(techResult *techstack.DetectionResult) *TechHint {
-	hint := &TechHint{
-		Technologies: make([]string, 0),
-	}
-
-	if techResult == nil {
-		return hint
-	}
-
-	for _, tech := range techResult.Technologies {
-		normalized := strings.ToLower(tech.Name)
-		hint.Technologies = append(hint.Technologies, normalized)
-	}
-
-	// Derive framework-specific hints from detected technologies
-	templateEngines := map[string]string{
-		"jinja2":     "jinja2",
-		"twig":       "twig",
-		"freemarker": "freemarker",
-		"django":     "django",
-		"erb":        "erb",
-		"smarty":     "smarty",
-	}
-
-	for _, tech := range hint.Technologies {
-		switch {
-		case tech == "php":
-			hint.LFIWrappers = true
-		case tech == "java" || tech == "spring" || tech == "tomcat":
-			hint.JavaDeser = true
-		case tech == "node" || tech == "express" || tech == "next":
-			hint.NodeProto = true
-		}
-
-		if engine, ok := templateEngines[tech]; ok && hint.TemplateEngine == "" {
-			hint.TemplateEngine = engine
-		}
-	}
-
-	return hint
-}
-
-// uuidPattern matches UUID-like strings in path segments.
-var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-
-// numericPattern matches purely numeric path segments.
-var numericPattern = regexp.MustCompile(`^[0-9]+$`)
-
-// extractParameters extracts testable parameters from the target URL.
-// It returns query parameters and path segments that look like IDs.
-func (s *InternalScanner) extractParameters(target *core.Target) []core.Parameter {
-	return s.extractParametersWithConfig(target, nil)
-}
-
-// extractParametersWithConfig extracts testable parameters from the target URL
-// and scan configuration. It identifies query params, cookie params, and
-// path segments that look like IDs (numeric or UUID).
-func (s *InternalScanner) extractParametersWithConfig(target *core.Target, scanConfig *Config) []core.Parameter {
-	var params []core.Parameter
-	seen := make(map[string]bool)
-
-	// Parse URL to get query parameters
-	parsedURL, err := url.Parse(target.URL())
-	if err != nil {
-		return params
-	}
-
-	// Extract query parameters
-	for key, values := range parsedURL.Query() {
-		seenKey := "query:" + key
-		if !seen[seenKey] {
-			value := ""
-			if len(values) > 0 {
-				value = values[0]
-			}
-			params = append(params, core.Parameter{
-				Name:     key,
-				Location: core.ParamLocationQuery,
-				Value:    value,
-				Type:     "string",
-			})
-			seen[seenKey] = true
-		}
-	}
-
-	// Extract cookie parameters from config
-	if scanConfig != nil && scanConfig.Cookies != "" {
-		cookies := strings.Split(scanConfig.Cookies, ";")
-		for _, cookie := range cookies {
-			cookie = strings.TrimSpace(cookie)
-			if cookie == "" {
-				continue
-			}
-			parts := strings.SplitN(cookie, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			name := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			seenKey := "cookie:" + name
-			if !seen[seenKey] {
-				params = append(params, core.Parameter{
-					Name:     name,
-					Location: core.ParamLocationCookie,
-					Value:    value,
-					Type:     "string",
-				})
-				seen[seenKey] = true
-			}
-		}
-	}
-
-	// Extract path segments that look like IDs (numeric or UUID)
-	pathSegments := strings.Split(parsedURL.Path, "/")
-	segmentIdx := 0
-	for _, seg := range pathSegments {
-		if seg == "" {
-			continue
-		}
-		if numericPattern.MatchString(seg) {
-			seenKey := fmt.Sprintf("path:%d", segmentIdx)
-			if !seen[seenKey] {
-				params = append(params, core.Parameter{
-					Name:     fmt.Sprintf("path_%d", segmentIdx),
-					Location: core.ParamLocationPath,
-					Value:    seg,
-					Type:     "number",
-				})
-				seen[seenKey] = true
-			}
-		} else if uuidPattern.MatchString(seg) {
-			seenKey := fmt.Sprintf("path:%d", segmentIdx)
-			if !seen[seenKey] {
-				params = append(params, core.Parameter{
-					Name:     fmt.Sprintf("path_%d", segmentIdx),
-					Location: core.ParamLocationPath,
-					Value:    seg,
-					Type:     "string",
-				})
-				seen[seenKey] = true
-			}
-		}
-		segmentIdx++
-	}
-
-	return params
-}
-
-// runTemplateTests executes nuclei-compatible templates against a target.
-// proxyURL, when non-empty, routes all template traffic through the given proxy.
-func (s *InternalScanner) runTemplateTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, target *core.Target, proxyURL string) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		if s.config.Verbose {
-			fmt.Printf("[*] Running template scanner...\n")
-		}
-
-		tsCfg := DefaultTemplateScanConfig()
-		tsCfg.Verbose = s.config.Verbose
-		tsCfg.ProxyURL = proxyURL
-
-		// Use first path as directory; additional paths as individual files
-		if len(s.config.TemplatePaths) == 1 {
-			tsCfg.TemplatesDir = s.config.TemplatePaths[0]
-		} else {
-			tsCfg.TemplatesDir = s.config.TemplatePaths[0]
-			tsCfg.TemplatePaths = s.config.TemplatePaths[1:]
-		}
-
-		if len(s.config.TemplateTags) > 0 {
-			tsCfg.IncludeTags = s.config.TemplateTags
-		}
-
-		ts, err := NewTemplateScanner(tsCfg)
-		if err != nil {
-			if s.config.Verbose {
-				fmt.Printf("[!] Template scanner creation failed: %v\n", err)
-			}
-			return
-		}
-
-		tsResult, err := ts.ScanWithLoad(ctx, target)
-		if err != nil {
-			if s.config.Verbose {
-				fmt.Printf("[!] Template scan error: %v\n", err)
-			}
-			return
-		}
-
-		for _, f := range tsResult.Findings {
-			findingsChan <- f
-		}
-
-		if s.config.Verbose {
-			fmt.Printf("[+] Template scanner completed: %d findings from %d/%d templates\n",
-				len(tsResult.Findings), tsResult.TemplatesRun, tsResult.TemplatesLoaded)
-		}
-	}()
-}
-
-// runParameterTests launches goroutines for all parameter-level injection tests.
-func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client) {
-	for _, param := range params {
-		wg.Add(1)
-		go func(p core.Parameter) {
-			defer wg.Done()
-			s.runParamDetectors(ctx, findingsChan, targetURL, p, method, scanClient)
-		}(param)
-	}
-}
-
-// paramTest represents a named, enabled detector test for a parameter.
-type paramTest struct {
-	name    string
-	enabled bool
-	run     func() []*core.Finding
-}
-
-// applicableTests returns which detectors should run based on parameter location.
-// This prevents running irrelevant detectors (e.g., LFI on a cookie parameter).
-func (s *InternalScanner) applicableTests(param core.Parameter) []paramTest {
-	// Build the full test registry (without closures - just names and enabled flags)
-	allTests := []struct {
-		name    string
-		enabled bool
-	}{
-		{"sqli", s.config.EnableSQLi},
-		{"xss", s.config.EnableXSS},
-		{"cmdi", s.config.EnableCMDI},
-		{"ssrf", s.config.EnableSSRF},
-		{"lfi", s.config.EnableLFI},
-		{"xxe", s.config.EnableXXE},
-		{"nosql", s.config.EnableNoSQL},
-		{"ssti", s.config.EnableSSTI},
-		{"redirect", s.config.EnableRedirect},
-		{"crlf", s.config.EnableCRLF},
-		{"ldap", s.config.EnableLDAP},
-		{"xpath", s.config.EnableXPath},
-		{"headerinj", s.config.EnableHeaderInj},
-		{"csti", s.config.EnableCSTI},
-		{"rfi", s.config.EnableRFI},
-		{"csvinj", s.config.EnableCSVInj},
-	}
-
-	// Define which tests apply per location
-	var applicableNames map[string]bool
-
-	switch param.Location {
-	case core.ParamLocationQuery, core.ParamLocationBody:
-		// All injection detectors apply
-		applicableNames = nil // nil means all
-	case core.ParamLocationCookie:
-		applicableNames = map[string]bool{
-			"sqli": true, "xss": true, "crlf": true,
-			"headerinj": true, "nosql": true,
-		}
-	case core.ParamLocationHeader:
-		applicableNames = map[string]bool{
-			"crlf": true, "headerinj": true, "ssti": true, "ssrf": true,
-		}
-	case core.ParamLocationPath:
-		applicableNames = map[string]bool{
-			"sqli": true, "lfi": true, "cmdi": true, "nosql": true, "xpath": true,
-		}
-	case core.ParamLocationLocalStorage, core.ParamLocationSessionStorage:
-		applicableNames = map[string]bool{
-			"xss": true,
-		}
-	default:
-		applicableNames = nil // unknown location, run all
-	}
-
-	var result []paramTest
-	for _, t := range allTests {
-		if !t.enabled {
-			continue
-		}
-		if applicableNames != nil && !applicableNames[t.name] {
-			continue
-		}
-		result = append(result, paramTest{
-			name:    t.name,
-			enabled: t.enabled,
-		})
-	}
-	return result
-}
-
-// runParamDetectors runs location-appropriate detectors for a single parameter.
-func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan chan<- *core.Finding, targetURL string, param core.Parameter, method string, scanClient *http.Client) {
-	// Build a name -> runner map
-	runners := map[string]func() []*core.Finding{
-		"sqli":      func() []*core.Finding { return s.testSQLiWithClient(ctx, targetURL, param, method, scanClient) },
-		"xss":       func() []*core.Finding { return s.testXSS(ctx, targetURL, param, method) },
-		"cmdi":      func() []*core.Finding { return s.testCMDI(ctx, targetURL, param, method) },
-		"ssrf":      func() []*core.Finding { return s.testSSRF(ctx, targetURL, param, method) },
-		"lfi":       func() []*core.Finding { return s.testLFI(ctx, targetURL, param, method) },
-		"xxe":       func() []*core.Finding { return s.testXXEInParam(ctx, targetURL, param, method) },
-		"nosql":     func() []*core.Finding { return s.testNoSQL(ctx, targetURL, param, method) },
-		"ssti":      func() []*core.Finding { return s.testSSTI(ctx, targetURL, param, method) },
-		"redirect":  func() []*core.Finding { return s.testRedirect(ctx, targetURL, param, method) },
-		"crlf":      func() []*core.Finding { return s.testCRLF(ctx, targetURL, param, method) },
-		"ldap":      func() []*core.Finding { return s.testLDAP(ctx, targetURL, param, method) },
-		"xpath":     func() []*core.Finding { return s.testXPath(ctx, targetURL, param, method) },
-		"headerinj": func() []*core.Finding { return s.testHeaderInj(ctx, targetURL, param, method) },
-		"csti":      func() []*core.Finding { return s.testCSTI(ctx, targetURL, param, method) },
-		"rfi":       func() []*core.Finding { return s.testRFI(ctx, targetURL, param, method) },
-		"csvinj":    func() []*core.Finding { return s.testCSVInj(ctx, targetURL, param, method) },
-	}
-
-	applicable := s.applicableTests(param)
-	for _, t := range applicable {
-		if s.confirmed.shouldSkip(param.Name, t.name) {
-			continue
-		}
-		runner, ok := runners[t.name]
-		if !ok {
-			continue
-		}
-		findings := runner()
-		if len(findings) > 0 {
-			s.confirmed.confirm(param.Name, t.name)
-			for _, f := range findings {
-				findingsChan <- f
-			}
-		}
-	}
-}
-
-// runURLLevelTests launches goroutines for URL-level tests (IDOR, CORS).
-func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string) {
-	if s.config.EnableIDOR {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testIDOR(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableCORS {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testCORS(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableJNDI {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testJNDI(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableSecHeaders {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testSecHeaders(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableExposure {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testExposure(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableCloud {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testCloud(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableSubTakeover && len(s.config.Subdomains) > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testSubTakeover(ctx) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableTLS {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testTLS(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableAuth && s.config.LoginURL != "" {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testAuth(ctx, s.config.LoginURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableGraphQL {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testGraphQL(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableSmuggling {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testSmuggling(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableStorageInj && s.storageInjDetector != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testStorageInj(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableLogInj {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testLogInj(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableFileUpload {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testFileUpload(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableVerbTamper {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testVerbTamper(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnablePathNorm {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testPathNorm(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-
-	if s.config.EnableRaceCond {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, f := range s.testRaceCond(ctx, targetURL) {
-				findingsChan <- f
-			}
-		}()
-	}
-}
-
-// runOOBTests launches goroutines for OOB detection tests.
-func (s *InternalScanner) runOOBTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, result *InternalScanResult, params []core.Parameter, targetURL, method string, scanClient *http.Client) {
-	if !s.config.EnableOOB {
+// applyScanConfig writes per-scan settings (proxy, headers, cookies, UA,
+// insecure) onto the shared http.Client used by every detector. Without
+// this, only a handful of detectors that took an explicit *http.Client
+// argument (SQLi, ClassifyParameters, OOB) saw the user's --proxy / -H /
+// --user-agent flags — the rest silently bypassed Burp Suite and
+// authentication.
+func applyScanConfig(client *http.Client, cfg *Config) {
+	if client == nil || cfg == nil {
 		return
 	}
-
-	if s.waitForOOBClient(10 * time.Second) {
-		if s.config.Verbose {
-			fmt.Printf("[*] Running OOB tests...\n")
-		}
-		for _, param := range params {
-			wg.Add(1)
-			go func(p core.Parameter) {
-				defer wg.Done()
-				for _, f := range s.testOOBWithClient(ctx, targetURL, p, method, scanClient) {
-					findingsChan <- f
-				}
-			}(param)
-		}
-	} else {
-		result.Errors = append(result.Errors, "OOB testing skipped: initialization failed or timed out")
+	if len(cfg.Headers) > 0 {
+		client.WithHeaders(cfg.Headers)
+	}
+	if cfg.Cookies != "" {
+		client.WithCookies(cfg.Cookies)
+	}
+	if cfg.UserAgent != "" {
+		client.WithUserAgent(cfg.UserAgent)
+	}
+	if cfg.ProxyURL != "" {
+		client.WithProxy(cfg.ProxyURL)
+	}
+	if cfg.Insecure {
+		client.WithInsecure(true)
 	}
 }

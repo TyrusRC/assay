@@ -23,6 +23,8 @@ var (
 	concurrency int
 	headers     []string
 	cookies     string
+	userAgent   string
+	insecure    bool
 	data        string
 	method      string
 	level       int
@@ -79,6 +81,8 @@ func init() {
 	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 3, "Number of concurrent tools")
 	scanCmd.Flags().StringArrayVarP(&headers, "header", "H", nil, "Custom headers (can be specified multiple times)")
 	scanCmd.Flags().StringVar(&cookies, "cookie", "", "Cookie string")
+	scanCmd.Flags().StringVarP(&userAgent, "user-agent", "A", "", "Custom User-Agent for ALL scanner traffic")
+	scanCmd.Flags().BoolVarP(&insecure, "insecure", "k", false, "Skip TLS certificate verification (needed when --proxy intercepts HTTPS, e.g. Burp Suite)")
 	scanCmd.Flags().StringVarP(&data, "data", "d", "", "POST data")
 	scanCmd.Flags().StringVarP(&method, "method", "X", "GET", "HTTP method")
 	scanCmd.Flags().IntVar(&level, "level", 1, "Scan level (1-5)")
@@ -132,6 +136,9 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	// Create scanner
 	s := scanner.New()
+	// Release headless browser pool and OOB client when runScan returns,
+	// including on error paths and cancellation.
+	defer s.Close()
 
 	// Configure scanner with all CLI options
 	config := &scanner.Config{
@@ -140,9 +147,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		Verbose:     verbose,
 		Headers:     headerMap,
 		Cookies:     cookies,
+		UserAgent:   userAgent,
 		Data:        data,
 		Method:      method,
 		ProxyURL:    proxy,
+		Insecure:    insecure,
 		OutputDir:   output,
 	}
 	s.SetConfig(config)
