@@ -22,6 +22,15 @@ const (
 	VulnJKUInjection VulnerabilityType = "jku_injection"
 	// VulnX5UInjection indicates x5u URL injection vulnerability.
 	VulnX5UInjection VulnerabilityType = "x5u_injection"
+	// VulnEmbeddedJWKForge indicates a server that trusts an attacker-supplied
+	// public key embedded in the token's "jwk" header (CVE-2018-0114-style).
+	// Only emitted after a forged token has been replayed and accepted.
+	VulnEmbeddedJWKForge VulnerabilityType = "embedded_jwk_forge"
+	// VulnKidPathTraversal indicates the server resolves a "kid" header
+	// containing a path-traversal sequence to a predictable empty file
+	// (e.g. /dev/null) and accepts an HMAC signature computed with the
+	// resulting empty key. Only emitted after replay confirmation.
+	VulnKidPathTraversal VulnerabilityType = "kid_path_traversal"
 )
 
 // String returns the human-readable name of the vulnerability type.
@@ -39,6 +48,10 @@ func (v VulnerabilityType) String() string {
 		return "JKU URL Injection"
 	case VulnX5UInjection:
 		return "X5U URL Injection"
+	case VulnEmbeddedJWKForge:
+		return "Embedded JWK Signature Forge"
+	case VulnKidPathTraversal:
+		return "Kid Header Path Traversal"
 	default:
 		return string(v)
 	}
@@ -47,7 +60,8 @@ func (v VulnerabilityType) String() string {
 // Severity returns the severity level for this vulnerability type.
 func (v VulnerabilityType) Severity() core.Severity {
 	switch v {
-	case VulnNoneAlgorithm, VulnWeakSecret, VulnAlgorithmConfusion:
+	case VulnNoneAlgorithm, VulnWeakSecret, VulnAlgorithmConfusion,
+		VulnEmbeddedJWKForge, VulnKidPathTraversal:
 		return core.SeverityCritical
 	case VulnJWKInjection, VulnJKUInjection, VulnX5UInjection:
 		return core.SeverityHigh
@@ -105,14 +119,60 @@ type JWTFinding struct {
 	Evidence      string
 	CrackedSecret string
 	Remediation   string
+	// Confirmed is true when the vulnerability was verified by replaying
+	// a forged token against the live server (DetectWithReplay) or by
+	// proving it directly (e.g. cracking the HMAC secret). Static-only
+	// observations — seeing alg:none in a token, or RS256 with a public
+	// key available — start as Confirmed=false because neither is
+	// exploitable on its own.
+	Confirmed bool
+}
+
+// requiresReplayConfirmation returns whether this vuln class needs a
+// live-server replay to be considered confirmed. Pure static observations
+// (alg:none, alg confusion setup) need it; direct proofs (cracked secret,
+// key-injection headers present) do not.
+func (f *JWTFinding) requiresReplayConfirmation() bool {
+	switch f.VulnType {
+	case VulnNoneAlgorithm, VulnAlgorithmConfusion:
+		return true
+	default:
+		return false
+	}
+}
+
+// downgradedSeverity lowers an unconfirmed finding's effective severity so
+// it is not reported at the same level as a proven vulnerability.
+func downgradedSeverity(s core.Severity) core.Severity {
+	switch s {
+	case core.SeverityCritical:
+		return core.SeverityMedium
+	case core.SeverityHigh:
+		return core.SeverityLow
+	default:
+		return core.SeverityInfo
+	}
 }
 
 // ToCoreFindings converts JWTFinding to core.Finding.
 func (f *JWTFinding) ToCoreFindings(url string) *core.Finding {
-	finding := core.NewFinding(f.getType(), f.Severity)
+	severity := f.Severity
+	description := f.Description
+	evidence := f.Evidence
+
+	// Unconfirmed static observations: downgrade severity and prefix the
+	// text so consumers can't mistake a token inspection for a proven
+	// server-side vulnerability.
+	if !f.Confirmed && f.requiresReplayConfirmation() {
+		severity = downgradedSeverity(severity)
+		description = "[unconfirmed — static token inspection only; replay-verify to promote] " + description
+		evidence = "[unconfirmed] " + evidence
+	}
+
+	finding := core.NewFinding(f.getType(), severity)
 	finding.URL = url
-	finding.Description = f.Description
-	finding.Evidence = f.Evidence
+	finding.Description = description
+	finding.Evidence = evidence
 	finding.Remediation = f.Remediation
 	finding.Tool = "jwt-detector"
 
@@ -132,6 +192,9 @@ func (f *JWTFinding) ToCoreFindings(url string) *core.Finding {
 	if f.CrackedSecret != "" {
 		finding.Metadata["cracked_secret"] = f.CrackedSecret
 	}
+	if f.Confirmed {
+		finding.Metadata["confirmed"] = "true"
+	}
 
 	return finding
 }
@@ -150,6 +213,10 @@ func (f *JWTFinding) getType() string {
 		return "JWT JKU URL Injection"
 	case VulnX5UInjection:
 		return "JWT X5U URL Injection"
+	case VulnEmbeddedJWKForge:
+		return "JWT Embedded JWK Signature Forge"
+	case VulnKidPathTraversal:
+		return "JWT Kid Header Path Traversal"
 	default:
 		return "JWT Vulnerability"
 	}
@@ -173,8 +240,11 @@ func (f *JWTFinding) getCWE() []string {
 		return []string{"CWE-347", "CWE-327"}
 	case VulnWeakSecret:
 		return []string{"CWE-287", "CWE-521"}
-	case VulnJWKInjection, VulnJKUInjection, VulnX5UInjection:
+	case VulnJWKInjection, VulnJKUInjection, VulnX5UInjection,
+		VulnEmbeddedJWKForge:
 		return []string{"CWE-347", "CWE-20"}
+	case VulnKidPathTraversal:
+		return []string{"CWE-22", "CWE-347"}
 	default:
 		return []string{"CWE-287"}
 	}

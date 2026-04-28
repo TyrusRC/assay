@@ -76,14 +76,54 @@ func TestDetector_DetectHeaderInjection(t *testing.T) {
 	}
 }
 
-func TestDetector_DetectCRLFInBody(t *testing.T) {
-	// Server that reflects CRLF payload in response body
+// TestDetector_DetectCRLFInBody_EchoIsNotInjection: plain reflection of
+// the CRLF payload into the response body is NOT header injection —
+// that's ordinary (mis)handling of HTML output. The detector now strips
+// the echoed payload before matching, eliminating this FP class (every
+// site that reflects a search/category parameter used to trip this).
+func TestDetector_DetectCRLFInBody_EchoIsNotInjection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		input := r.URL.Query().Get("name")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Hello " + input))
+	}))
+	defer server.Close()
+
+	client := internalhttp.NewClient()
+	detector := New(client)
+
+	result, err := detector.Detect(
+		context.Background(),
+		server.URL+"?name=user",
+		"name", "GET",
+		DetectOptions{MaxPayloads: 20},
+	)
+
+	if err != nil {
+		t.Fatalf("Detect failed: %v", err)
+	}
+
+	if result.Vulnerable {
+		t.Error("Echo-only reflection must NOT be flagged as header injection")
+	}
+}
+
+// TestDetector_DetectCRLFInBody_NewlineTypeNoBodySignal verifies that
+// newline-type payloads NO LONGER produce findings from body reflection
+// alone. The old detector trusted any `X-Injected:` substring in the
+// response body, which was 100% FP-prone on any reflecting target.
+// Real HTTP header injection only matters when the injected header
+// actually appears in the response headers — that path is tested
+// elsewhere by TestDetector_DetectHeaderInjection.
+func TestDetector_DetectCRLFInBody_NewlineTypeNoBodySignal(t *testing.T) {
+	// Even a server that blatantly emits the marker in the body must not
+	// be flagged as header injection when only newline-type payloads are
+	// used — the fix is intentional: body echo ≠ header injection.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("name")
 		if strings.Contains(input, "\r\n") || strings.Contains(input, "\n") {
-			// Reflects the payload including the injected content
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Hello " + input))
+			w.Write([]byte("X-Injected: true\n\nHello friend"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -105,8 +145,8 @@ func TestDetector_DetectCRLFInBody(t *testing.T) {
 		t.Fatalf("Detect failed: %v", err)
 	}
 
-	if !result.Vulnerable {
-		t.Error("Expected CRLF injection in body to be detected")
+	if result.Vulnerable {
+		t.Error("Body-only signal for newline payloads must not produce findings")
 	}
 }
 

@@ -128,15 +128,60 @@ func (d *Detector) DetectCLTE(ctx context.Context, target string, path string) *
 	diff, significant := CalculateTimingDifferential(baselineDuration, probeDuration, d.config.TimingThreshold)
 	result.TimingDiff = diff
 
-	if significant {
-		result.Vulnerable = true
-		result.Confidence = 0.85
-		result.Evidence = fmt.Sprintf("Timing differential of %v detected (threshold: %v)", diff, d.config.TimingThreshold)
-		result.FrontendBehavior = "Uses Content-Length"
-		result.BackendBehavior = "Uses Transfer-Encoding (chunked)"
+	if !significant {
+		return result
 	}
 
+	// If the probe took nearly as long as our per-request ceiling, we most
+	// likely hit our own deadline (server held the connection open until
+	// we gave up), not a real timing oracle. Report as inconclusive.
+	ceiling := d.config.Timeout + d.config.TimingThreshold
+	if likelyCeilingTimeout(probeDuration, ceiling) {
+		result.Evidence = fmt.Sprintf("Probe duration %v is near per-request ceiling %v — treating as timeout, not smuggling signal", probeDuration, ceiling)
+		return result
+	}
+
+	// Confirmation round: a one-shot timing spike is often unrelated to
+	// smuggling — WAF/CDN first-request penalties, TLS resumption misses,
+	// background scrubbing. Require a second independent probe to show the
+	// same significant differential before calling it vulnerable.
+	_, probeDuration2, err2 := SendRawRequest(ctx, addr, probeReq, ceiling)
+	if err2 != nil || !isSignificantRound(baselineDuration, probeDuration2, d.config.TimingThreshold) {
+		result.Evidence = fmt.Sprintf("Timing differential of %v on first probe not reproducible on confirmation round; treating as non-smuggling jitter", diff)
+		return result
+	}
+	if likelyCeilingTimeout(probeDuration2, ceiling) {
+		result.Evidence = fmt.Sprintf("Confirmation probe duration %v also near ceiling %v — treating as deterministic timeout, not smuggling", probeDuration2, ceiling)
+		return result
+	}
+
+	result.Vulnerable = true
+	result.Confidence = 0.85
+	result.Evidence = fmt.Sprintf("Timing differential confirmed on two rounds (first=%v, second=%v; threshold=%v)", diff, probeDuration2-baselineDuration, d.config.TimingThreshold)
+	result.FrontendBehavior = "Uses Content-Length"
+	result.BackendBehavior = "Uses Transfer-Encoding (chunked)"
 	return result
+}
+
+// isSignificantRound reports whether a single probe/baseline pair exceeds the
+// configured timing threshold. Extracted so confirmation rounds can reuse the
+// same significance criterion.
+func isSignificantRound(baseline, probe, threshold time.Duration) bool {
+	_, significant := CalculateTimingDifferential(baseline, probe, threshold)
+	return significant
+}
+
+// likelyCeilingTimeout reports whether a probe duration sits suspiciously
+// close to the configured per-request ceiling. That usually means the
+// connection was held open until our own deadline rather than the server
+// meaningfully waiting for more data — i.e., noise, not smuggling.
+// A safety margin of 10% avoids flagging merely slow backends.
+func likelyCeilingTimeout(probe, ceiling time.Duration) bool {
+	if ceiling <= 0 {
+		return false
+	}
+	margin := ceiling / 10 // 10% grace
+	return probe >= ceiling-margin
 }
 
 // DetectTECL tests for TE.CL (Transfer-Encoding wins, Content-Length ignored by frontend).
@@ -184,13 +229,32 @@ func (d *Detector) DetectTECL(ctx context.Context, target string, path string) *
 	diff, significant := CalculateTimingDifferential(baselineDuration, probeDuration, d.config.TimingThreshold)
 	result.TimingDiff = diff
 
-	if significant {
-		result.Vulnerable = true
-		result.Confidence = 0.85
-		result.Evidence = fmt.Sprintf("Timing differential of %v detected (threshold: %v)", diff, d.config.TimingThreshold)
-		result.FrontendBehavior = "Uses Transfer-Encoding (chunked)"
-		result.BackendBehavior = "Uses Content-Length"
+	if !significant {
+		return result
 	}
+
+	ceiling := d.config.Timeout + d.config.TimingThreshold
+	if likelyCeilingTimeout(probeDuration, ceiling) {
+		result.Evidence = fmt.Sprintf("Probe duration %v is near per-request ceiling %v — treating as timeout, not smuggling signal", probeDuration, ceiling)
+		return result
+	}
+
+	// Confirmation round — see DetectCLTE for rationale.
+	_, probeDuration2, err2 := SendRawRequest(ctx, addr, probeReq, ceiling)
+	if err2 != nil || !isSignificantRound(baselineDuration, probeDuration2, d.config.TimingThreshold) {
+		result.Evidence = fmt.Sprintf("Timing differential of %v on first probe not reproducible on confirmation round; treating as non-smuggling jitter", diff)
+		return result
+	}
+	if likelyCeilingTimeout(probeDuration2, ceiling) {
+		result.Evidence = fmt.Sprintf("Confirmation probe duration %v also near ceiling %v — treating as deterministic timeout, not smuggling", probeDuration2, ceiling)
+		return result
+	}
+
+	result.Vulnerable = true
+	result.Confidence = 0.85
+	result.Evidence = fmt.Sprintf("Timing differential confirmed on two rounds (first=%v, second=%v; threshold=%v)", diff, probeDuration2-baselineDuration, d.config.TimingThreshold)
+	result.FrontendBehavior = "Uses Transfer-Encoding (chunked)"
+	result.BackendBehavior = "Uses Content-Length"
 
 	return result
 }
@@ -222,7 +286,8 @@ func (d *Detector) DetectTETE(ctx context.Context, target string, path string) *
 		return result
 	}
 
-	baselineStatus := extractStatusCode(baselineResp)
+	_ = baselineResp // baseline status was previously used for a status-delta
+	// heuristic that produced only false positives; see note below.
 
 	for _, payload := range payloads {
 		select {
@@ -244,17 +309,19 @@ func (d *Detector) DetectTETE(ctx context.Context, target string, path string) *
 			continue
 		}
 
-		probeStatus := extractStatusCode(probeResp)
+		_ = extractStatusCode(probeResp)
 
-		// Check for response difference
-		if probeStatus != baselineStatus && probeStatus >= 400 {
-			result.Vulnerable = true
-			result.Confidence = 0.75
-			result.Evidence = fmt.Sprintf("TE obfuscation caused status change: %d -> %d", baselineStatus, probeStatus)
-			result.Request = payload
-			result.Response = probeResp
-			return result
-		}
+		// NOTE: status-code deltas alone are NOT a reliable smuggling
+		// signal:
+		//   - 4xx on the probe means the frontend rejected the obfuscated
+		//     request (correct, non-vulnerable behavior).
+		//   - 501 Not Implemented means the frontend doesn't parse this
+		//     Transfer-Encoding variant (also non-vulnerable).
+		//   - 5xx in general can be caused by any number of backend
+		//     quirks unrelated to smuggling.
+		// Only the timing path below is used — with confirmation rounds
+		// and a near-ceiling check — because real smuggling consistently
+		// produces a reproducible timing oracle.
 
 		// Check timing
 		diff, significant := CalculateTimingDifferential(baselineDuration, probeDuration, d.config.TimingThreshold)
@@ -267,6 +334,14 @@ func (d *Detector) DetectTETE(ctx context.Context, target string, path string) *
 	}
 
 	if maxDiff > d.config.TimingThreshold {
+		ceiling := d.config.Timeout + d.config.TimingThreshold
+		// Same near-ceiling check as CL.TE / TE.CL: a differential that
+		// parks at our per-request deadline is almost always a client-
+		// side timeout, not a smuggling oracle.
+		if likelyCeilingTimeout(baselineDuration+maxDiff, ceiling) {
+			result.Evidence = fmt.Sprintf("Max TE-obfuscation differential %v parks at per-request ceiling %v — treating as timeout, not smuggling", maxDiff, ceiling)
+			return result
+		}
 		result.Vulnerable = true
 		result.Confidence = 0.8
 		result.Evidence = fmt.Sprintf("Timing differential of %v with %s", maxDiff, detectedObfuscation)

@@ -2,17 +2,30 @@ package ssti
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/ssti"
 )
 
 // detectMathExpression tests for SSTI using mathematical expressions.
+// Each probe wraps its math expression with a unique alphanumeric sentinel
+// (e.g. "st42..."). A response containing `st42...49st42...` is strong
+// evidence that the template engine evaluated the expression in place.
+// Incidental "49" / "14" occurrences in the response body (timestamps,
+// widths, IDs) no longer produce false positives.
 func (d *Detector) detectMathExpression(ctx context.Context, target, param, method string, baseline *baselineResponse) mathDetectionResult {
 	result := mathDetectionResult{
 		engine: ssti.EngineUnknown,
 	}
+
+	// Per-call sentinel — alphanumeric so it survives URL/header encoding
+	// and doesn't accidentally trigger any template engine's syntax.
+	sentinel := fmt.Sprintf("st%d", time.Now().UnixNano()%1000000000)
+	wrap := func(expr string) string { return sentinel + expr + sentinel }
+	expect := func(v string) string { return sentinel + v + sentinel }
 
 	// Test mathematical expressions for different template engines
 	mathTests := []struct {
@@ -21,25 +34,25 @@ func (d *Detector) detectMathExpression(ctx context.Context, target, param, meth
 		engine   ssti.TemplateEngine
 	}{
 		// Jinja2/Twig/Pebble style
-		{"{{7*7}}", "49", ssti.EngineUnknown},
-		{"{{7+7}}", "14", ssti.EngineUnknown},
+		{wrap("{{7*7}}"), expect("49"), ssti.EngineUnknown},
+		{wrap("{{7+7}}"), expect("14"), ssti.EngineUnknown},
 
 		// Freemarker/Thymeleaf/Mako style
-		{"${7*7}", "49", ssti.EngineUnknown},
-		{"${7+7}", "14", ssti.EngineUnknown},
+		{wrap("${7*7}"), expect("49"), ssti.EngineUnknown},
+		{wrap("${7+7}"), expect("14"), ssti.EngineUnknown},
 
 		// ERB style
-		{"<%= 7*7 %>", "49", ssti.EngineERB},
-		{"<%= 7+7 %>", "14", ssti.EngineERB},
+		{wrap("<%= 7*7 %>"), expect("49"), ssti.EngineERB},
+		{wrap("<%= 7+7 %>"), expect("14"), ssti.EngineERB},
 
 		// Velocity style
-		{"#set($x=7*7)$x", "49", ssti.EngineVelocity},
+		{wrap("#set($x=7*7)$x"), expect("49"), ssti.EngineVelocity},
 
 		// Smarty style
-		{"{7*7}", "49", ssti.EngineSmarty},
+		{wrap("{7*7}"), expect("49"), ssti.EngineSmarty},
 
 		// Freemarker numeric
-		{"#{7*7}", "49", ssti.EngineFreemarker},
+		{wrap("#{7*7}"), expect("49"), ssti.EngineFreemarker},
 	}
 
 	for _, test := range mathTests {
@@ -55,7 +68,9 @@ func (d *Detector) detectMathExpression(ctx context.Context, target, param, meth
 		}
 
 		// Check if the expected mathematical result appears in the response
-		if d.containsMathResult(resp.Body, test.expected, baseline.body) {
+		// AND the raw expression is not echoed verbatim (rejects FPs where
+		// e.g. a request header value is mirrored into the response body).
+		if d.evaluatedMath(resp.Body, test.expected, baseline.body, test.payload) {
 			result.detected = true
 			result.expression = test.payload
 			result.result = test.expected

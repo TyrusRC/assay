@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/swiss-knife-for-web-security/skws/internal/core"
 	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
 )
 
@@ -18,430 +23,440 @@ func TestNew(t *testing.T) {
 	if detector == nil {
 		t.Fatal("New() returned nil")
 	}
-
 	if detector.client != client {
 		t.Error("New() did not set client correctly")
 	}
 }
 
 func TestDetector_Name(t *testing.T) {
-	client := internalhttp.NewClient()
-	detector := New(client)
-
-	if detector.Name() != "racecond" {
-		t.Errorf("Name() = %q, want %q", detector.Name(), "racecond")
+	if New(internalhttp.NewClient()).Name() != "racecond" {
+		t.Errorf("Name() should be 'racecond'")
 	}
 }
 
 func TestDefaultOptions(t *testing.T) {
 	opts := DefaultOptions()
-
 	if opts.ConcurrentRequests <= 0 {
-		t.Error("DefaultOptions() ConcurrentRequests should be positive")
+		t.Error("ConcurrentRequests should be positive")
 	}
 	if opts.Timeout <= 0 {
-		t.Error("DefaultOptions() Timeout should be positive")
+		t.Error("Timeout should be positive")
 	}
-	if opts.BodyLengthVariance <= 0 {
-		t.Error("DefaultOptions() BodyLengthVariance should be positive")
+	if opts.SyncMode == "" {
+		t.Error("SyncMode should default to a non-empty value")
+	}
+	if opts.BaselineRequests <= 0 {
+		t.Error("BaselineRequests should be positive")
 	}
 }
 
 func TestDetector_WithVerbose(t *testing.T) {
 	client := internalhttp.NewClient()
-
-	detector := New(client).WithVerbose(true)
-	if !detector.verbose {
-		t.Error("WithVerbose(true) did not set verbose flag")
+	if !New(client).WithVerbose(true).verbose {
+		t.Error("WithVerbose(true) did not set the flag")
 	}
-
-	detector2 := New(client).WithVerbose(false)
-	if detector2.verbose {
-		t.Error("WithVerbose(false) should leave verbose as false")
+	if New(client).WithVerbose(false).verbose {
+		t.Error("WithVerbose(false) should leave the flag false")
 	}
 }
 
-func TestDetector_Detect_InconsistentStatusCodes(t *testing.T) {
-	// Server that returns different status codes for concurrent requests
+// idempotentWallet simulates a payment endpoint with idempotency keys.
+// "Debit once per key" is the contract; the bug is that the check-then-
+// debit is non-atomic, so a burst of requests with a *fresh* key can all
+// pass the check before the first one commits.
+//
+// The detector helpfully sends one fixed payload during the baseline
+// ("skws_race_baseline") and a different one during the burst
+// ("skws_race_burst"), so we route on the param value to get distinct
+// idempotency keys for each phase. That way the baseline establishes
+// "what a clean response looks like" without exhausting the resource the
+// burst will race for.
+type idempotentWallet struct {
+	mu         sync.Mutex
+	debited    map[string]bool
+	balance    int64
+	raceWindow time.Duration
+	locked     bool
+}
+
+func newWallet(locked bool, raceWindow time.Duration) *idempotentWallet {
+	return &idempotentWallet{
+		debited:    map[string]bool{},
+		balance:    10_000,
+		raceWindow: raceWindow,
+		locked:     locked,
+	}
+}
+
+func (w *idempotentWallet) handle(rw http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("idkey")
+	if key == "" {
+		_ = r.ParseForm()
+		key = r.PostForm.Get("idkey")
+	}
+
+	if w.locked {
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if w.debited[key] {
+			rw.WriteHeader(http.StatusConflict)
+			fmt.Fprint(rw, "already debited")
+			return
+		}
+		w.debited[key] = true
+		w.balance -= 100
+		rw.WriteHeader(http.StatusOK)
+		fmt.Fprint(rw, "debited 100")
+		return
+	}
+
+	// Vulnerable path: check held under lock, then released, then debit
+	// taken under lock. The window between the check and the debit is the
+	// race window. Body intentionally constant so the analyzer's body-hash
+	// bucketing groups multi-success responses together.
+	w.mu.Lock()
+	seen := w.debited[key]
+	w.mu.Unlock()
+	if seen {
+		rw.WriteHeader(http.StatusConflict)
+		fmt.Fprint(rw, "already debited")
+		return
+	}
+	time.Sleep(w.raceWindow)
+	w.mu.Lock()
+	w.debited[key] = true
+	w.balance -= 100
+	w.mu.Unlock()
+	rw.WriteHeader(http.StatusOK)
+	fmt.Fprint(rw, "debited 100")
+}
+
+// TestDetect_MultiSuccess_OnVulnerableWallet: the canonical positive case.
+// Sequential baseline produces 1×200 + 2×409 (debit then "already").
+// Burst with race vulnerability produces N×200 (multiple debits committed
+// against the same idempotency key) — multi-success signal fires.
+func TestDetect_MultiSuccess_OnVulnerableWallet(t *testing.T) {
+	wallet := newWallet(false, 80*time.Millisecond)
+	srv := httptest.NewServer(http.HandlerFunc(wallet.handle))
+	defer srv.Close()
+
+	client := internalhttp.NewClient().WithFollowRedirects(false)
+	d := New(client)
+
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 6
+	opts.BaselineRequests = 3
+	opts.PreSyncDelay = 30 * time.Millisecond
+
+	res, err := d.Detect(context.Background(), srv.URL+"?idkey=irrelevant", "idkey", "POST", opts)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if !res.Vulnerable {
+		t.Fatalf("expected race-condition finding on vulnerable wallet")
+	}
+	if len(res.Findings) == 0 {
+		t.Fatal("expected at least one finding")
+	}
+	f := res.Findings[0]
+	if f.Severity != core.SeverityMedium {
+		t.Errorf("unconfirmed race should be Medium, got %s", f.Severity)
+	}
+	if !strings.Contains(strings.ToLower(f.Description), "unconfirmed") {
+		t.Errorf("description should note the finding is unconfirmed; got %q", f.Description)
+	}
+	if !strings.Contains(f.Evidence, "multi-success") {
+		t.Errorf("expected multi-success signal; evidence: %s", f.Evidence)
+	}
+}
+
+// TestDetect_NoFinding_OnLockedWallet: the FP-guard. A properly-locked
+// wallet returns 1×200 + 5×409 under burst — baseline pattern matches,
+// nothing should fire.
+func TestDetect_NoFinding_OnLockedWallet(t *testing.T) {
+	wallet := newWallet(true, 0)
+	srv := httptest.NewServer(http.HandlerFunc(wallet.handle))
+	defer srv.Close()
+
+	client := internalhttp.NewClient().WithFollowRedirects(false)
+	d := New(client)
+
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 6
+	opts.BaselineRequests = 3
+	opts.PreSyncDelay = 30 * time.Millisecond
+
+	res, err := d.Detect(context.Background(), srv.URL+"?idkey=irrelevant", "idkey", "POST", opts)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if res.Vulnerable {
+		t.Fatalf("locked wallet should NOT trip; got %+v", res.Findings)
+	}
+}
+
+// TestDetect_NoFinding_WhenBaselineAlreadyVaries: the most important FP
+// guard. If the response naturally varies per request (timestamps,
+// request IDs, paginated counters, load-balancer affinity), the burst
+// will also vary — but that's not a race, it's just normal variance.
+// The differential analyzer must not flag it.
+func TestDetect_NoFinding_WhenBaselineAlreadyVaries(t *testing.T) {
 	var counter int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt64(&counter, 1)
-		if n%2 == 0 {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Success"))
-		} else {
-			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte("Conflict"))
-		}
-	}))
-	defer server.Close()
-
-	client := internalhttp.NewClient()
-	detector := New(client)
-
-	result, err := detector.Detect(context.Background(), server.URL+"?action=transfer", "action", "POST", DetectOptions{
-		ConcurrentRequests: 10,
-		BodyLengthVariance: 0.1,
-	})
-
-	if err != nil {
-		t.Fatalf("Detect() returned error: %v", err)
-	}
-
-	if !result.Vulnerable {
-		t.Error("Expected vulnerability to be detected with inconsistent status codes")
-	}
-
-	if len(result.Findings) == 0 {
-		t.Error("Expected at least one finding")
-	}
-
-	if result.Vulnerable {
-		finding := result.Findings[0]
-		if finding.Tool != "racecond-detector" {
-			t.Errorf("Tool = %q, want %q", finding.Tool, "racecond-detector")
-		}
-		if len(finding.WSTG) == 0 {
-			t.Error("Expected WSTG mappings")
-		}
-		if len(finding.CWE) == 0 {
-			t.Error("Expected CWE mappings")
-		}
-		if finding.Remediation == "" {
-			t.Error("Expected non-empty Remediation")
-		}
-	}
-}
-
-func TestDetector_Detect_ConsistentResponses(t *testing.T) {
-	// Server that returns consistent responses
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Consistent response body"))
-	}))
-	defer server.Close()
-
-	client := internalhttp.NewClient()
-	detector := New(client)
-
-	result, err := detector.Detect(context.Background(), server.URL+"?action=test", "action", "POST", DetectOptions{
-		ConcurrentRequests: 5,
-		BodyLengthVariance: 0.1,
-	})
-
-	if err != nil {
-		t.Fatalf("Detect() returned error: %v", err)
-	}
-
-	if result.Vulnerable {
-		t.Error("Expected no vulnerability with consistent responses")
-	}
-}
-
-func TestDetector_Detect_InconsistentBodyLengths(t *testing.T) {
-	// Server that returns different body lengths
-	var counter int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := atomic.AddInt64(&counter, 1)
 		w.WriteHeader(http.StatusOK)
-		if n%3 == 0 {
-			// Much longer response (significant variance)
-			w.Write([]byte("This is a much longer response body that indicates something different happened during processing of this particular request"))
-		} else {
-			w.Write([]byte("Short"))
-		}
+		fmt.Fprintf(w, "request-id: %d\nfetched at %d", n, time.Now().UnixNano())
 	}))
-	defer server.Close()
+	defer srv.Close()
 
-	client := internalhttp.NewClient()
-	detector := New(client)
+	client := internalhttp.NewClient().WithFollowRedirects(false)
+	d := New(client)
 
-	result, err := detector.Detect(context.Background(), server.URL+"?amount=100", "amount", "POST", DetectOptions{
-		ConcurrentRequests: 9,
-		BodyLengthVariance: 0.1,
-	})
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 6
+	opts.BaselineRequests = 3
+	opts.PreSyncDelay = 30 * time.Millisecond
 
+	res, err := d.Detect(context.Background(), srv.URL+"?a=1", "a", "GET", opts)
 	if err != nil {
-		t.Fatalf("Detect() returned error: %v", err)
+		t.Fatalf("Detect: %v", err)
 	}
-
-	if !result.Vulnerable {
-		t.Error("Expected vulnerability to be detected with inconsistent body lengths")
+	if res.Vulnerable {
+		t.Fatalf("naturally-varying endpoint must not flag as race; got %+v", res.Findings)
 	}
 }
 
-func TestDetector_Detect_ServerDown(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// TestDetectWithVerifier_Promotes: when a verifier callback confirms a
+// double-effect (e.g. balance moved twice), the finding is promoted to
+// Critical+Confirmed.
+func TestDetectWithVerifier_Promotes(t *testing.T) {
+	wallet := newWallet(false, 80*time.Millisecond)
+	srv := httptest.NewServer(http.HandlerFunc(wallet.handle))
+	defer srv.Close()
+
+	client := internalhttp.NewClient().WithFollowRedirects(false)
+	d := New(client)
+
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 6
+	opts.BaselineRequests = 3
+	opts.PreSyncDelay = 30 * time.Millisecond
+
+	verify := func(ctx context.Context) (bool, string, error) {
+		wallet.mu.Lock()
+		bal := wallet.balance
+		wallet.mu.Unlock()
+		// One legitimate baseline debit + one expected burst-winner = 9800.
+		// Anything below that proves the race fired (multiple debits).
+		if bal < 9_800 {
+			return true, fmt.Sprintf("wallet balance dropped to %d, indicating %d unintended debits", bal, (10_000-bal)/100-2), nil
+		}
+		return false, fmt.Sprintf("balance %d shows no double-debit", bal), nil
+	}
+
+	res, err := d.DetectWithVerifier(context.Background(), srv.URL+"?idkey=irrelevant", "idkey", "POST", opts, verify)
+	if err != nil {
+		t.Fatalf("DetectWithVerifier: %v", err)
+	}
+	if !res.Vulnerable {
+		t.Fatal("expected vulnerable result")
+	}
+	f := res.Findings[0]
+	if f.Severity != core.SeverityCritical {
+		t.Errorf("confirmed race must be Critical, got %s", f.Severity)
+	}
+	if !strings.Contains(f.Description, "Verified") {
+		t.Errorf("description should mention 'Verified'; got %q", f.Description)
+	}
+}
+
+// TestDetect_ServerDown: a target that refuses connections returns an
+// error and produces no findings.
+func TestDetect_ServerDown(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	serverURL := server.URL
-	server.Close()
+	url := srv.URL
+	srv.Close()
 
-	client := internalhttp.NewClient()
-	detector := New(client)
+	d := New(internalhttp.NewClient().WithFollowRedirects(false))
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 4
+	opts.BaselineRequests = 1
+	opts.Timeout = 2 * time.Second
 
-	result, err := detector.Detect(context.Background(), serverURL+"?action=test", "action", "POST", DetectOptions{
-		ConcurrentRequests: 5,
-		BodyLengthVariance: 0.1,
-	})
-
+	res, err := d.Detect(context.Background(), url+"?a=1", "a", "POST", opts)
 	if err == nil {
-		t.Error("Expected error when server is down")
+		t.Error("expected error when server is down")
 	}
-
-	if result == nil {
-		t.Fatal("Expected non-nil result even on error")
+	if res == nil {
+		t.Fatal("result should not be nil even on error")
 	}
 }
 
-func TestDetector_Detect_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// TestDetect_ContextCancellation: a pre-cancelled context terminates
+// quickly without findings.
+func TestDetect_ContextCancellation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
 	}))
-	defer server.Close()
+	defer srv.Close()
 
-	client := internalhttp.NewClient()
-	detector := New(client)
-
+	d := New(internalhttp.NewClient().WithFollowRedirects(false))
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
+	cancel()
 
-	result, err := detector.Detect(ctx, server.URL+"?action=test", "action", "POST", DetectOptions{
-		ConcurrentRequests: 5,
-		BodyLengthVariance: 0.1,
-	})
+	opts := DefaultOptions()
+	opts.ConcurrentRequests = 4
+	opts.BaselineRequests = 1
 
-	// All requests may fail due to cancelled context
-	if err == nil {
-		if result == nil {
-			t.Fatal("Expected non-nil result")
-		}
-	}
+	_, _ = d.Detect(ctx, srv.URL+"?a=1", "a", "POST", opts)
+	// Either error or no-finding result is acceptable; test must not hang.
 }
 
-func TestDetector_analyzeResponses(t *testing.T) {
-	client := internalhttp.NewClient()
-	detector := New(client)
+// TestParallelMode_StillSupported: the legacy SyncParallel mode is
+// retained as a fallback. Confirm it executes end-to-end against a
+// vulnerable target and at least produces a result without erroring.
+func TestParallelMode_StillSupported(t *testing.T) {
+	wallet := newWallet(false, 50*time.Millisecond)
+	srv := httptest.NewServer(http.HandlerFunc(wallet.handle))
+	defer srv.Close()
 
-	tests := []struct {
-		name      string
-		responses []concurrentResponse
-		variance  float64
-		expected  bool
-	}{
-		{
-			name: "different status codes",
-			responses: []concurrentResponse{
-				{StatusCode: 200, ContentLength: 10},
-				{StatusCode: 200, ContentLength: 10},
-				{StatusCode: 409, ContentLength: 10},
-			},
-			variance: 0.1,
-			expected: true,
-		},
-		{
-			name: "consistent responses",
-			responses: []concurrentResponse{
-				{StatusCode: 200, ContentLength: 100},
-				{StatusCode: 200, ContentLength: 100},
-				{StatusCode: 200, ContentLength: 100},
-			},
-			variance: 0.1,
-			expected: false,
-		},
-		{
-			name: "significant body length variance",
-			responses: []concurrentResponse{
-				{StatusCode: 200, ContentLength: 100},
-				{StatusCode: 200, ContentLength: 100},
-				{StatusCode: 200, ContentLength: 500},
-			},
-			variance: 0.1,
-			expected: true,
-		},
-		{
-			name:      "single response",
-			responses: []concurrentResponse{{StatusCode: 200, ContentLength: 100}},
-			variance:  0.1,
-			expected:  false,
-		},
-		{
-			name:      "empty responses",
-			responses: []concurrentResponse{},
-			variance:  0.1,
-			expected:  false,
-		},
-		{
-			name: "zero body lengths",
-			responses: []concurrentResponse{
-				{StatusCode: 200, ContentLength: 0},
-				{StatusCode: 200, ContentLength: 0},
-			},
-			variance: 0.1,
-			expected: false,
-		},
-	}
+	d := New(internalhttp.NewClient().WithFollowRedirects(false))
+	opts := DefaultOptions()
+	opts.SyncMode = SyncParallel
+	opts.ConcurrentRequests = 6
+	opts.BaselineRequests = 3
+	opts.Timeout = 5 * time.Second
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := detector.analyzeResponses(tt.responses, tt.variance)
-			if got != tt.expected {
-				t.Errorf("analyzeResponses() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestDetector_createFinding(t *testing.T) {
-	client := internalhttp.NewClient()
-	detector := New(client)
-
-	responses := []concurrentResponse{
-		{StatusCode: 200, ContentLength: 100},
-		{StatusCode: 200, ContentLength: 100},
-		{StatusCode: 409, ContentLength: 50},
-	}
-
-	finding := detector.createFinding("http://example.com/transfer", "amount", "POST", responses)
-
-	if finding == nil {
-		t.Fatal("createFinding() returned nil")
-	}
-	if finding.Tool != "racecond-detector" {
-		t.Errorf("Tool = %q, want %q", finding.Tool, "racecond-detector")
-	}
-	if finding.URL != "http://example.com/transfer" {
-		t.Errorf("URL = %q, want %q", finding.URL, "http://example.com/transfer")
-	}
-	if finding.Parameter != "amount" {
-		t.Errorf("Parameter = %q, want %q", finding.Parameter, "amount")
-	}
-	if finding.Description == "" {
-		t.Error("Expected non-empty Description")
-	}
-	if finding.Evidence == "" {
-		t.Error("Expected non-empty Evidence")
-	}
-	if finding.Remediation == "" {
-		t.Error("Expected non-empty Remediation")
-	}
-	if len(finding.WSTG) == 0 || finding.WSTG[0] != "WSTG-BUSL-07" {
-		t.Error("Expected WSTG-BUSL-07 mapping")
-	}
-	if len(finding.Top10) == 0 || finding.Top10[0] != "A04:2021" {
-		t.Error("Expected A04:2021 mapping")
-	}
-	if len(finding.CWE) == 0 || finding.CWE[0] != "CWE-362" {
-		t.Error("Expected CWE-362 mapping")
-	}
-}
-
-func TestHelperFunctions(t *testing.T) {
-	t.Run("averageInt", func(t *testing.T) {
-		tests := []struct {
-			input    []int
-			expected int
-		}{
-			{[]int{10, 20, 30}, 20},
-			{[]int{5}, 5},
-			{[]int{}, 0},
-			{[]int{0, 0, 0}, 0},
-		}
-		for _, tt := range tests {
-			got := averageInt(tt.input)
-			if got != tt.expected {
-				t.Errorf("averageInt(%v) = %d, want %d", tt.input, got, tt.expected)
-			}
-		}
-	})
-
-	t.Run("minInt", func(t *testing.T) {
-		tests := []struct {
-			input    []int
-			expected int
-		}{
-			{[]int{10, 5, 20}, 5},
-			{[]int{5}, 5},
-			{[]int{}, 0},
-		}
-		for _, tt := range tests {
-			got := minInt(tt.input)
-			if got != tt.expected {
-				t.Errorf("minInt(%v) = %d, want %d", tt.input, got, tt.expected)
-			}
-		}
-	})
-
-	t.Run("maxInt", func(t *testing.T) {
-		tests := []struct {
-			input    []int
-			expected int
-		}{
-			{[]int{10, 5, 20}, 20},
-			{[]int{5}, 5},
-			{[]int{}, 0},
-		}
-		for _, tt := range tests {
-			got := maxInt(tt.input)
-			if got != tt.expected {
-				t.Errorf("maxInt(%v) = %d, want %d", tt.input, got, tt.expected)
-			}
-		}
-	})
-}
-
-func TestDetector_Detect_DefaultConcurrency(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-	defer server.Close()
-
-	client := internalhttp.NewClient()
-	detector := New(client)
-
-	// Use 0 for ConcurrentRequests to trigger default
-	result, err := detector.Detect(context.Background(), server.URL+"?a=1", "a", "POST", DetectOptions{
-		ConcurrentRequests: 0,
-		BodyLengthVariance: 0.1,
-	})
-
+	res, err := d.Detect(context.Background(), srv.URL+"?idkey=irrelevant", "idkey", "POST", opts)
 	if err != nil {
-		t.Fatalf("Detect() returned error: %v", err)
+		t.Fatalf("parallel-mode Detect: %v", err)
 	}
+	if res == nil {
+		t.Fatal("nil result")
+	}
+	// Parallel mode is best-effort; we don't require it to flag, just to run.
+}
 
-	if result.TestedPayloads != DefaultOptions().ConcurrentRequests {
-		t.Errorf("Expected %d tested payloads with default concurrency, got %d",
-			DefaultOptions().ConcurrentRequests, result.TestedPayloads)
+// --- analyzer-level unit tests ---
+
+func TestAnalyze_NoSignal_OnEmpty(t *testing.T) {
+	if analyzeBaselineDiff(nil, nil) != nil {
+		t.Error("empty inputs should produce no signal")
+	}
+	if analyzeBaselineDiff([]recordedResponse{{StatusCode: 200, BodyHash: "a"}}, nil) != nil {
+		t.Error("empty burst should produce no signal")
 	}
 }
 
-func TestDetector_Detect_MultipleSuccessDetection(t *testing.T) {
-	// Simulate a coupon redemption: all requests succeed when only one should
-	var counter int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt64(&counter, 1)
-		w.WriteHeader(http.StatusOK)
-		// Each response has slightly different content length based on counter
-		fmt.Fprintf(w, "Coupon redeemed successfully! Order #%d", n)
-	}))
-	defer server.Close()
+// TestAnalyze_NoCollisionErrorSignal: previously the analyzer fired a
+// "collision-error" when burst contained a 4xx that baseline didn't, but
+// that produced FPs against every properly-locked limit-of-N resource
+// (coupons, rate limits, optimistic concurrency control). The signal was
+// removed; this test pins the new behavior so a future contributor can't
+// reintroduce it without flipping the test red first.
+func TestAnalyze_NoCollisionErrorSignal(t *testing.T) {
+	baseline := []recordedResponse{
+		{StatusCode: 200, BodyHash: "ok1"},
+		{StatusCode: 200, BodyHash: "ok2"},
+	}
+	burst := []recordedResponse{
+		{StatusCode: 200, BodyHash: "ok1"},
+		{StatusCode: 409, BodyHash: "conflict"},
+	}
+	if sig := analyzeBaselineDiff(baseline, burst); sig != nil {
+		t.Fatalf("burst-only 4xx must not signal — that's a properly-locked endpoint, not a race; got %+v", sig)
+	}
+}
 
-	client := internalhttp.NewClient()
-	detector := New(client)
+func TestAnalyze_MultiSuccess(t *testing.T) {
+	baseline := []recordedResponse{
+		{StatusCode: 200, BodyHash: "first-win"},
+		{StatusCode: 409, BodyHash: "already"},
+		{StatusCode: 409, BodyHash: "already"},
+	}
+	burst := []recordedResponse{
+		{StatusCode: 200, BodyHash: "first-win"},
+		{StatusCode: 200, BodyHash: "first-win"},
+		{StatusCode: 409, BodyHash: "already"},
+	}
+	sig := analyzeBaselineDiff(baseline, burst)
+	if sig == nil || sig.Kind != "multi-success" {
+		t.Fatalf("expected multi-success, got %+v", sig)
+	}
+}
 
-	result, err := detector.Detect(context.Background(), server.URL+"?coupon=SAVE50", "coupon", "POST", DetectOptions{
-		ConcurrentRequests: 5,
-		BodyLengthVariance: 0.01, // Very tight variance to detect small differences
+func TestAnalyze_DuplicateState(t *testing.T) {
+	baseline := []recordedResponse{
+		{StatusCode: 200, BodyHash: "v1"},
+		{StatusCode: 200, BodyHash: "v2"},
+		{StatusCode: 200, BodyHash: "v3"},
+	}
+	burst := []recordedResponse{
+		{StatusCode: 200, BodyHash: "v4"},
+		{StatusCode: 200, BodyHash: "v4"}, // two reqs saw the same pre-update state
+	}
+	sig := analyzeBaselineDiff(baseline, burst)
+	if sig == nil || sig.Kind != "duplicate-state" {
+		t.Fatalf("expected duplicate-state, got %+v", sig)
+	}
+}
+
+func TestAnalyze_NoSignal_OnNaturalVariance(t *testing.T) {
+	// Baseline naturally varies; burst varies in the same way. No race.
+	baseline := []recordedResponse{
+		{StatusCode: 200, BodyHash: "v1"},
+		{StatusCode: 200, BodyHash: "v2"},
+		{StatusCode: 200, BodyHash: "v3"},
+	}
+	burst := []recordedResponse{
+		{StatusCode: 200, BodyHash: "v4"},
+		{StatusCode: 200, BodyHash: "v5"},
+		{StatusCode: 200, BodyHash: "v6"},
+	}
+	if sig := analyzeBaselineDiff(baseline, burst); sig != nil {
+		t.Errorf("naturally-varying endpoint should not signal; got %+v", sig)
+	}
+}
+
+// TestBuildRawRequest_SplitsLastByte verifies that the raw HTTP/1.1
+// builder produces a (prefix, finalByte) pair such that prefix+finalByte
+// is the complete request, and finalByte is exactly one byte.
+func TestBuildRawRequest_SplitsLastByte(t *testing.T) {
+	u := mustParseURL(t, "https://example.com/api/redeem")
+	prefix, final := buildRawRequest(u, "POST", "coupon=SAVE50", map[string]string{
+		"Content-Type": "application/x-www-form-urlencoded",
 	})
+	if len(final) != 1 {
+		t.Fatalf("final byte should be exactly 1 byte, got %d", len(final))
+	}
+	if !strings.HasPrefix(string(prefix), "POST /api/redeem HTTP/1.1\r\n") {
+		t.Errorf("request line malformed; first 32 bytes: %q", string(prefix[:min(32, len(prefix))]))
+	}
+	full := string(prefix) + string(final)
+	if !strings.HasSuffix(full, "coupon=SAVE50") {
+		t.Errorf("body must reassemble; got tail %q", full[max(0, len(full)-20):])
+	}
+}
 
+func TestBuildRawRequest_EmptyBody_SplitsHeader(t *testing.T) {
+	u := mustParseURL(t, "http://example.com/")
+	prefix, final := buildRawRequest(u, "GET", "", nil)
+	if len(final) != 1 {
+		t.Fatalf("with empty body the builder should split the last header byte; got len(final)=%d", len(final))
+	}
+	full := string(prefix) + string(final)
+	if !strings.HasSuffix(full, "\r\n\r\n") {
+		t.Errorf("reassembled request must end with header terminator; got %q", full[max(0, len(full)-8):])
+	}
+}
+
+func mustParseURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
 	if err != nil {
-		t.Fatalf("Detect() returned error: %v", err)
+		t.Fatalf("parse %q: %v", raw, err)
 	}
-
-	// The result depends on the variance of order numbers in the response
-	if result == nil {
-		t.Fatal("Expected non-nil result")
-	}
+	return u
 }

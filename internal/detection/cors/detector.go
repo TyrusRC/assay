@@ -333,35 +333,28 @@ func (d *Detector) testPreflight(ctx context.Context, target, origin string) (*c
 }
 
 // isCORSVulnerable determines if a CORS configuration is vulnerable.
+//
+// Every origin we test is one we crafted (see CORS test list — all built
+// from "evil" / "<base>.evil.com" / etc.), so an exact reflection of
+// testedOrigin in Access-Control-Allow-Origin proves the server reflects
+// arbitrary attacker-supplied origins. The previous logic gated
+// no-credentials reflection behind a `Contains("evil")` substring check
+// on testedOrigin (always true) and on result.allowOrigin (false-positive
+// risk on legitimate domains containing "evil" like medieval.com).
+// Both substring checks are dropped — exact reflection of a crafted
+// attacker origin is sufficient signal regardless of literal spelling.
 func (d *Detector) isCORSVulnerable(result *corsTestResult, testedOrigin string, testCredentials bool) bool {
 	if result.allowOrigin == "" {
 		return false
 	}
 
-	// Check for origin reflection
+	// Direct reflection of an attacker-controlled origin we crafted.
 	if result.allowOrigin == testedOrigin {
-		// If credentials are also allowed, it's definitely vulnerable
-		if result.allowCredentials {
-			return true
-		}
-		// Even without credentials, reflection of arbitrary origins is a misconfiguration
-		if strings.Contains(testedOrigin, "evil") {
-			return true
-		}
-	}
-
-	// Null origin with credentials is vulnerable
-	if result.allowOrigin == "null" && result.allowCredentials {
 		return true
 	}
 
-	// Wildcard with credentials is vulnerable (though browsers block this)
-	if result.allowOrigin == "*" && result.allowCredentials {
-		return true
-	}
-
-	// Check if evil domain was reflected
-	if strings.Contains(strings.ToLower(result.allowOrigin), "evil") {
+	// Null origin or wildcard reflected with credentials is exploitable.
+	if (result.allowOrigin == "null" || result.allowOrigin == "*") && result.allowCredentials {
 		return true
 	}
 

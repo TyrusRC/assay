@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/headerinj"
 )
@@ -94,7 +95,11 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		// Check for injected header in response
+		// Check for the injected header actually landing in the RESPONSE
+		// HEADERS. This is the only reliable signal for HTTP header
+		// injection — the server must emit a new header line because it
+		// forwarded unsanitized CR/LF into a Set-Cookie/Location/etc.
+		// header.
 		if payload.Marker != "" && d.hasInjectedHeader(resp.Headers, payload.Marker) {
 			if !d.hasInjectedHeader(baselineResp.Headers, payload.Marker) {
 				result.DetectionType = "header-injection"
@@ -105,9 +110,17 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			}
 		}
 
-		// Check for CRLF reflection in body
-		if d.hasCRLFReflection(resp.Body, payload, baselineResp.Body) {
-			result.DetectionType = "crlf-reflection"
+		// Only the ResponseSplit payloads produce a body-level signal
+		// worth trusting (they look for the literal `<html>injected</html>`
+		// marker, not just header-name reflection). Plain newline payloads
+		// echoed into the HTML body are NOT header injection — they're
+		// just unescaped HTML output, and every search/category page on
+		// the internet reflects query params. Running body-reflection on
+		// newline payloads produced 100% FPs against every reflecting
+		// target in real-world testing.
+		if payload.Type == headerinj.TypeResponseSplit &&
+			d.hasCRLFReflection(resp.Body, payload, baselineResp.Body) {
+			result.DetectionType = "response-split"
 			finding := d.createFinding(target, param, payload, resp)
 			result.Findings = append(result.Findings, finding)
 			result.Vulnerable = true
@@ -134,10 +147,17 @@ func (d *Detector) hasInjectedHeader(headers map[string]string, marker string) b
 }
 
 // hasCRLFReflection checks if CRLF characters are reflected in the body.
+// Strips the raw payload value AND its URL-encoded variants from the body
+// first, so a server that reflects `test\r\nX-Injected: true` (or its
+// WAF-bypass Unicode variants) into an HTML attribute or JS string
+// doesn't produce an FP just because the marker substring appears inside
+// our own echoed payload.
 func (d *Detector) hasCRLFReflection(body string, payload headerinj.Payload, baselineBody string) bool {
+	stripped := analysis.StripEcho(body, payload.Value)
+
 	// Check if the injected marker appears in the body (not in baseline)
 	if payload.Marker != "" {
-		markerInBody := strings.Contains(body, payload.Marker+":")
+		markerInBody := strings.Contains(stripped, payload.Marker+":")
 		markerInBaseline := strings.Contains(baselineBody, payload.Marker+":")
 		if markerInBody && !markerInBaseline {
 			return true
@@ -146,7 +166,7 @@ func (d *Detector) hasCRLFReflection(body string, payload headerinj.Payload, bas
 
 	// Check for response splitting indicators
 	if payload.Type == headerinj.TypeResponseSplit {
-		if strings.Contains(body, "<html>injected</html>") && !strings.Contains(baselineBody, "<html>injected</html>") {
+		if strings.Contains(stripped, "<html>injected</html>") && !strings.Contains(baselineBody, "<html>injected</html>") {
 			return true
 		}
 	}

@@ -1,9 +1,45 @@
 package oob
 
 import (
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/projectdiscovery/interactsh/pkg/server"
 )
+
+// TestClient_RecordInteraction_NoDrop verifies that large bursts of incoming
+// interactions are all persisted, not silently dropped. Before the fix, a
+// buffered channel with `default:` drop discarded anything over 100 entries.
+func TestClient_RecordInteraction_NoDrop(t *testing.T) {
+	c := &Client{
+		payloads:     map[string]*Payload{"abc": {ID: "abc", Type: "sqli"}},
+		interactions: make([]*Interaction, 0),
+	}
+
+	const n = 500 // much larger than the old 100-slot buffer
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.recordInteraction(&server.Interaction{
+				FullId:        "abc.oast.fun",
+				Protocol:      "dns",
+				RemoteAddress: "1.2.3.4",
+				Timestamp:     time.Now(),
+			})
+		}()
+	}
+	wg.Wait()
+
+	c.mu.RLock()
+	got := len(c.interactions)
+	c.mu.RUnlock()
+	if got != n {
+		t.Errorf("recorded %d interactions, want %d (drop or race)", got, n)
+	}
+}
 
 func TestPayload_DNSPayload(t *testing.T) {
 	tests := []struct {

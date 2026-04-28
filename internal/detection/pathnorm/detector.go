@@ -18,15 +18,11 @@ type bypassPayload struct {
 	Description string
 }
 
-// payloads contains the path normalization bypass techniques.
-var payloads = []bypassPayload{
-	{Template: "..;/%s", Description: "Semicolon path traversal (Spring/Tomcat bypass)"},
-	{Template: "....///%s", Description: "Double dot path traversal"},
-	{Template: "%%2e%%2e%%2f%s", Description: "URL-encoded dot-dot-slash"},
-	{Template: "..%%252f%s", Description: "Double URL-encoded dot-dot-slash"},
-	{Template: "%s/./", Description: "Dot segment append"},
-	{Template: "/%s..;/", Description: "Semicolon suffix bypass"},
-}
+// payloads is the curated list of path-normalization bypass templates. The
+// full list lives in payloads.go (defaultPayloads); this var is kept as a
+// thin alias so existing tests and downstream callers that referenced it
+// directly continue to work.
+var payloads = defaultPayloads()
 
 // Detector performs Path Normalization Bypass vulnerability detection.
 type Detector struct {
@@ -137,34 +133,59 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		// If original was 403/401 and bypass returns 200, it's a vulnerability
-		if resp.StatusCode == 200 {
-			finding := d.createFinding(target, bypassURL, payload, originalResp, resp)
-			result.Findings = append(result.Findings, finding)
-			result.Vulnerable = true
+		// If the original was 401/403 and the bypass returns 200, the
+		// status-code transition alone is suggestive but NOT sufficient.
+		// Many SPAs and reverse proxies return the same forbidden body
+		// at status 200 (an "internal redirect to login" pattern); without
+		// a body-shape check, every such app trips on every payload.
+		//
+		// We require BOTH: status 200 AND the response body must have
+		// diverged from the canonical 401/403 body. The createFinding
+		// path then grades severity by whether admin markers are present.
+		if resp.StatusCode != 200 {
+			continue
 		}
+		if !bodyShapeDiverged(originalResp.Body, resp.Body) {
+			continue
+		}
+		finding := d.createFinding(target, bypassURL, payload, originalResp, resp)
+		result.Findings = append(result.Findings, finding)
+		result.Vulnerable = true
 	}
 
 	return result, nil
 }
 
-// createFinding creates a Finding from a successful path normalization bypass.
+// createFinding renders a Finding from a successful path-normalization
+// bypass. Severity is graded by content:
+//   - Critical when the bypass body contains ≥ 2 admin/dashboard markers
+//     (almost certainly a real auth-bypass-of-protected-resource).
+//   - High otherwise (status 200 + diverged body — strongly suggestive but
+//     could conceivably be a soft 404 that happens to differ from the 401
+//     page). The body-shape FP guard already filtered out the obvious FP.
 func (d *Detector) createFinding(originalURL, bypassURL string, payload bypassPayload, originalResp, bypassResp *http.Response) *core.Finding {
-	finding := core.NewFinding("Path Normalization Bypass", core.SeverityHigh)
+	severity := core.SeverityHigh
+	title := "Path Normalization Bypass"
+	if hasAdminMarkers(bypassResp.Body) {
+		severity = core.SeverityCritical
+		title = "Path Normalization Bypass (Authenticated Content Reached)"
+	}
+
+	finding := core.NewFinding(title, severity)
 	finding.URL = originalURL
 	finding.Description = fmt.Sprintf("Path normalization bypass detected: %s (original: %d, bypass: %d)",
 		payload.Description, originalResp.StatusCode, bypassResp.StatusCode)
-	finding.Evidence = fmt.Sprintf("Original URL: %s (Status: %d)\nBypass URL: %s (Status: %d)\nTechnique: %s\nBypass body length: %d",
-		originalURL, originalResp.StatusCode, bypassURL, bypassResp.StatusCode, payload.Description, len(bypassResp.Body))
+	finding.Evidence = fmt.Sprintf("Original URL: %s (Status: %d, body=%d bytes)\nBypass URL: %s (Status: %d, body=%d bytes)\nTechnique: %s\nAdmin markers present: %t",
+		originalURL, originalResp.StatusCode, len(originalResp.Body),
+		bypassURL, bypassResp.StatusCode, len(bypassResp.Body),
+		payload.Description, hasAdminMarkers(bypassResp.Body))
 	finding.Tool = "pathnorm-detector"
-	finding.Remediation = "Normalize paths before applying access control checks. " +
-		"Use a web application firewall (WAF) to detect path traversal attempts. " +
-		"Ensure the application server properly resolves path segments before authorization."
+	finding.Remediation = "Normalize paths (resolve dot-segments, decode percent-encoding, strip path parameters) before the access-control check runs. Run the same normalizer on every layer that makes routing or auth decisions — the typical bug is one layer (the auth filter) seeing the raw URL while another (the controller dispatcher) sees the normalized one. As defense in depth, configure the reverse proxy to reject URLs containing semicolons, double slashes, or encoded slashes."
 
 	finding.WithOWASPMapping(
-		[]string{"WSTG-ATHZ-02"},
-		[]string{"A01:2021"},
-		[]string{"CWE-22"},
+		[]string{"WSTG-ATHZ-02", "WSTG-ATHZ-03"},
+		[]string{"A01:2025"},
+		[]string{"CWE-22", "CWE-285"},
 	)
 
 	return finding

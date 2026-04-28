@@ -163,6 +163,54 @@ func (c *Client) WithUserAgent(ua string) *Client {
 	return c
 }
 
+// ClientSnapshot is a read-only view of the per-scan client settings, used
+// by detectors that need to mirror the same proxy/headers/cookies/UA/insecure
+// plumbing on a parallel transport (e.g. raw WebSocket dials).
+type ClientSnapshot struct {
+	Headers   map[string]string
+	Cookies   string
+	UserAgent string
+	ProxyURL  string
+	Insecure  bool
+}
+
+// Snapshot returns a copy of the client's per-scan settings. Useful for
+// detectors that don't speak HTTP through this client (e.g. WebSocket,
+// raw smuggling) but still need to honor the global plumbing.
+func (c *Client) Snapshot() ClientSnapshot {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	hdrs := make(map[string]string, len(c.headers))
+	for k, v := range c.headers {
+		hdrs[k] = v
+	}
+	return ClientSnapshot{
+		Headers:   hdrs,
+		Cookies:   c.cookies,
+		UserAgent: c.userAgent,
+		ProxyURL:  c.proxyURL,
+		Insecure:  c.insecure,
+	}
+}
+
+// HasAuth reports whether this client is carrying any kind of authentication
+// (Cookie or Authorization header). Detectors use it to decide whether
+// "anonymous-still-works" is meaningful — without baseline auth, the
+// answer is trivially yes and not worth reporting.
+func (c *Client) HasAuth() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cookies != "" {
+		return true
+	}
+	for k := range c.headers {
+		if strings.EqualFold(k, "Authorization") {
+			return true
+		}
+	}
+	return false
+}
+
 // WithInsecure disables TLS certificate verification.
 func (c *Client) WithInsecure(insecure bool) *Client {
 	c.insecure = insecure

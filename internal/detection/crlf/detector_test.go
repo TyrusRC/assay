@@ -12,6 +12,83 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/crlf"
 )
 
+// TestIsVulnerable_RotatingSessionCookie_NoFP reproduces the real-world
+// false positive seen against ginandjuice.shop: an AWS ALB in front of the
+// target issues a fresh `Set-Cookie: AWSALB=<random>` on every request, so
+// the test response's Set-Cookie differs from the baseline even when the
+// CRLF payload did nothing. Before the fix, `hasInjectedHeader` flagged
+// this as an injection (header name matches, value differs → "not in
+// baseline"); after the fix, it must require the payload's specific
+// injected marker ("crlf=injection") to appear in the header value.
+func TestIsVulnerable_RotatingSessionCookie_NoFP(t *testing.T) {
+	d := New(nil)
+	payload := crlf.Payload{
+		Value:          "%0d%0aSet-Cookie:crlf=injection",
+		InjectionType:  crlf.InjectionHeader,
+		EncodingType:   crlf.EncodingURL,
+		InjectedHeader: "Set-Cookie",
+	}
+	baseline := &internalhttp.Response{
+		Headers: map[string]string{"Set-Cookie": "AWSALB=aaaaaaaaaaaaaa; Path=/"},
+	}
+	rotated := &internalhttp.Response{
+		// Same header name, different (rotated) value — NOT an injection.
+		Headers: map[string]string{"Set-Cookie": "AWSALB=bbbbbbbbbbbbbb; Path=/"},
+	}
+
+	if d.isVulnerable(rotated, baseline, payload) {
+		t.Errorf("FP: rotating AWS ALB cookie flagged as CRLF injection")
+	}
+}
+
+// TestIsVulnerable_InjectedMarkerPresent_FlagsVuln verifies the positive
+// case: when the payload's marker actually appears in a response header,
+// the detector reports vulnerable.
+func TestIsVulnerable_InjectedMarkerPresent_FlagsVuln(t *testing.T) {
+	d := New(nil)
+	payload := crlf.Payload{
+		Value:          "%0d%0aSet-Cookie:crlf=injection",
+		InjectionType:  crlf.InjectionHeader,
+		EncodingType:   crlf.EncodingURL,
+		InjectedHeader: "Set-Cookie",
+	}
+	baseline := &internalhttp.Response{
+		Headers: map[string]string{"Set-Cookie": "AWSALB=aaaaaaaa; Path=/"},
+	}
+	injected := &internalhttp.Response{
+		Headers: map[string]string{"Set-Cookie": "AWSALB=bbbbbbbb; Path=/, crlf=injection"},
+	}
+
+	if !d.isVulnerable(injected, baseline, payload) {
+		t.Errorf("FN: response with injected marker not flagged as CRLF injection")
+	}
+}
+
+// TestIsVulnerable_BodyReflectsPayloadHeaderName_NoFP ensures that pages
+// that merely mention the header name (docs, echo-header responses) are
+// NOT flagged. Only literal CR/LF + header + marker should count.
+func TestIsVulnerable_BodyReflectsPayloadHeaderName_NoFP(t *testing.T) {
+	d := New(nil)
+	payload := crlf.Payload{
+		Value:          "%0d%0aSet-Cookie:crlf=injection",
+		InjectionType:  crlf.InjectionHeader,
+		EncodingType:   crlf.EncodingURL,
+		InjectedHeader: "Set-Cookie",
+	}
+	baseline := &internalhttp.Response{
+		Headers: map[string]string{"Set-Cookie": "AWSALB=aaaaaaaa"},
+	}
+	// Body mentions "Set-Cookie:" but no CR/LF and no marker — likely docs
+	// or an API that echoes the literal header name.
+	echoed := &internalhttp.Response{
+		Headers: map[string]string{"Set-Cookie": "AWSALB=bbbbbbbb"},
+		Body:    `{"note": "the Set-Cookie: header is set by the server"}`,
+	}
+	if d.isVulnerable(echoed, baseline, payload) {
+		t.Errorf("FP: response body merely echoing 'Set-Cookie:' flagged as CRLF injection")
+	}
+}
+
 func TestNew(t *testing.T) {
 	client := internalhttp.NewClient()
 	detector := New(client)
@@ -172,68 +249,84 @@ func TestDetector_hasInjectedHeader(t *testing.T) {
 	client := internalhttp.NewClient()
 	detector := New(client)
 
+	setCookiePayload := crlf.Payload{
+		Value:          "%0d%0aSet-Cookie:crlf=injection",
+		InjectionType:  crlf.InjectionHeader,
+		EncodingType:   crlf.EncodingURL,
+		InjectedHeader: "Set-Cookie",
+	}
+	xInjectedPayload := crlf.Payload{
+		Value:          "%0d%0aX-Injected:header",
+		InjectionType:  crlf.InjectionHeader,
+		EncodingType:   crlf.EncodingURL,
+		InjectedHeader: "X-Injected",
+	}
+
 	tests := []struct {
-		name       string
-		resp       *internalhttp.Response
-		headerName string
-		baseline   *internalhttp.Response
-		expected   bool
+		name     string
+		resp     *internalhttp.Response
+		payload  crlf.Payload
+		baseline *internalhttp.Response
+		expected bool
 	}{
 		{
-			name: "injected header present",
+			name: "injected marker present in Set-Cookie",
 			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"Set-Cookie": "crlf=injection",
-				},
+				Headers: map[string]string{"Set-Cookie": "crlf=injection"},
 			},
-			headerName: "Set-Cookie",
-			baseline:   nil,
-			expected:   true,
-		},
-		{
-			name: "header not in baseline",
-			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"X-Injected": "header",
-				},
-			},
-			headerName: "X-Injected",
-			baseline: &internalhttp.Response{
-				Headers: map[string]string{},
-			},
+			payload:  setCookiePayload,
+			baseline: nil,
 			expected: true,
 		},
 		{
-			name: "header same as baseline",
+			name: "X-Injected header with marker present and absent from baseline",
 			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"Content-Type": "text/html",
-				},
+				Headers: map[string]string{"X-Injected": "header"},
 			},
-			headerName: "Content-Type",
+			payload:  xInjectedPayload,
+			baseline: &internalhttp.Response{Headers: map[string]string{}},
+			expected: true,
+		},
+		{
+			name: "same Content-Type in baseline (no injection)",
+			resp: &internalhttp.Response{
+				Headers: map[string]string{"Content-Type": "text/html"},
+			},
+			payload: crlf.Payload{
+				Value:          "%0d%0aContent-Type:text/html",
+				InjectedHeader: "Content-Type",
+				InjectionType:  crlf.InjectionHeader,
+			},
 			baseline: &internalhttp.Response{
-				Headers: map[string]string{
-					"Content-Type": "text/html",
-				},
+				Headers: map[string]string{"Content-Type": "text/html"},
 			},
 			expected: false,
 		},
 		{
-			name: "crlf pattern in header value",
+			name: "marker only in a DIFFERENT header — not our injection",
 			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"X-Custom": "crlf=injection",
-				},
+				Headers: map[string]string{"X-Custom": "crlf=injection"},
 			},
-			headerName: "Other-Header",
-			baseline:   nil,
-			expected:   true,
+			payload:  setCookiePayload, // targets Set-Cookie, not X-Custom
+			baseline: nil,
+			expected: false,
+		},
+		{
+			name: "rotated session cookie (value differs from baseline, no marker) — FP case",
+			resp: &internalhttp.Response{
+				Headers: map[string]string{"Set-Cookie": "AWSALB=bbbbbbbb; Path=/"},
+			},
+			payload: setCookiePayload,
+			baseline: &internalhttp.Response{
+				Headers: map[string]string{"Set-Cookie": "AWSALB=aaaaaaaa; Path=/"},
+			},
+			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detector.hasInjectedHeader(tt.resp, tt.headerName, tt.baseline)
+			result := detector.hasInjectedHeader(tt.resp, tt.payload, tt.baseline)
 			if result != tt.expected {
 				t.Errorf("hasInjectedHeader() = %v, want %v", result, tt.expected)
 			}
@@ -241,36 +334,23 @@ func TestDetector_hasInjectedHeader(t *testing.T) {
 	}
 }
 
-func TestDetector_hasHeaderInjectionIndicators(t *testing.T) {
+func TestDetector_hasCustomInjectedHeader(t *testing.T) {
 	client := internalhttp.NewClient()
 	detector := New(client)
 
 	tests := []struct {
 		name     string
 		resp     *internalhttp.Response
-		baseline *internalhttp.Response
 		expected bool
 	}{
 		{
-			name: "new Set-Cookie with crlf",
-			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"Set-Cookie": "crlf=test",
-				},
-			},
-			baseline: &internalhttp.Response{
-				Headers: map[string]string{},
-			},
+			name:     "x-injected header",
+			resp:     &internalhttp.Response{Headers: map[string]string{"X-Injected-Header": "value"}},
 			expected: true,
 		},
 		{
-			name: "x-injected header",
-			resp: &internalhttp.Response{
-				Headers: map[string]string{
-					"X-Injected-Header": "value",
-				},
-			},
-			baseline: nil,
+			name:     "x-crlf header",
+			resp:     &internalhttp.Response{Headers: map[string]string{"X-Crlf-Test": "anything"}},
 			expected: true,
 		},
 		{
@@ -281,16 +361,14 @@ func TestDetector_hasHeaderInjectionIndicators(t *testing.T) {
 					"Date":         "Mon, 01 Jan 2024 00:00:00 GMT",
 				},
 			},
-			baseline: nil,
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detector.hasHeaderInjectionIndicators(tt.resp, tt.baseline)
-			if result != tt.expected {
-				t.Errorf("hasHeaderInjectionIndicators() = %v, want %v", result, tt.expected)
+			if got := detector.hasCustomInjectedHeader(tt.resp); got != tt.expected {
+				t.Errorf("hasCustomInjectedHeader() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
@@ -360,33 +438,46 @@ func TestDetector_hasReflectedCRLFPatterns(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "CRLF Set-Cookie in body",
-			body: "Some content\r\nSet-Cookie: test=value",
+			name: "CRLF + injected header + marker in body",
+			body: "Some content\r\nSet-Cookie: crlf=injection",
 			payload: crlf.Payload{
+				Value:          "%0d%0aSet-Cookie:crlf=injection",
 				InjectedHeader: "Set-Cookie",
 			},
 			expected: true,
 		},
 		{
-			name: "LF only Set-Cookie",
-			body: "Some content\nSet-Cookie: test=value",
+			name: "LF + injected header + marker in body",
+			body: "Some content\nSet-Cookie: crlf=injection",
 			payload: crlf.Payload{
+				Value:          "%0d%0aSet-Cookie:crlf=injection",
 				InjectedHeader: "Set-Cookie",
 			},
 			expected: true,
 		},
 		{
-			name: "header name in body",
+			name: "CRLF + header but NO marker — FP case (docs/echo)",
+			body: "Some content\r\nSet-Cookie: legitimate=value",
+			payload: crlf.Payload{
+				Value:          "%0d%0aSet-Cookie:crlf=injection",
+				InjectedHeader: "Set-Cookie",
+			},
+			expected: false,
+		},
+		{
+			name: "header name mentioned in prose (no CRLF)",
 			body: "Content with X-Injected: header pattern",
 			payload: crlf.Payload{
+				Value:          "%0d%0aX-Injected:header",
 				InjectedHeader: "X-Injected",
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "clean body",
 			body: "Normal content without injection",
 			payload: crlf.Payload{
+				Value:          "%0d%0aSet-Cookie:crlf=injection",
 				InjectedHeader: "Set-Cookie",
 			},
 			expected: false,

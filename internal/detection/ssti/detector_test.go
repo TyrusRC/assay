@@ -186,6 +186,7 @@ func TestDetector_isPayloadSuccessful_Math(t *testing.T) {
 			name: "math payload with expected output found",
 			body: "Result: 49",
 			payload: ssti.Payload{
+				Value:           "#{7*7}",
 				DetectionMethod: ssti.MethodMath,
 				ExpectedOutput:  "49",
 			},
@@ -195,24 +196,31 @@ func TestDetector_isPayloadSuccessful_Math(t *testing.T) {
 			name: "math payload with expected output not found",
 			body: "Result: error",
 			payload: ssti.Payload{
+				Value:           "#{7*7}",
 				DetectionMethod: ssti.MethodMath,
 				ExpectedOutput:  "49",
 			},
 			want: false,
 		},
 		{
-			name: "math payload without expected output finds 49",
-			body: "Value is 49",
+			name: "payload reflected verbatim alongside 49 — FP must be rejected",
+			// Seen against ginandjuice.shop: Origin header echoed into an
+			// HTML comment while the page also legitimately contained "49".
+			body: "<html>footer{font-size:49px}<!--origin=#{7*7}--></html>",
 			payload: ssti.Payload{
+				Value:           "#{7*7}",
 				DetectionMethod: ssti.MethodMath,
+				ExpectedOutput:  "49",
 			},
-			want: true,
+			want: false,
 		},
 		{
-			name: "math payload without expected output finds 14",
-			body: "Sum is 14",
+			name: "true SSTI: result present, payload NOT reflected",
+			body: "<p>result: 49</p>",
 			payload: ssti.Payload{
+				Value:           "#{7*7}",
 				DetectionMethod: ssti.MethodMath,
+				ExpectedOutput:  "49",
 			},
 			want: true,
 		},
@@ -504,7 +512,7 @@ func TestDetector_createFinding(t *testing.T) {
 			if len(finding.WSTG) == 0 || finding.WSTG[0] != "WSTG-INPV-18" {
 				t.Error("WSTG mapping not set correctly")
 			}
-			if len(finding.Top10) == 0 || finding.Top10[0] != "A03:2021" {
+			if len(finding.Top10) == 0 || finding.Top10[0] != "A03:2025" {
 				t.Error("Top10 mapping not set correctly")
 			}
 			if len(finding.CWE) < 2 {
@@ -727,7 +735,7 @@ func TestFinding_OWASPMapping(t *testing.T) {
 	// Verify A03:2021 (Injection) is included
 	foundTop10 := false
 	for _, a := range finding.Top10 {
-		if a == "A03:2021" {
+		if a == "A03:2025" {
 			foundTop10 = true
 			break
 		}
@@ -1028,12 +1036,13 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		wantConfidence float64
 	}{
 		{
+			// Detector wraps payloads with a unique sentinel (e.g. stNNN).
+			// Simulating a vulnerable server: we evaluate the expression in
+			// place so the response contains `<sentinel>49<sentinel>`,
+			// which is what the tightened detector requires.
 			name: "jinja2 style 7*7 returns 49",
 			responder: func(payload string) string {
-				if payload == "{{7*7}}" {
-					return "Result: 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "{{7*7}}", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1041,10 +1050,7 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "dollar style 7*7 returns 49",
 			responder: func(payload string) string {
-				if payload == "${7*7}" {
-					return "Result: 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "${7*7}", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1052,10 +1058,7 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "erb style returns 49",
 			responder: func(payload string) string {
-				if payload == "<%= 7*7 %>" {
-					return "Result: 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "<%= 7*7 %>", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1063,10 +1066,7 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "smarty style {7*7} returns 49",
 			responder: func(payload string) string {
-				if payload == "{7*7}" {
-					return "Value: 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "{7*7}", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1074,10 +1074,7 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "freemarker style #{7*7} returns 49",
 			responder: func(payload string) string {
-				if payload == "#{7*7}" {
-					return "Value: 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "#{7*7}", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1085,10 +1082,7 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "velocity style returns 49",
 			responder: func(payload string) string {
-				if payload == "#set($x=7*7)$x" {
-					return "The value is 49"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "#set($x=7*7)$x", "49")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
@@ -1096,13 +1090,20 @@ func TestDetector_detectMathExpression(t *testing.T) {
 		{
 			name: "addition 7+7 returns 14",
 			responder: func(payload string) string {
-				if payload == "{{7+7}}" {
-					return "Sum: 14"
-				}
-				return "normal"
+				return strings.ReplaceAll(payload, "{{7+7}}", "14")
 			},
 			wantDetected:   true,
 			wantConfidence: 0.85,
+		},
+		{
+			// Regression: body contains the expected digits as incidental
+			// text (width:49px) but the template engine did NOT evaluate
+			// — the raw payload flows through. Must NOT be detected.
+			name: "incidental '49' in body without evaluation — no FP",
+			responder: func(payload string) string {
+				return `<html><style>.a{width:49px}</style>` + payload + `</html>`
+			},
+			wantDetected: false,
 		},
 		{
 			name: "no math result detected",
@@ -1165,12 +1166,13 @@ func TestDetector_detectMathExpression_ContextCancelled(t *testing.T) {
 // raises confidence when fingerprinting succeeds.
 func TestDetector_detectMathExpression_WithFingerprinting(t *testing.T) {
 	ts := newMockServer(func(payload string) string {
-		// Math detection succeeds on the first probe
-		if payload == "{{7*7}}" {
-			return "Result: 49"
+		// Simulated Jinja2: math expressions evaluate in place (including
+		// inside the sentinel wrapper used by the detector), and the
+		// fingerprint probe {{7*'7'}} returns "7777777" (string mult).
+		if strings.Contains(payload, "{{7*7}}") {
+			return strings.ReplaceAll(payload, "{{7*7}}", "49")
 		}
-		// Fingerprint: Jinja2 returns "7777777" for {{7*'7'}}
-		if payload == "{{7*'7'}}" {
+		if strings.Contains(payload, "{{7*'7'}}") {
 			return "7777777"
 		}
 		return "normal"
@@ -1627,8 +1629,10 @@ func TestDetector_Detect_WithWAFBypass(t *testing.T) {
 // both IncludeRCE is true and the target is already identified as vulnerable.
 func TestDetector_Detect_WithRCE(t *testing.T) {
 	ts := newMockServer(func(payload string) string {
-		if payload == "{{7*7}}" {
-			return "49"
+		// Simulate a template engine that evaluates expressions in place:
+		// `<sentinel>{{7*7}}<sentinel>` becomes `<sentinel>49<sentinel>`.
+		if strings.Contains(payload, "{{7*7}}") {
+			return strings.ReplaceAll(payload, "{{7*7}}", "49")
 		}
 		return "normal"
 	})
@@ -1728,9 +1732,17 @@ func TestDetector_Detect_ContextCancelledDuringPayloadLoop(t *testing.T) {
 func TestDetector_Detect_PayloadFinding(t *testing.T) {
 	ts := newMockServer(func(payload string) string {
 		decodedPayload, _ := url.QueryUnescape(payload)
-		// Respond with expected math result for detection payloads
-		if decodedPayload == "{{7*7}}" || strings.Contains(decodedPayload, "7*7") {
-			return "The answer is 49"
+		// Simulate in-place expression evaluation across common engines so
+		// the detector's sentinel wrapper ends up bracketing "49" / "14".
+		for _, expr := range []string{"{{7*7}}", "${7*7}", "#{7*7}", "<%= 7*7 %>", "{7*7}", "#set($x=7*7)$x"} {
+			if strings.Contains(decodedPayload, expr) {
+				return strings.ReplaceAll(decodedPayload, expr, "49")
+			}
+		}
+		for _, expr := range []string{"{{7+7}}", "${7+7}", "<%= 7+7 %>"} {
+			if strings.Contains(decodedPayload, expr) {
+				return strings.ReplaceAll(decodedPayload, expr, "14")
+			}
 		}
 		return "normal"
 	})
@@ -1767,10 +1779,22 @@ func TestDetector_Detect_TestAllEnginesFalse_StopsEarly(t *testing.T) {
 	ts := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		hitCount++
 		payload := r.URL.Query().Get("input")
-		if strings.Contains(payload, "7*7") || strings.Contains(payload, "7+7") {
-			w.WriteHeader(nethttp.StatusOK)
-			fmt.Fprint(w, "Result: 49")
-			return
+		// Simulate in-place evaluation so the sentinel wrapping still
+		// brackets the result — otherwise the detector (correctly) won't
+		// treat incidental "49" in response bodies as a template hit.
+		for _, expr := range []string{"{{7*7}}", "${7*7}", "#{7*7}", "<%= 7*7 %>", "{7*7}", "#set($x=7*7)$x"} {
+			if strings.Contains(payload, expr) {
+				w.WriteHeader(nethttp.StatusOK)
+				fmt.Fprint(w, strings.ReplaceAll(payload, expr, "49"))
+				return
+			}
+		}
+		for _, expr := range []string{"{{7+7}}", "${7+7}", "<%= 7+7 %>"} {
+			if strings.Contains(payload, expr) {
+				w.WriteHeader(nethttp.StatusOK)
+				fmt.Fprint(w, strings.ReplaceAll(payload, expr, "14"))
+				return
+			}
 		}
 		w.WriteHeader(nethttp.StatusOK)
 		fmt.Fprint(w, "normal")
@@ -2273,8 +2297,8 @@ func TestDetector_Detect_FindingEngineUpdate(t *testing.T) {
 // sets the engine to EngineERB.
 func TestDetector_detectMathExpression_ERBStyle(t *testing.T) {
 	ts := newMockServer(func(payload string) string {
-		if payload == "<%= 7*7 %>" {
-			return "49"
+		if strings.Contains(payload, "<%= 7*7 %>") {
+			return strings.ReplaceAll(payload, "<%= 7*7 %>", "49")
 		}
 		return "normal"
 	})

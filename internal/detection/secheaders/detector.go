@@ -94,7 +94,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 
 	// Check required and optional security headers
 	if opts.CheckRequired || opts.CheckOptional {
-		d.checkSecurityHeaders(result, resp.Headers, opts)
+		d.checkSecurityHeaders(result, resp.Headers, opts, target)
 	}
 
 	// Check for information disclosure headers
@@ -112,7 +112,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 }
 
 // checkSecurityHeaders checks for missing or misconfigured security headers.
-func (d *Detector) checkSecurityHeaders(result *DetectionResult, headers map[string]string, opts DetectOptions) {
+func (d *Detector) checkSecurityHeaders(result *DetectionResult, headers map[string]string, opts DetectOptions, target string) {
 	checks := secheaders.GetHeaderChecks()
 
 	for _, check := range checks {
@@ -131,13 +131,13 @@ func (d *Detector) checkSecurityHeaders(result *DetectionResult, headers map[str
 		if !found {
 			// Header is missing
 			result.MissingHeaders = append(result.MissingHeaders, check.Name)
-			finding := d.createMissingHeaderFinding(check)
+			finding := d.createMissingHeaderFinding(check, target)
 			result.Findings = append(result.Findings, finding)
 		} else {
 			// Header is present - check for insecure values
 			if d.hasInsecureValue(value, check, opts) {
 				result.InsecureHeaders = append(result.InsecureHeaders, check.Name)
-				finding := d.createInsecureHeaderFinding(check, value)
+				finding := d.createInsecureHeaderFinding(check, value, target)
 				result.Findings = append(result.Findings, finding)
 			}
 		}
@@ -228,10 +228,11 @@ func (d *Detector) extractHSTSMaxAge(value string) int {
 }
 
 // createMissingHeaderFinding creates a finding for a missing security header.
-func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck) *core.Finding {
+func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck, target string) *core.Finding {
 	severity := d.mapSeverity(check.Severity)
 
 	finding := core.NewFinding("Missing Security Header", severity)
+	finding.URL = target
 	finding.Parameter = check.Name
 	finding.Description = fmt.Sprintf("Security header '%s' is missing. %s", check.Name, check.Description)
 	finding.Evidence = fmt.Sprintf("Header '%s' was not present in the response", check.Name)
@@ -251,10 +252,11 @@ func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck) *cor
 }
 
 // createInsecureHeaderFinding creates a finding for an insecure security header.
-func (d *Detector) createInsecureHeaderFinding(check secheaders.HeaderCheck, value string) *core.Finding {
+func (d *Detector) createInsecureHeaderFinding(check secheaders.HeaderCheck, value, target string) *core.Finding {
 	severity := d.mapSeverity(check.Severity)
 
 	finding := core.NewFinding("Insecure Security Header", severity)
+	finding.URL = target
 	finding.Parameter = check.Name
 	finding.Description = fmt.Sprintf("Security header '%s' has an insecure configuration. %s", check.Name, check.Description)
 	finding.Evidence = fmt.Sprintf("Header: %s: %s", check.Name, value)

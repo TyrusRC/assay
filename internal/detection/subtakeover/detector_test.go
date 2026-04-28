@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/swiss-knife-for-web-security/skws/internal/core"
 	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/subtakeover"
 )

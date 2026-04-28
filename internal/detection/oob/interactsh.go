@@ -75,7 +75,11 @@ type Client struct {
 	serverURL    string
 	payloads     map[string]*Payload
 	interactions []*Interaction
-	mu           sync.RWMutex
+	// mu protects payloads and interactions.
+	mu sync.RWMutex
+	// pollMu serializes PollWithTimeout so the underlying interactsh
+	// client's StartPolling/StopPolling never overlap across goroutines.
+	pollMu sync.Mutex
 }
 
 // NewClient creates a new OOB client using interactsh.
@@ -163,56 +167,60 @@ func (c *Client) Poll(ctx context.Context) []*Interaction {
 }
 
 // PollWithTimeout polls for interactions for a specified duration.
+// Concurrent callers are serialized via pollMu so the underlying interactsh
+// client's StartPolling/StopPolling pair never overlaps — that pair is not
+// safe against concurrent use. Interactions received during the window are
+// appended directly to the persistent interactions slice under c.mu and are
+// never dropped, regardless of burst size.
 func (c *Client) PollWithTimeout(ctx context.Context, duration time.Duration) []*Interaction {
-	interactions := make([]*Interaction, 0)
-	interactionChan := make(chan *Interaction, 100)
+	c.pollMu.Lock()
+	defer c.pollMu.Unlock()
 
-	c.client.StartPolling(time.Second, func(interaction *server.Interaction) {
-		inter := &Interaction{
-			Protocol:   interaction.Protocol,
-			FullID:     interaction.FullId,
-			RawRequest: interaction.RawRequest,
-			RemoteAddr: interaction.RemoteAddress,
-			Timestamp:  interaction.Timestamp,
-		}
+	// Capture the slice length at the start so we can return only the
+	// interactions that arrived during THIS window. Concurrent callers
+	// that queue behind pollMu still see their own window-scoped subset.
+	c.mu.Lock()
+	startIdx := len(c.interactions)
+	c.mu.Unlock()
 
-		// Try to match with a known payload
-		id := extractID(interaction.FullId)
-		c.mu.RLock()
-		if payload, ok := c.payloads[id]; ok {
-			inter.PayloadType = payload.Type
-			inter.Metadata = payload.Metadata
-		}
-		c.mu.RUnlock()
+	c.client.StartPolling(time.Second, c.recordInteraction)
 
-		select {
-		case interactionChan <- inter:
-		default:
-		}
-	})
-
-	// Create timer for polling duration
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 
-	// Collect interactions until timeout or context cancellation
-	done := false
-	for !done {
-		select {
-		case inter := <-interactionChan:
-			c.mu.Lock()
-			c.interactions = append(c.interactions, inter)
-			c.mu.Unlock()
-			interactions = append(interactions, inter)
-		case <-timer.C:
-			done = true
-		case <-ctx.Done():
-			done = true
-		}
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
 	}
 
 	c.client.StopPolling()
-	return interactions
+
+	// Return a snapshot of interactions that arrived during this window.
+	c.mu.RLock()
+	received := append([]*Interaction(nil), c.interactions[startIdx:]...)
+	c.mu.RUnlock()
+	return received
+}
+
+// recordInteraction is the StartPolling callback body. Extracted so the
+// no-drop invariant can be unit-tested without a real interactsh server:
+// all interactions are persisted under c.mu and never discarded.
+func (c *Client) recordInteraction(interaction *server.Interaction) {
+	inter := &Interaction{
+		Protocol:   interaction.Protocol,
+		FullID:     interaction.FullId,
+		RawRequest: interaction.RawRequest,
+		RemoteAddr: interaction.RemoteAddress,
+		Timestamp:  interaction.Timestamp,
+	}
+	id := extractID(interaction.FullId)
+	c.mu.Lock()
+	if payload, ok := c.payloads[id]; ok {
+		inter.PayloadType = payload.Type
+		inter.Metadata = payload.Metadata
+	}
+	c.interactions = append(c.interactions, inter)
+	c.mu.Unlock()
 }
 
 // GetInteractions returns all collected interactions.

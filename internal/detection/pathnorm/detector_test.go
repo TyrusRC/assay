@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/swiss-knife-for-web-security/skws/internal/core"
 	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
 )
 
@@ -344,10 +345,159 @@ func TestDetector_createFinding(t *testing.T) {
 	if len(finding.WSTG) == 0 || finding.WSTG[0] != "WSTG-ATHZ-02" {
 		t.Error("Expected WSTG-ATHZ-02 mapping")
 	}
-	if len(finding.Top10) == 0 || finding.Top10[0] != "A01:2021" {
-		t.Error("Expected A01:2021 mapping")
+	if len(finding.Top10) == 0 || finding.Top10[0] != "A01:2025" {
+		t.Error("Expected A01:2025 mapping")
 	}
 	if len(finding.CWE) == 0 || finding.CWE[0] != "CWE-22" {
 		t.Error("Expected CWE-22 mapping")
+	}
+}
+
+// TestDetect_FPGuard_SameBodyAtStatus200: an SPA that returns the SAME
+// forbidden body but at status 200 (a common "internal redirect to login"
+// pattern) must not produce findings. Without this guard, every such app
+// trips on every payload — pure noise.
+func TestDetect_FPGuard_SameBodyAtStatus200(t *testing.T) {
+	const denied = `<!doctype html><html><body>
+		<h1>Access denied</h1><p>Please <a href="/login">log in</a>.</p>
+		</body></html>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(denied))
+			return
+		}
+		// SPA pattern: same body, status 200
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(denied))
+	}))
+	defer srv.Close()
+
+	d := New(internalhttp.NewClient())
+	res, err := d.Detect(context.Background(), srv.URL+"/admin", "admin", "GET", DefaultOptions())
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if res.Vulnerable {
+		t.Fatalf("SPA-style soft-403 must NOT trip the detector; got %+v", res.Findings)
+	}
+}
+
+// TestDetect_CriticalGrading_OnAdminMarkers: a bypass whose body contains
+// multiple admin-dashboard markers should be promoted to Critical.
+func TestDetect_CriticalGrading_OnAdminMarkers(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("403 Forbidden"))
+			return
+		}
+		// Bypass response: realistic admin dashboard body with several markers
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`<html><body>
+			<h1>Admin Panel</h1>
+			<a href="/logout">Logout</a>
+			<section>Manage Users</section>
+			<section>Settings</section>
+			<table id="audit-log"><caption>Audit Log</caption></table>
+			</body></html>`))
+	}))
+	defer srv.Close()
+
+	d := New(internalhttp.NewClient())
+	res, err := d.Detect(context.Background(), srv.URL+"/admin", "admin", "GET", DefaultOptions())
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if !res.Vulnerable {
+		t.Fatal("expected at least one finding")
+	}
+	hasCritical := false
+	for _, f := range res.Findings {
+		if f.Severity == core.SeverityCritical {
+			hasCritical = true
+			break
+		}
+	}
+	if !hasCritical {
+		t.Errorf("expected at least one Critical finding when admin markers present; got %+v", res.Findings)
+	}
+}
+
+// TestDefaultPayloads_Coverage: pin the expanded payload set so a future
+// contributor can't accidentally drop it back to the original 6.
+func TestDefaultPayloads_Coverage(t *testing.T) {
+	p := defaultPayloads()
+	if len(p) < 20 {
+		t.Errorf("defaultPayloads should have at least 20 entries; got %d", len(p))
+	}
+	families := map[string]bool{}
+	for _, b := range p {
+		switch {
+		case strings.Contains(b.Description, "Semicolon"):
+			families["semicolon"] = true
+		case strings.Contains(b.Description, "Encoded") || strings.Contains(b.Description, "encoded"):
+			families["encoded"] = true
+		case strings.Contains(b.Description, "extension"):
+			families["extension"] = true
+		case strings.Contains(b.Description, "Trailing") || strings.Contains(b.Description, "trailing"):
+			families["trailing"] = true
+		case strings.Contains(b.Description, "traversal") || strings.Contains(b.Description, "Traversal"):
+			families["traversal"] = true
+		}
+	}
+	for _, want := range []string{"semicolon", "encoded", "extension", "trailing", "traversal"} {
+		if !families[want] {
+			t.Errorf("missing payload family %q in defaultPayloads", want)
+		}
+	}
+}
+
+// --- analyzer-level unit tests ---
+
+func TestBodyShapeDiverged(t *testing.T) {
+	cases := []struct {
+		name           string
+		canonical      string
+		bypass         string
+		wantDivergence bool
+	}{
+		{"identical", "abc", "abc", false},
+		{"both empty", "", "", false},
+		{"one empty", "", "abc", true},
+		{"length wildly different", strings.Repeat("a", 100), strings.Repeat("a", 200), true},
+		{"high token overlap",
+			"the quick brown fox jumps over the lazy dog by the river bank watching",
+			"the quick brown fox jumps over the lazy dog by the river bank watching today", false},
+		{"low token overlap, similar length",
+			"login required please authenticate",
+			"admin dashboard manage users settings", true},
+		{"tiny bodies", "no", "ok", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := bodyShapeDiverged(tc.canonical, tc.bypass); got != tc.wantDivergence {
+				t.Errorf("bodyShapeDiverged: got %v, want %v", got, tc.wantDivergence)
+			}
+		})
+	}
+}
+
+func TestHasAdminMarkers(t *testing.T) {
+	cases := map[string]bool{
+		"<h1>Admin Panel</h1><a href=/logout>Logout</a>":          true,
+		"<h1>Dashboard</h1><a>Settings</a>":                       true,
+		"You are signed in as alice. Logout?":                     true,
+		"Admin":                                                   false, // single weak hit
+		"Welcome to our marketing site":                           false,
+		"<title>404 not found</title><body>nothing here</body>":   false,
+		"audit log shows: action=delete user, role: admin":        true,
+	}
+	for body, want := range cases {
+		t.Run(body[:min(len(body), 30)], func(t *testing.T) {
+			if got := hasAdminMarkers(body); got != want {
+				t.Errorf("hasAdminMarkers(%q) = %v, want %v", body, got, want)
+			}
+		})
 	}
 }

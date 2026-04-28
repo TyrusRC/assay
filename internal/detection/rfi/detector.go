@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/rfi"
 )
@@ -110,31 +111,67 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 
 // isRFISuccess checks if the response indicates successful RFI.
 func (d *Detector) isRFISuccess(resp, baseline *http.Response, payload rfi.Payload) bool {
-	// Check for expected patterns
+	// Strip the payload (raw + URL-encoded + HTML-entity variants) from
+	// the body before scanning for indicators. Handles the common echo
+	// channels (hidden form inputs, JS vars, canonical-link breadcrumbs,
+	// pagination URLs).
+	body := analysis.StripEcho(resp.Body, payload.Value)
+	baselineBody := baseline.Body
+
+	// Weak per-payload Patterns (e.g. "httpbin.org", "args") are easily
+	// FP-prone even after stripping — they're ordinary words. Only the
+	// narrow RFITEST-class markers are safe to rely on; filter to those.
 	for _, pattern := range payload.Patterns {
-		if pattern != "" && strings.Contains(resp.Body, pattern) {
-			// Make sure the pattern wasn't in the baseline
-			if !strings.Contains(baseline.Body, pattern) {
-				return true
-			}
+		if pattern == "" || !isNarrowRFIPattern(pattern) {
+			continue
 		}
-	}
-
-	// Check for common RFI success indicators
-	rfiIndicators := []string{
-		"uid=",        // Linux command output
-		"root:x:0:0",  // /etc/passwd content
-		"RFITEST",     // Our custom marker
-		"httpbin.org", // External service response
-		"<?php",       // PHP code executed
-	}
-
-	for _, indicator := range rfiIndicators {
-		if strings.Contains(resp.Body, indicator) && !strings.Contains(baseline.Body, indicator) {
+		// If the payload itself contains the pattern verbatim, we cannot
+		// reliably distinguish a real inclusion from an echoed payload —
+		// encoding-normalized echo stripping is best-effort and every
+		// app invents new escaping tricks. Skip these self-reflecting
+		// payloads rather than risking a false positive.
+		if strings.Contains(payload.Value, pattern) {
+			continue
+		}
+		if strings.Contains(body, pattern) && !strings.Contains(baselineBody, pattern) {
 			return true
 		}
 	}
 
+	// Check for common RFI success indicators — broad markers that only
+	// appear in genuinely-included content, not ordinary web pages.
+	rfiIndicators := []string{
+		"root:x:0:0", // /etc/passwd content
+		"RFITEST",    // Our custom marker (surfaces on real inclusion)
+		"<?php",      // PHP source leaked in response
+	}
+
+	for _, indicator := range rfiIndicators {
+		// Same self-echo guard: if the payload contains the indicator
+		// verbatim (e.g. `data:text/plain,<?php ...RFITEST...`),
+		// matching it in the body cannot prove inclusion.
+		if strings.Contains(payload.Value, indicator) {
+			continue
+		}
+		if strings.Contains(body, indicator) && !strings.Contains(baselineBody, indicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isNarrowRFIPattern returns true for markers specific enough to reliably
+// indicate remote-file inclusion success. Generic words like "httpbin.org"
+// or "args" are excluded because they commonly appear in echoed payloads
+// and documentation pages, causing false positives.
+func isNarrowRFIPattern(pattern string) bool {
+	narrow := []string{"RFITEST", "root:x:0:0", "<?php", "uid=", "gid="}
+	for _, n := range narrow {
+		if strings.Contains(pattern, n) {
+			return true
+		}
+	}
 	return false
 }
 

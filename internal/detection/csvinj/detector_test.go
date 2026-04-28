@@ -60,11 +60,13 @@ func TestDetector_WithVerbose(t *testing.T) {
 }
 
 func TestDetector_Detect_Vulnerable(t *testing.T) {
-	// Server that reflects input without sanitization
+	// Server that reflects input AND serves it as CSV — formula
+	// injection only applies when the value is consumed by a spreadsheet.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("name")
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "Hello, %s! Welcome to our site.", input)
+		fmt.Fprintf(w, "name\n%s\n", input)
 	}))
 	defer server.Close()
 
@@ -244,11 +246,13 @@ func TestDetector_Detect_PayloadLimiting(t *testing.T) {
 }
 
 func TestDetector_Detect_MultipleFindings(t *testing.T) {
-	// Server that reflects all input
+	// CSV export endpoint — Content-Type + attachment signal spreadsheet.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("comment")
+		w.Header().Set("Content-Type", "application/csv")
+		w.Header().Set("Content-Disposition", `attachment; filename="export.csv"`)
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "Your comment: %s", input)
+		fmt.Fprintf(w, "comment\n%s\n", input)
 	}))
 	defer server.Close()
 

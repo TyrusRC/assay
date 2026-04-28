@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"context"
+	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -1324,6 +1325,406 @@ func TestDetector_Detect_AlgorithmConfusion(t *testing.T) {
 	}
 	if !found {
 		t.Error("Should detect algorithm confusion vulnerability")
+	}
+}
+
+// TestDetect_UnconfirmedFindings_AreDowngraded verifies that static-only
+// JWT observations (alg:none, alg confusion setup) are NOT reported as
+// Critical without replay verification. Before the fix, Detect emitted
+// SeverityCritical findings for any alg:none token, producing false
+// positives for anyone who inspected a token without testing the server.
+func TestDetect_UnconfirmedFindings_AreDowngraded(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	// alg:none token — static finding, must be unconfirmed + non-critical
+	noneToken := createNoneAlgJWT(map[string]interface{}{"sub": "admin"})
+	result, err := detector.Detect(ctx, noneToken, nil)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+
+	foundNone := false
+	for _, f := range result.Findings {
+		if f.VulnType != VulnNoneAlgorithm {
+			continue
+		}
+		foundNone = true
+		if f.Confirmed {
+			t.Error("alg:none finding from Detect (no replay) must be Confirmed=false")
+		}
+		cf := f.ToCoreFindings("https://example.com")
+		if cf.Severity == core.SeverityCritical {
+			t.Errorf("unconfirmed alg:none reported as %s — must be downgraded from Critical", cf.Severity)
+		}
+		if !strings.Contains(strings.ToLower(cf.Description), "unconfirmed") {
+			t.Errorf("description should contain 'unconfirmed'; got %q", cf.Description)
+		}
+	}
+	if !foundNone {
+		t.Error("expected a VulnNoneAlgorithm finding from static detection")
+	}
+}
+
+// TestDetect_WeakSecret_StaysConfirmed verifies that cracked-secret
+// findings remain Confirmed=true at Critical — they are direct proofs,
+// not hypothetical static observations.
+func TestDetect_WeakSecret_StaysConfirmed(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	token := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"secret",
+	)
+	result, err := detector.Detect(ctx, token, nil)
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+
+	for _, f := range result.Findings {
+		if f.VulnType != VulnWeakSecret {
+			continue
+		}
+		if !f.Confirmed {
+			t.Error("weak secret finding should be Confirmed=true (secret was cracked)")
+		}
+		cf := f.ToCoreFindings("https://example.com")
+		if cf.Severity != core.SeverityCritical {
+			t.Errorf("confirmed weak secret should stay Critical, got %s", cf.Severity)
+		}
+	}
+}
+
+// TestDetectWithReplay_ServerAccepts promotes alg:none to Confirmed+Critical
+// when the replay callback reports the server accepted the forged token.
+func TestDetectWithReplay_ServerAccepts(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	token := createNoneAlgJWT(map[string]interface{}{"sub": "admin"})
+
+	replayCalls := 0
+	replay := func(ctx context.Context, forged string) (bool, error) {
+		replayCalls++
+		return true, nil
+	}
+
+	result, err := detector.DetectWithReplay(ctx, token, nil, replay)
+	if err != nil {
+		t.Fatalf("DetectWithReplay: %v", err)
+	}
+	if replayCalls == 0 {
+		t.Error("DetectWithReplay should have invoked replay callback for alg:none")
+	}
+
+	foundConfirmed := false
+	for _, f := range result.Findings {
+		if f.VulnType != VulnNoneAlgorithm {
+			continue
+		}
+		if !f.Confirmed {
+			t.Error("alg:none should be Confirmed=true after successful replay")
+		}
+		if f.ModifiedToken == "" {
+			t.Error("ModifiedToken should be populated with the forged token")
+		}
+		foundConfirmed = true
+		cf := f.ToCoreFindings("https://example.com")
+		if cf.Severity != core.SeverityCritical {
+			t.Errorf("confirmed alg:none should be Critical, got %s", cf.Severity)
+		}
+	}
+	if !foundConfirmed {
+		t.Error("expected a confirmed alg:none finding after server accepted forgery")
+	}
+}
+
+// TestDetectWithReplay_ServerRejects drops alg:none findings entirely
+// when the replay callback reports the server rejected the forged token.
+// Reporting a static-only finding for a server we've just proven isn't
+// vulnerable would be the worst kind of false positive.
+func TestDetectWithReplay_ServerRejects(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	token := createNoneAlgJWT(map[string]interface{}{"sub": "admin"})
+
+	replay := func(ctx context.Context, forged string) (bool, error) {
+		return false, nil
+	}
+
+	result, err := detector.DetectWithReplay(ctx, token, nil, replay)
+	if err != nil {
+		t.Fatalf("DetectWithReplay: %v", err)
+	}
+	for _, f := range result.Findings {
+		if f.VulnType == VulnNoneAlgorithm {
+			t.Error("alg:none finding should be dropped when server rejects forged token")
+		}
+	}
+}
+
+// TestDetectWithReplay_NilReplay falls back to static Detect behavior.
+func TestDetectWithReplay_NilReplay(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	token := createNoneAlgJWT(map[string]interface{}{"sub": "admin"})
+
+	result, err := detector.DetectWithReplay(ctx, token, nil, nil)
+	if err != nil {
+		t.Fatalf("DetectWithReplay(nil replay): %v", err)
+	}
+	for _, f := range result.Findings {
+		if f.VulnType == VulnNoneAlgorithm && f.Confirmed {
+			t.Error("nil replay must not mark finding as Confirmed")
+		}
+	}
+}
+
+// TestGenerateEmbeddedJWKToken verifies the forged token actually validates
+// against the JWK it advertises — a token a server can plausibly accept,
+// not just a syntactically valid blob.
+func TestGenerateEmbeddedJWKToken(t *testing.T) {
+	detector := NewDetector()
+
+	original := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT", "kid": "key-1"},
+		map[string]interface{}{"sub": "admin", "role": "user"},
+		"secret",
+	)
+
+	forged, err := detector.GenerateEmbeddedJWKToken(original)
+	if err != nil {
+		t.Fatalf("GenerateEmbeddedJWKToken: %v", err)
+	}
+
+	parsed, err := detector.ParseJWT(forged)
+	if err != nil {
+		t.Fatalf("parse forged token: %v", err)
+	}
+	if parsed.Algorithm != "RS256" {
+		t.Errorf("forged alg = %q, want RS256", parsed.Algorithm)
+	}
+	if _, ok := parsed.Header["jwk"]; !ok {
+		t.Fatal("forged token must contain a jwk header")
+	}
+	if _, ok := parsed.Header["kid"]; ok {
+		t.Error("original kid should be stripped to avoid shadowing the embedded jwk")
+	}
+
+	pub, err := extractEmbeddedJWK(parsed)
+	if err != nil {
+		t.Fatalf("extractEmbeddedJWK: %v", err)
+	}
+
+	parts := strings.Split(forged, ".")
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 parts, got %d", len(parts))
+	}
+	signingInput := parts[0] + "." + parts[1]
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		t.Fatalf("decode signature: %v", err)
+	}
+	digest := sha256.Sum256([]byte(signingInput))
+	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig); err != nil {
+		t.Errorf("forged signature does not verify against the embedded JWK: %v", err)
+	}
+
+	if parsed.Claims["sub"] != "admin" {
+		t.Error("original claims must be preserved")
+	}
+}
+
+// TestGenerateKidTraversalToken verifies the kid is set to a traversal path
+// and the signature is HMAC over an empty key.
+func TestGenerateKidTraversalToken(t *testing.T) {
+	detector := NewDetector()
+
+	original := createTestJWT(
+		map[string]interface{}{"alg": "RS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"secret",
+	)
+
+	forged, err := detector.GenerateKidTraversalToken(original)
+	if err != nil {
+		t.Fatalf("GenerateKidTraversalToken: %v", err)
+	}
+
+	parsed, err := detector.ParseJWT(forged)
+	if err != nil {
+		t.Fatalf("parse forged token: %v", err)
+	}
+	if parsed.Algorithm != "HS256" {
+		t.Errorf("forged alg = %q, want HS256", parsed.Algorithm)
+	}
+	kid, _ := parsed.Header["kid"].(string)
+	if !strings.Contains(kid, "/dev/null") || !strings.Contains(kid, "../") {
+		t.Errorf("kid should contain traversal to /dev/null, got %q", kid)
+	}
+
+	if !detector.VerifyHS256Signature(forged, "") {
+		t.Error("forged signature should verify against an empty HMAC key")
+	}
+}
+
+// TestDetectWithReplay_EmbeddedJWKForgeAccepted promotes the embedded-JWK
+// forge to a confirmed Critical finding when the server accepts it.
+func TestDetectWithReplay_EmbeddedJWKForgeAccepted(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	// Plain HS256 token — the static checks won't trip jwk/jku/x5u or alg
+	// confusion. Only the advanced forgery path can produce a finding.
+	original := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"strong-random-secret-not-in-wordlist-zZqQ4f",
+	)
+
+	replay := func(ctx context.Context, forged string) (bool, error) {
+		parsed, err := detector.ParseJWT(forged)
+		if err != nil {
+			return false, err
+		}
+		// Server accepts only if the token has an embedded jwk (simulating
+		// the CVE-2018-0114 trust path).
+		_, hasJWK := parsed.Header["jwk"]
+		return hasJWK, nil
+	}
+
+	result, err := detector.DetectWithReplay(ctx, original, nil, replay)
+	if err != nil {
+		t.Fatalf("DetectWithReplay: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.VulnType != VulnEmbeddedJWKForge {
+			continue
+		}
+		found = true
+		if !f.Confirmed {
+			t.Error("embedded-JWK forge finding must be Confirmed=true")
+		}
+		if f.ModifiedToken == "" {
+			t.Error("ModifiedToken should be set to the forged token")
+		}
+		cf := f.ToCoreFindings("https://example.com")
+		if cf.Severity != core.SeverityCritical {
+			t.Errorf("severity = %s, want Critical", cf.Severity)
+		}
+	}
+	if !found {
+		t.Fatal("expected a confirmed VulnEmbeddedJWKForge finding")
+	}
+}
+
+// TestDetectWithReplay_KidTraversalAccepted promotes kid-traversal to a
+// confirmed Critical finding when the server accepts an empty-key HMAC.
+func TestDetectWithReplay_KidTraversalAccepted(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	original := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"strong-random-secret-not-in-wordlist-zZqQ4f",
+	)
+
+	replay := func(ctx context.Context, forged string) (bool, error) {
+		parsed, err := detector.ParseJWT(forged)
+		if err != nil {
+			return false, err
+		}
+		// Server accepts only if kid resolves through traversal AND the
+		// HMAC verifies under an empty key (simulating /dev/null lookup).
+		kid, _ := parsed.Header["kid"].(string)
+		if !strings.Contains(kid, "..") {
+			return false, nil
+		}
+		if _, hasJWK := parsed.Header["jwk"]; hasJWK {
+			return false, nil // skip the embedded-JWK forge path
+		}
+		return detector.VerifyHS256Signature(forged, ""), nil
+	}
+
+	result, err := detector.DetectWithReplay(ctx, original, nil, replay)
+	if err != nil {
+		t.Fatalf("DetectWithReplay: %v", err)
+	}
+
+	found := false
+	for _, f := range result.Findings {
+		if f.VulnType != VulnKidPathTraversal {
+			continue
+		}
+		found = true
+		if !f.Confirmed {
+			t.Error("kid-traversal finding must be Confirmed=true")
+		}
+		cf := f.ToCoreFindings("https://example.com")
+		if cf.Severity != core.SeverityCritical {
+			t.Errorf("severity = %s, want Critical", cf.Severity)
+		}
+	}
+	if !found {
+		t.Fatal("expected a confirmed VulnKidPathTraversal finding")
+	}
+}
+
+// TestDetectWithReplay_AdvancedRejected drops both advanced forgeries when
+// the server rejects them — the FP guardrail.
+func TestDetectWithReplay_AdvancedRejected(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	original := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"strong-random-secret-not-in-wordlist-zZqQ4f",
+	)
+
+	replay := func(ctx context.Context, forged string) (bool, error) {
+		return false, nil
+	}
+
+	result, err := detector.DetectWithReplay(ctx, original, nil, replay)
+	if err != nil {
+		t.Fatalf("DetectWithReplay: %v", err)
+	}
+	for _, f := range result.Findings {
+		if f.VulnType == VulnEmbeddedJWKForge || f.VulnType == VulnKidPathTraversal {
+			t.Errorf("advanced forgery %q must not be reported when server rejects", f.VulnType)
+		}
+	}
+}
+
+// TestDetectWithReplay_NilReplay_NoAdvanced — a nil replay callback must
+// never produce advanced forgery findings; they only exist as confirmed
+// proofs of exploitation.
+func TestDetectWithReplay_NilReplay_NoAdvanced(t *testing.T) {
+	detector := NewDetector()
+	ctx := context.Background()
+
+	original := createTestJWT(
+		map[string]interface{}{"alg": "HS256", "typ": "JWT"},
+		map[string]interface{}{"sub": "admin"},
+		"strong-random-secret-not-in-wordlist-zZqQ4f",
+	)
+
+	result, err := detector.DetectWithReplay(ctx, original, nil, nil)
+	if err != nil {
+		t.Fatalf("DetectWithReplay(nil): %v", err)
+	}
+	for _, f := range result.Findings {
+		if f.VulnType == VulnEmbeddedJWKForge || f.VulnType == VulnKidPathTraversal {
+			t.Errorf("advanced forgery %q must require a replay callback", f.VulnType)
+		}
 	}
 }
 

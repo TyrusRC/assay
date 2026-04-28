@@ -148,7 +148,12 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		payloads = payloads[:opts.MaxPayloads]
 	}
 
-	// Phase 5: Test each payload
+	// Phase 5: Test each payload. Math-method payloads are wrapped with a
+	// unique sentinel on the wire so that only a response that contains
+	// `<sentinel><expected><sentinel>` (genuine template evaluation in place
+	// of the wrapped expression) is considered a hit. This kills the FP
+	// class where incidental digits in the body (pixel sizes, IDs) match
+	// the expected result.
 	for _, payload := range payloads {
 		select {
 		case <-ctx.Done():
@@ -158,14 +163,23 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 
 		result.TestedPayloads++
 
-		// Send payload
-		resp, err := d.client.SendPayload(ctx, target, param, payload.Value, method)
+		sentPayload := payload
+		if payload.DetectionMethod == ssti.MethodMath && payload.ExpectedOutput != "" {
+			sentinel := fmt.Sprintf("st%d", time.Now().UnixNano()%1000000000)
+			sentPayload.Value = sentinel + payload.Value + sentinel
+			sentPayload.ExpectedOutput = sentinel + payload.ExpectedOutput + sentinel
+		}
+
+		// Send payload (possibly sentinel-wrapped)
+		resp, err := d.client.SendPayload(ctx, target, param, sentPayload.Value, method)
 		if err != nil {
 			continue
 		}
 
-		// Check if payload triggered SSTI
-		if d.isPayloadSuccessful(resp.Body, payload, baseline) {
+		// Check using the sentinel-wrapped expectations, but keep the
+		// original payload for reporting so users see the meaningful
+		// template syntax (e.g. "${7*7}"), not the wrapper.
+		if d.isPayloadSuccessful(resp.Body, sentPayload, baseline) {
 			finding := d.createFinding(target, param, payload, resp, result.DetectedEngine)
 			result.Findings = append(result.Findings, finding)
 			result.Vulnerable = true

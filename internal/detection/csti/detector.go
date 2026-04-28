@@ -79,7 +79,11 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		return result, fmt.Errorf("failed to get baseline: %w", err)
 	}
 
-	// Test each payload
+	// Test each payload. Like SSTI, we wrap the template expression with a
+	// unique per-probe sentinel so only responses that contain
+	// `<sentinel><expected><sentinel>` (actual in-place evaluation) count
+	// as a hit. Incidental "49" / "14" digits in the response body do not
+	// produce false positives anymore.
 	for _, payload := range payloads {
 		select {
 		case <-ctx.Done():
@@ -89,13 +93,22 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 
 		result.TestedPayloads++
 
-		resp, err := d.client.SendPayload(ctx, target, param, payload.Value, method)
+		sentPayload := payload
+		var sentinel string
+		if payload.Expected != "" {
+			sentinel = fmt.Sprintf("ct%d", time.Now().UnixNano()%1000000000)
+			sentPayload.Value = sentinel + payload.Value + sentinel
+			sentPayload.Expected = sentinel + payload.Expected + sentinel
+		}
+
+		resp, err := d.client.SendPayload(ctx, target, param, sentPayload.Value, method)
 		if err != nil {
 			continue
 		}
 
-		// Check if template expression was evaluated
-		if d.isTemplateEvaluated(resp, baselineResp, payload) {
+		// Check against the sentinel-wrapped expectation; report using
+		// the original payload so users see the meaningful syntax.
+		if d.isTemplateEvaluated(resp, baselineResp, sentPayload) {
 			result.DetectedFramework = string(payload.Framework)
 			finding := d.createFinding(target, param, payload, resp)
 			result.Findings = append(result.Findings, finding)
@@ -110,6 +123,12 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 // isTemplateEvaluated checks if a template expression was evaluated.
 func (d *Detector) isTemplateEvaluated(resp, baseline *http.Response, payload csti.Payload) bool {
 	if payload.Expected == "" {
+		return false
+	}
+
+	// The raw payload must NOT appear verbatim in the body — that would
+	// be echo/reflection, not evaluation.
+	if strings.Contains(resp.Body, payload.Value) {
 		return false
 	}
 

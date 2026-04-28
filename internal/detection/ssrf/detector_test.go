@@ -169,14 +169,17 @@ func TestDetector_CloudPatterns(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name:      "AWS metadata",
-			body:      `ami-id: ami-12345678, instance-id: i-abc123`,
+			// Realistic AWS IMDS /latest/meta-data/iam/security-credentials/<role> body
+			name:      "AWS IAM credentials response",
+			body:      `{"Code":"Success","LastUpdated":"2024-01-01T00:00:00Z","Type":"AWS-HMAC","AccessKeyId":"ASIAIOSFODNN7EXAMPLE","SecretAccessKey":"wJalr"}`,
 			cloudType: "aws",
 			expected:  true,
 		},
 		{
-			name:      "GCP metadata",
-			body:      `computeMetadata project-id: my-project`,
+			// Realistic GCP IMDS response header + path pair that only
+			// appears in genuine metadata responses.
+			name:      "GCP metadata response",
+			body:      `Metadata-Flavor: Google` + "\n" + `/computeMetadata/v1/instance/service-accounts/default/token`,
 			cloudType: "gcp",
 			expected:  true,
 		},
@@ -187,14 +190,15 @@ func TestDetector_CloudPatterns(t *testing.T) {
 			expected:  false,
 		},
 		{
-			name:      "Azure metadata",
-			body:      `subscriptionId: abc-123, resourceGroupName: my-rg`,
+			// Realistic Azure IMDS /metadata/instance JSON response
+			name:      "Azure metadata response",
+			body:      `{"compute":{"subscriptionId":"abc","resourceGroupName":"rg","vmId":"x"}}`,
 			cloudType: "azure",
 			expected:  true,
 		},
 		{
 			name:      "Unknown cloud type defaults to AWS",
-			body:      `ami-id: ami-12345678, instance-id: i-abc123`,
+			body:      `{"Code":"Success","AccessKeyId":"AKIA...","Type":"AWS-HMAC"}`,
 			cloudType: "unknown",
 			expected:  true,
 		},
@@ -205,26 +209,27 @@ func TestDetector_CloudPatterns(t *testing.T) {
 			expected:  false,
 		},
 		{
+			// Only one strong marker — should not flag
 			name:      "AWS with only one indicator not enough",
-			body:      `ami-id: ami-12345678`,
+			body:      `"AccessKeyId": "AKIA..."`,
 			cloudType: "aws",
 			expected:  false,
 		},
 		{
-			name:      "GCP service-accounts and project-id",
-			body:      `service-accounts: default, project-id: test`,
+			name:      "GCP service-accounts path + Metadata-Flavor",
+			body:      `Metadata-Flavor: Google` + "\n" + `service-accounts/default/token`,
 			cloudType: "gcp",
 			expected:  true,
 		},
 		{
-			name:      "Azure vmId and subscriptionId",
-			body:      `vmId: 123, subscriptionId: abc`,
+			name:      "Azure IMDS JSON (vmId + subscriptionId)",
+			body:      `{"compute":{"vmId":"abc","subscriptionId":"xyz"}}`,
 			cloudType: "azure",
 			expected:  true,
 		},
 		{
-			name:      "AWS AccessKeyId and ec2.internal",
-			body:      `AccessKeyId: AKIAIOSFODNN7EXAMPLE, ec2.internal`,
+			name:      "AWS credentials JSON (AccessKeyId + ec2.internal)",
+			body:      `{"AccessKeyId":"AKIAIOSFODNN7EXAMPLE"} ec2.internal`,
 			cloudType: "aws",
 			expected:  true,
 		},
@@ -668,7 +673,7 @@ func TestDetector_isSSRFSuccess(t *testing.T) {
 		},
 		{
 			name:     "cloud target no pattern match falls through to cloud metadata check",
-			resp:     &internalhttp.Response{StatusCode: 200, Body: "ami-id data, instance-id data, AccessKeyId data"},
+			resp:     &internalhttp.Response{StatusCode: 200, Body: `{"Code":"Success","AccessKeyId":"ASIA","SecretAccessKey":"xxx","Type":"AWS-HMAC"}`},
 			baseline: &internalhttp.Response{StatusCode: 200, Body: "OK"},
 			payload:  ssrf.Payload{Target: ssrf.TargetCloud, CloudType: "aws"},
 			expected: true,

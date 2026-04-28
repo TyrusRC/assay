@@ -210,15 +210,19 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		// Check for error-based detection
-		analysis := d.AnalyzeResponse(resp.Body)
-		if analysis.IsVulnerable {
-			finding := d.createFinding(target, param, payload, resp, analysis.DetectionType)
-			finding.Evidence = analysis.Evidence
-			result.Findings = append(result.Findings, finding)
-			result.Vulnerable = true
-			result.DetectedDBType = analysis.DatabaseType
-			return result, nil
+		// Check for error-based detection. Gate on baseline-diff: if the
+		// baseline already contains the same NoSQL error string (e.g.
+		// docs page shipping a "Query parsing failed" example), the
+		// pattern is not evidence of injection.
+		if analysis := d.AnalyzeResponse(resp.Body); analysis.IsVulnerable {
+			if base := d.AnalyzeResponse(baselineBody); !base.IsVulnerable {
+				finding := d.createFinding(target, param, payload, resp, analysis.DetectionType)
+				finding.Evidence = analysis.Evidence
+				result.Findings = append(result.Findings, finding)
+				result.Vulnerable = true
+				result.DetectedDBType = analysis.DatabaseType
+				return result, nil
+			}
 		}
 
 		// Check for response-based detection (JSON structure changes)

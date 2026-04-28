@@ -107,6 +107,15 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
+		// CSV/Formula injection is only dangerous when the reflected
+		// value is rendered in a spreadsheet application — i.e. when
+		// the response is (or is later exported to) CSV/TSV/Excel.
+		// Reflection into text/html is harmless from a formula-
+		// injection standpoint and produces only noise.
+		if !isSpreadsheetResponse(resp, target) {
+			continue
+		}
+
 		// Check if the formula payload is reflected unescaped in the response
 		if d.isReflectedUnescaped(resp.Body, baselineResp.Body, payload.Value) {
 			finding := d.createFinding(target, param, payload, resp)
@@ -118,6 +127,53 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	}
 
 	return result, nil
+}
+
+// isSpreadsheetResponse reports whether the response body is likely to be
+// consumed by a spreadsheet program — either by Content-Type, a
+// Content-Disposition attachment with a CSV/XLS extension, or a target
+// URL that clearly exports tabular data. Only such responses are at real
+// risk of formula-injection attacks; HTML reflection is not.
+func isSpreadsheetResponse(resp *http.Response, targetURL string) bool {
+	if resp == nil {
+		return false
+	}
+
+	ct := strings.ToLower(resp.ContentType)
+	csvContentTypes := []string{
+		"text/csv", "application/csv", "text/tab-separated-values",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/x-csv", "text/x-csv",
+	}
+	for _, want := range csvContentTypes {
+		if strings.Contains(ct, want) {
+			return true
+		}
+	}
+
+	// Content-Disposition: attachment; filename="foo.csv"
+	disp := strings.ToLower(resp.Headers["Content-Disposition"])
+	if disp == "" {
+		disp = strings.ToLower(resp.Headers["content-disposition"])
+	}
+	if strings.Contains(disp, "attachment") {
+		for _, ext := range []string{".csv", ".xls", ".xlsx", ".tsv"} {
+			if strings.Contains(disp, ext) {
+				return true
+			}
+		}
+	}
+
+	// Path strongly suggests spreadsheet export (defence-in-depth).
+	lowURL := strings.ToLower(targetURL)
+	for _, hint := range []string{".csv", ".xlsx", ".xls", ".tsv", "/export", "/download", "export=csv", "format=csv", "format=xlsx"} {
+		if strings.Contains(lowURL, hint) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isReflectedUnescaped checks if a formula payload is reflected in the response

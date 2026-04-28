@@ -2,7 +2,6 @@ package csti
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,24 +44,18 @@ func TestDefaultOptions(t *testing.T) {
 }
 
 func TestDetector_DetectAngularCSTI(t *testing.T) {
-	// Simulate Angular app that evaluates template expressions
+	// Simulate Angular app that evaluates template expressions IN PLACE —
+	// a real engine replaces the `{{expr}}` syntax inside the surrounding
+	// text, so the detector's sentinel wrapper ends up bracketing the
+	// evaluated result.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("q")
-		if strings.Contains(input, "{{") && strings.Contains(input, "}}") {
-			// Simulate template evaluation
-			if strings.Contains(input, "7*7") {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf("<div>Search result: 49</div>")))
-				return
-			}
-			if strings.Contains(input, "9999*9999") {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(fmt.Sprintf("<div>Search result: 99980001</div>")))
-				return
-			}
+		rendered := input
+		for expr, val := range map[string]string{"7*7": "49", "9999*9999": "99980001"} {
+			rendered = strings.ReplaceAll(rendered, "{{"+expr+"}}", val)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("<div>Search result: %s</div>", input)))
+		w.Write([]byte("<div>Search result: " + rendered + "</div>"))
 	}))
 	defer server.Close()
 
@@ -92,15 +85,12 @@ func TestDetector_DetectAngularCSTI(t *testing.T) {
 func TestDetector_DetectTemplateLiteral(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("name")
-		if strings.Contains(input, "${") {
-			if strings.Contains(input, "9999+1") {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("<p>Hello 10000</p>"))
-				return
-			}
+		rendered := input
+		for expr, val := range map[string]string{"9999+1": "10000", "7*7": "49"} {
+			rendered = strings.ReplaceAll(rendered, "${"+expr+"}", val)
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fmt.Sprintf("<p>Hello %s</p>", input)))
+		w.Write([]byte("<p>Hello " + rendered + "</p>"))
 	}))
 	defer server.Close()
 
@@ -172,13 +162,14 @@ func TestDetector_ContextCancellation(t *testing.T) {
 func TestDetector_FindingOWASP(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("q")
-		if strings.Contains(input, "7*7") {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Result: 49"))
-			return
+		// In-place evaluation for common CSTI expressions so the sentinel
+		// wrapper ends up bracketing the result.
+		rendered := input
+		for _, expr := range []string{"{{7*7}}", "${7*7}", "#{7*7}"} {
+			rendered = strings.ReplaceAll(rendered, expr, "49")
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Normal"))
+		w.Write([]byte("Result: " + rendered))
 	}))
 	defer server.Close()
 

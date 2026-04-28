@@ -222,12 +222,17 @@ func (d *Detector) detectFileContent(body string, payload lfi.Payload, baseline 
 		}
 	}
 
-	// Check for specific file patterns based on payload target
+	// Check for specific file patterns based on payload target. Same
+	// baseline guard as the generic-pattern branch below — without it,
+	// a page that legitimately mentions /etc/passwd in docs or error
+	// messages would FP on every probe.
 	if payload.TargetFile != "" {
 		patterns := d.getFilePatterns(payload.TargetFile)
 		for _, pattern := range patterns {
 			if pattern.MatchString(body) {
-				return payload.TargetFile
+				if baseline == nil || !pattern.MatchString(baseline.Body) {
+					return payload.TargetFile
+				}
 			}
 		}
 	}
@@ -236,7 +241,6 @@ func (d *Detector) detectFileContent(body string, payload lfi.Payload, baseline 
 	for filePath, patterns := range d.filePatterns {
 		for _, pattern := range patterns {
 			if pattern.MatchString(body) {
-				// Verify it's not in baseline
 				if baseline == nil || !pattern.MatchString(baseline.Body) {
 					return filePath
 				}

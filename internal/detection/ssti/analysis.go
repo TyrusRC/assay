@@ -6,11 +6,19 @@ import (
 	"strings"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/ssti"
 )
 
-// containsMathResult checks if the response contains the expected mathematical result.
+// analysisStripEchoFn is an indirection over analysis.StripEcho so this
+// package can substitute a cheaper/mock version in tests if needed.
+var analysisStripEchoFn = analysis.StripEcho
+
+// containsMathResult checks if the response contains the expected mathematical
+// result — signalling real template-engine evaluation rather than payload
+// reflection. When the raw expression is known, a response that echoes the
+// expression literally is rejected as a false positive (see evaluatedMath).
 func (d *Detector) containsMathResult(body, expected, baseline string) bool {
 	// The result should appear in the response
 	if !strings.Contains(body, expected) {
@@ -26,44 +34,88 @@ func (d *Detector) containsMathResult(body, expected, baseline string) bool {
 	return true
 }
 
+// evaluatedMath is like containsMathResult but additionally rejects responses
+// that echo the raw expression verbatim. A server that reflects `#{7*7}` into
+// its response is NOT evaluating the template — it's just echoing user input.
+// This kills a huge class of false positives (Origin headers echoed into HTML,
+// CORS responses, debug pages) where the page also happens to contain the
+// expected result (`49`) from unrelated content (pixel sizes, IDs, etc.).
+func (d *Detector) evaluatedMath(body, expected, baseline, expression string) bool {
+	if expression != "" && strings.Contains(body, expression) {
+		return false
+	}
+	return d.containsMathResult(body, expected, baseline)
+}
+
 // isPayloadSuccessful checks if the SSTI payload was successful.
+//
+// For MethodMath, MethodReflection and MethodOutput we apply two
+// anti-FP guards:
+//  1. evaluatedMath rejects responses where the raw expression is echoed
+//     verbatim (reflection, not evaluation).
+//  2. If ExpectedOutput appears as a substring of the raw payload
+//     itself (e.g. expected="Runtime" in payload "$class.inspect(
+//     'java.lang.Runtime')"), the marker cannot reliably prove
+//     evaluation — every echoing app trips it. Skip that payload.
 func (d *Detector) isPayloadSuccessful(body string, payload ssti.Payload, baseline *baselineResponse) bool {
+	selfEchoing := func(marker string) bool {
+		return marker != "" && payload.Value != "" && strings.Contains(payload.Value, marker)
+	}
+
 	switch payload.DetectionMethod {
 	case ssti.MethodMath:
 		if payload.ExpectedOutput != "" {
-			return d.containsMathResult(body, payload.ExpectedOutput, baseline.body)
+			if selfEchoing(payload.ExpectedOutput) {
+				return false
+			}
+			return d.evaluatedMath(body, payload.ExpectedOutput, baseline.body, payload.Value)
 		}
-		// Check for common math results
-		return d.containsMathResult(body, "49", baseline.body) ||
-			d.containsMathResult(body, "14", baseline.body)
+		// Check for common math results — but reject if the raw payload
+		// expression was echoed back verbatim.
+		return d.evaluatedMath(body, "49", baseline.body, payload.Value) ||
+			d.evaluatedMath(body, "14", baseline.body, payload.Value)
 
 	case ssti.MethodReflection:
 		if payload.ExpectedOutput != "" {
-			return strings.Contains(body, payload.ExpectedOutput) &&
-				!strings.Contains(baseline.body, payload.ExpectedOutput)
+			if selfEchoing(payload.ExpectedOutput) {
+				return false
+			}
+			return d.evaluatedMath(body, payload.ExpectedOutput, baseline.body, payload.Value)
 		}
-		// Check for reflection patterns not present in baseline
+		// Check for reflection patterns not present in baseline — strip
+		// echo first so that a payload containing e.g. "Template" in
+		// its own body doesn't match against itself.
+		stripped := stripPayloadEcho(body, payload.Value)
 		reflectionPatterns := []string{
 			"__class__", "__mro__", "__subclasses__",
 			"Template", "Config", "Environment",
 		}
 		for _, pattern := range reflectionPatterns {
-			if strings.Contains(body, pattern) && !strings.Contains(baseline.body, pattern) {
+			if selfEchoing(pattern) {
+				continue
+			}
+			if strings.Contains(stripped, pattern) && !strings.Contains(baseline.body, pattern) {
 				return true
 			}
 		}
 
 	case ssti.MethodOutput:
 		if payload.ExpectedOutput != "" {
-			return strings.Contains(body, payload.ExpectedOutput) &&
-				!strings.Contains(baseline.body, payload.ExpectedOutput)
+			if selfEchoing(payload.ExpectedOutput) {
+				return false
+			}
+			return d.evaluatedMath(body, payload.ExpectedOutput, baseline.body, payload.Value)
 		}
-		// Check for command execution patterns not present in baseline
+		// Check for command execution patterns not present in baseline.
+		stripped := stripPayloadEcho(body, payload.Value)
 		commandPatterns := []string{
 			"uid=", "root:", "www-data", "Process",
 		}
 		for _, pattern := range commandPatterns {
-			if strings.Contains(body, pattern) && !strings.Contains(baseline.body, pattern) {
+			if selfEchoing(pattern) {
+				continue
+			}
+			if strings.Contains(stripped, pattern) && !strings.Contains(baseline.body, pattern) {
 				return true
 			}
 		}
@@ -78,6 +130,12 @@ func (d *Detector) isPayloadSuccessful(body string, payload ssti.Payload, baseli
 	}
 
 	return false
+}
+
+// stripPayloadEcho thin-wraps analysis.StripEcho so every call site in
+// this package uses the same encoding-aware stripping logic.
+func stripPayloadEcho(body, payload string) string {
+	return analysisStripEchoFn(body, payload)
 }
 
 // createFinding creates a Finding from a successful SSTI test.

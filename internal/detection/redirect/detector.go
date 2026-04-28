@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/redirect"
 )
@@ -105,6 +106,15 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	// Clone first to avoid mutating the shared client from concurrent goroutines.
 	nonRedirectClient := d.client.Clone().WithFollowRedirects(false)
 
+	// Capture a baseline response so the body-based redirect checks
+	// (meta-refresh, JS redirects) can be gated on the baseline NOT
+	// already containing the same evil-domain reference. Without this,
+	// a page that benignly mentions or links to evil.com would FP.
+	baselineBody := ""
+	if br, berr := nonRedirectClient.SendPayload(ctx, target, param, "skws_redirect_baseline", method); berr == nil && br != nil {
+		baselineBody = br.Body
+	}
+
 	// Test each payload
 	for _, payload := range payloads {
 		select {
@@ -125,7 +135,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		}
 
 		// Check if response indicates a redirect to external domain
-		if d.isVulnerable(resp, payloadValue, opts.EvilDomain) {
+		if d.isVulnerable(resp, payloadValue, opts.EvilDomain, baselineBody) {
 			finding := d.createFinding(target, param, payload, resp, opts.EvilDomain)
 			result.Findings = append(result.Findings, finding)
 			result.Vulnerable = true
@@ -186,33 +196,43 @@ func (d *Detector) DetectParams(ctx context.Context, target, method string) ([]s
 }
 
 // isVulnerable determines if the response indicates a successful open redirect.
-func (d *Detector) isVulnerable(resp *http.Response, payload, evilDomain string) bool {
+//
+// Body-based signals (meta-refresh, JS redirect) require:
+//  1. The baseline body did NOT already contain the evil-domain reference
+//     (otherwise the page legitimately links to it).
+//  2. The payload echo is stripped from the body before matching, so a
+//     page that simply reflects ?next=https://evil.com into a hidden form
+//     field doesn't masquerade as a redirect.
+func (d *Detector) isVulnerable(resp *http.Response, payload, evilDomain, baselineBody string) bool {
 	if resp == nil {
 		return false
 	}
 
-	// Check for redirect status codes
+	// Check for redirect status codes — Location header is authoritative
+	// and the only signal we trust without baseline gating.
 	isRedirect := resp.StatusCode >= 300 && resp.StatusCode < 400
-
 	if isRedirect {
-		// Check Location header
 		location := resp.Headers["Location"]
 		if location == "" {
 			location = resp.Headers["location"]
 		}
-
 		if location != "" {
 			return d.isExternalRedirect(location, evilDomain)
 		}
 	}
 
-	// Check for meta refresh redirects in body
-	if d.hasMetaRefreshToExternal(resp.Body, evilDomain) {
-		return true
+	// Body-based checks: strip echo, then require baseline-diff.
+	stripped := analysis.StripEcho(resp.Body, payload)
+	bodyHasEvil := strings.Contains(strings.ToLower(stripped), strings.ToLower(evilDomain))
+	baselineHasEvil := strings.Contains(strings.ToLower(baselineBody), strings.ToLower(evilDomain))
+	if !bodyHasEvil || baselineHasEvil {
+		return false
 	}
 
-	// Check for JavaScript redirects
-	if d.hasJSRedirectToExternal(resp.Body, evilDomain) {
+	if d.hasMetaRefreshToExternal(stripped, evilDomain) {
+		return true
+	}
+	if d.hasJSRedirectToExternal(stripped, evilDomain) {
 		return true
 	}
 

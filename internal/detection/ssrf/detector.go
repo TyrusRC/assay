@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
 	"github.com/swiss-knife-for-web-security/skws/internal/http"
 	"github.com/swiss-knife-for-web-security/skws/internal/payloads/ssrf"
 )
@@ -38,29 +39,30 @@ func (d *Detector) WithVerbose(verbose bool) *Detector {
 func (d *Detector) initResponsePatterns() {
 	d.responsePatterns = make(map[ssrf.TargetType][]*regexp.Regexp)
 
-	// Cloud metadata patterns
+	// Cloud metadata patterns. Every pattern here must be specific enough
+	// that it is extremely unlikely to appear in a legitimate non-SSRF
+	// response — NOT merely in our own payload URL. Weak markers like
+	// "meta-data" or "metadata-instance" were removed because every site
+	// that echoed our payload produced a false positive (the payload URL
+	// itself contains "meta-data").
 	d.responsePatterns[ssrf.TargetCloud] = []*regexp.Regexp{
-		// AWS
-		regexp.MustCompile(`(?i)ami-[a-f0-9]+`),
-		regexp.MustCompile(`(?i)instance-id.*i-[a-f0-9]+`),
-		regexp.MustCompile(`(?i)iam.*security-credentials`),
+		// AWS (require strong identifiers — an actual AMI ID, instance
+		// ID with the i- prefix, IAM credentials path, success JSON, or
+		// AKIA access-key form).
+		regexp.MustCompile(`(?i)\bami-[a-f0-9]{8,}\b`),
+		regexp.MustCompile(`(?i)instance-id["\s:=]+i-[a-f0-9]{8,}`),
+		regexp.MustCompile(`(?i)iam/security-credentials/\w+`),
 		regexp.MustCompile(`(?i)"Code"\s*:\s*"Success"`),
-		regexp.MustCompile(`(?i)AccessKeyId.*AKIA`),
+		regexp.MustCompile(`(?i)AccessKeyId["\s:=]+"?AKIA`),
 		regexp.MustCompile(`(?i)ec2\.internal`),
-		regexp.MustCompile(`(?i)meta-data`),
 
-		// GCP
-		regexp.MustCompile(`(?i)computeMetadata`),
-		regexp.MustCompile(`(?i)project-id`),
-		regexp.MustCompile(`(?i)service-accounts.*token`),
+		// GCP (these appear only in actual metadata responses)
+		regexp.MustCompile(`(?i)Metadata-Flavor:\s*Google`),
+		regexp.MustCompile(`(?i)service-accounts/default/token`),
 
 		// Azure
-		regexp.MustCompile(`(?i)microsoft.*metadata`),
-		regexp.MustCompile(`(?i)subscriptionId`),
-		regexp.MustCompile(`(?i)resourceGroupName`),
-
-		// Generic cloud
-		regexp.MustCompile(`(?i)metadata.*instance`),
+		regexp.MustCompile(`(?i)"subscriptionId"\s*:`),
+		regexp.MustCompile(`(?i)"resourceGroupName"\s*:`),
 	}
 
 	// Internal service patterns
@@ -207,12 +209,24 @@ func (d *Detector) isSSRFSuccess(resp, baseline *http.Response, payload ssrf.Pay
 		return false
 	}
 
+	// If the raw payload value appears verbatim in the response body, the
+	// app is merely echoing our input (form reflection, debug pages,
+	// client-side JS initialization). Any pattern match on such a body is
+	// matching our own payload string, not retrieved SSRF content.
+	// Strip the echoed payload before evaluating patterns so we only hit
+	// on genuine server-fetched content.
+	body := stripEcho(resp.Body, payload.Value)
+	baselineBody := ""
+	if baseline != nil {
+		baselineBody = baseline.Body
+	}
+
 	// Check for patterns based on target type
 	if patterns, ok := d.responsePatterns[payload.Target]; ok {
 		for _, pattern := range patterns {
-			if pattern.MatchString(resp.Body) {
+			if pattern.MatchString(body) {
 				// Make sure it's not in baseline
-				if baseline != nil && pattern.MatchString(baseline.Body) {
+				if baseline != nil && pattern.MatchString(baselineBody) {
 					continue
 				}
 				return true
@@ -220,9 +234,18 @@ func (d *Detector) isSSRFSuccess(resp, baseline *http.Response, payload ssrf.Pay
 		}
 	}
 
-	// Cloud-specific checks
+	// Cloud-specific checks (use echo-stripped body)
 	if payload.Target == ssrf.TargetCloud {
-		return d.hasCloudMetadataIndicators(resp.Body, payload.CloudType)
+		if !d.hasCloudMetadataIndicators(body, payload.CloudType) {
+			return false
+		}
+		// Reject when the baseline already has the same indicators —
+		// otherwise any normal page containing "meta-data" / "project-id"
+		// text would trip this.
+		if baseline != nil && d.hasCloudMetadataIndicators(baselineBody, payload.CloudType) {
+			return false
+		}
+		return true
 	}
 
 	// Check for significant response differences
@@ -230,41 +253,56 @@ func (d *Detector) isSSRFSuccess(resp, baseline *http.Response, payload ssrf.Pay
 		// Response much larger than baseline might indicate data retrieval
 		if len(resp.Body) > len(baseline.Body)*2 && len(resp.Body) > 500 {
 			// Additional check: response should contain meaningful data
-			if d.containsInternalData(resp.Body) {
+			if d.containsInternalData(body) {
 				return true
 			}
 		}
 
 		// Different status codes might indicate SSRF
 		if resp.StatusCode != baseline.StatusCode && resp.StatusCode == 200 {
-			if d.containsInternalData(resp.Body) {
+			if d.containsInternalData(body) {
 				return true
 			}
 		}
 	}
 
 	// Check for error messages that indicate SSRF capability (only if not in baseline)
-	if baseline != nil && d.hasSSRFErrorIndicators(resp.Body) && !d.hasSSRFErrorIndicators(baseline.Body) {
+	if baseline != nil && d.hasSSRFErrorIndicators(body) && !d.hasSSRFErrorIndicators(baseline.Body) {
 		return true
 	}
 
 	return false
 }
 
+// stripEcho delegates to analysis.StripEcho (shared helper). Keeping the
+// thin wrapper keeps call sites short and provides a seam if this detector
+// ever needs SSRF-specific pre-processing.
+func stripEcho(body, payload string) string {
+	return analysis.StripEcho(body, payload)
+}
+
 // hasCloudMetadataIndicators checks for cloud-specific metadata patterns.
+// Every pattern must be specific enough that a legitimate non-SSRF response
+// (including responses that echo our payload URL into the body) cannot
+// trigger it. Weak markers like the bare word "AccessKeyId" without its
+// "AKIA"/JSON context used to FP heavily because they appear in AWS SDK
+// docs, JS libraries, and countless reflected-input pages.
 func (d *Detector) hasCloudMetadataIndicators(body, cloudType string) bool {
 	cloudPatterns := map[string][]string{
 		"aws": {
-			"ami-id", "instance-id", "iam/security-credentials",
-			"AccessKeyId", "SecretAccessKey", "ec2.internal",
+			`"AccessKeyId":`, `"SecretAccessKey":`,
+			`"Code":"Success"`, `"Type":"AWS-HMAC"`,
+			"iam/security-credentials/",
+			"ec2.internal",
 		},
 		"gcp": {
-			"computeMetadata", "project-id", "service-accounts",
-			"google.internal",
+			"Metadata-Flavor: Google",
+			"service-accounts/default/token",
+			"computeMetadata/v1/",
 		},
 		"azure": {
-			"subscriptionId", "resourceGroupName", "vmId",
-			"azure.com",
+			`"subscriptionId":`, `"resourceGroupName":`,
+			`"vmId":`,
 		},
 	}
 

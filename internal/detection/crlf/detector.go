@@ -4,6 +4,7 @@ package crlf
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -149,15 +150,19 @@ func (d *Detector) isVulnerable(resp, baseline *http.Response, payload crlf.Payl
 		return false
 	}
 
-	// Check for injected headers in response
+	// Primary check: the payload's specific injected marker must appear
+	// in the named header's value. Matching on header name alone (or on
+	// "any new cookie since baseline") produces 100% FPs against targets
+	// behind AWS ALB / CloudFront that rotate session cookies per request.
 	if payload.InjectedHeader != "" {
-		if d.hasInjectedHeader(resp, payload.InjectedHeader, baseline) {
+		if d.hasInjectedHeader(resp, payload, baseline) {
 			return true
 		}
 	}
 
-	// Check for specific header injection indicators
-	if d.hasHeaderInjectionIndicators(resp, baseline) {
+	// Specific injected-custom-header markers (x-injected, x-crlf) are
+	// narrow enough that seeing them in the response is strong evidence.
+	if d.hasCustomInjectedHeader(resp) {
 		return true
 	}
 
@@ -168,7 +173,8 @@ func (d *Detector) isVulnerable(resp, baseline *http.Response, payload crlf.Payl
 		}
 	}
 
-	// Check body for reflected CRLF patterns
+	// Check body for reflected CRLF patterns (tight: needs literal CRLF
+	// AND the payload's marker to co-occur).
 	if d.hasReflectedCRLFPatterns(resp.Body, payload) {
 		return true
 	}
@@ -176,112 +182,89 @@ func (d *Detector) isVulnerable(resp, baseline *http.Response, payload crlf.Payl
 	return false
 }
 
-// hasInjectedHeader checks if an injected header appears in the response.
-func (d *Detector) hasInjectedHeader(resp *http.Response, headerName string, baseline *http.Response) bool {
-	headerLower := strings.ToLower(headerName)
-
-	// Check if the header exists in response
-	for k, v := range resp.Headers {
-		if strings.ToLower(k) == headerLower {
-			// Check if this header was NOT in baseline
-			if baseline != nil {
-				for baseK, baseV := range baseline.Headers {
-					if strings.ToLower(baseK) == headerLower && baseV == v {
-						// Same header with same value existed in baseline
-						return false
-					}
-				}
-			}
-			return true
+// extractInjectedValue parses payload.Value to recover the header value
+// that would appear if the CRLF injection succeeded. For a payload like
+// "%0d%0aSet-Cookie:crlf=injection" it returns "crlf=injection".
+// Returns "" when the payload has no header-value portion or the value
+// is too short/generic to be a reliable marker.
+func (d *Detector) extractInjectedValue(payload crlf.Payload) string {
+	decoded, err := url.QueryUnescape(payload.Value)
+	if err != nil {
+		decoded = payload.Value
+	}
+	lines := strings.FieldsFunc(decoded, func(r rune) bool {
+		return r == '\r' || r == '\n'
+	})
+	for _, line := range lines {
+		idx := strings.IndexByte(line, ':')
+		if idx <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(line[:idx])
+		value := strings.TrimSpace(line[idx+1:])
+		// Require the name to match the payload's declared injected
+		// header and the value to be non-trivial (>=3 chars) so we don't
+		// match incidental substrings.
+		if strings.EqualFold(name, payload.InjectedHeader) && len(value) >= 3 {
+			return value
 		}
 	}
-
-	// Special case: check for common injected values
-	injectionPatterns := []string{
-		"crlf=injection",
-		"crlf=",
-		"injection",
-	}
-
-	for _, header := range resp.Headers {
-		for _, pattern := range injectionPatterns {
-			if strings.Contains(strings.ToLower(header), pattern) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return ""
 }
 
-// hasHeaderInjectionIndicators checks for signs of header injection.
-func (d *Detector) hasHeaderInjectionIndicators(resp, baseline *http.Response) bool {
-	// Check for new Set-Cookie headers
-	if d.hasNewCookieHeader(resp, baseline) {
-		return true
+// hasInjectedHeader returns true iff the payload's specific injected
+// marker appears in the value of the named response header AND was not
+// already present in the baseline. Merely observing the header name in
+// the response is not sufficient — session cookies rotate.
+//
+// Before comparing, we strip the raw payload (URL-encoded form) from
+// each response header value. If an app URL-encodes our payload into a
+// cookie value (e.g. `category=%0d%0aSet-Cookie:crlf=injection`), the
+// marker "crlf=injection" literally appears inside that cookie value,
+// but no CRLF injection happened — it's just data storage. Stripping
+// the echoed payload eliminates that FP.
+func (d *Detector) hasInjectedHeader(resp *http.Response, payload crlf.Payload, baseline *http.Response) bool {
+	marker := d.extractInjectedValue(payload)
+	if marker == "" {
+		return false
 	}
+	markerLower := strings.ToLower(marker)
+	headerLower := strings.ToLower(payload.InjectedHeader)
+	rawPayloadLower := strings.ToLower(payload.Value)
 
-	// Check for injected custom headers
-	for k := range resp.Headers {
-		kLower := strings.ToLower(k)
-		if strings.HasPrefix(kLower, "x-injected") ||
-			strings.HasPrefix(kLower, "x-crlf") {
-			return true
+	present := func(r *http.Response) bool {
+		if r == nil {
+			return false
 		}
-	}
-
-	// Check for unexpected headers that might indicate injection
-	suspiciousHeaders := []string{
-		"x-injected",
-		"injected",
-		"x-crlf",
-	}
-
-	for k := range resp.Headers {
-		kLower := strings.ToLower(k)
-		for _, suspicious := range suspiciousHeaders {
-			if strings.Contains(kLower, suspicious) {
-				return true
+		for k, v := range r.Headers {
+			if strings.ToLower(k) != headerLower {
+				continue
 			}
-		}
-	}
-
-	return false
-}
-
-// hasNewCookieHeader checks if there's a new Set-Cookie header.
-func (d *Detector) hasNewCookieHeader(resp, baseline *http.Response) bool {
-	respCookies := d.getCookieHeaders(resp)
-
-	if baseline == nil {
-		// If we have crlf-related cookie, it's likely injected
-		for _, cookie := range respCookies {
-			if strings.Contains(strings.ToLower(cookie), "crlf") {
+			stripped := strings.ToLower(v)
+			if rawPayloadLower != "" {
+				stripped = strings.ReplaceAll(stripped, rawPayloadLower, "")
+			}
+			if strings.Contains(stripped, markerLower) {
 				return true
 			}
 		}
 		return false
 	}
 
-	baselineCookies := d.getCookieHeaders(baseline)
+	// Must appear in the test response but not in the baseline — baseline
+	// containing the marker would mean it's noise unrelated to the payload.
+	return present(resp) && !present(baseline)
+}
 
-	// Check for new cookies that weren't in baseline
-	for _, cookie := range respCookies {
-		if strings.Contains(strings.ToLower(cookie), "crlf") {
-			// Check if this cookie was NOT in baseline
-			found := false
-			for _, baseCookie := range baselineCookies {
-				if cookie == baseCookie {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return true
-			}
+// hasCustomInjectedHeader checks for well-known narrow marker-style
+// header names that legitimate servers won't emit (x-injected, x-crlf).
+func (d *Detector) hasCustomInjectedHeader(resp *http.Response) bool {
+	for k := range resp.Headers {
+		kLower := strings.ToLower(k)
+		if strings.HasPrefix(kLower, "x-injected") || strings.HasPrefix(kLower, "x-crlf") {
+			return true
 		}
 	}
-
 	return false
 }
 
@@ -326,32 +309,28 @@ func (d *Detector) hasResponseSplitIndicators(resp *http.Response) bool {
 	return false
 }
 
-// hasReflectedCRLFPatterns checks for reflected CRLF patterns in body.
+// hasReflectedCRLFPatterns checks for reflected CRLF patterns in the body.
+// Must find a literal CR/LF followed by the injected header AND the
+// payload's specific marker value — otherwise we get FPs on docs/debug
+// pages that merely mention "Set-Cookie:" as text.
 func (d *Detector) hasReflectedCRLFPatterns(body string, payload crlf.Payload) bool {
-	// Check for decoded CRLF sequences in body
-	crlfIndicators := []string{
-		"\r\nSet-Cookie:",
-		"\r\nX-Injected:",
-		"\r\nLocation:",
-		"\nSet-Cookie:",
-		"\nX-Injected:",
+	if payload.InjectedHeader == "" {
+		return false
+	}
+	marker := d.extractInjectedValue(payload)
+	if marker == "" {
+		return false
 	}
 
-	for _, indicator := range crlfIndicators {
-		if strings.Contains(body, indicator) {
+	sequences := []string{
+		"\r\n" + payload.InjectedHeader + ":",
+		"\n" + payload.InjectedHeader + ":",
+	}
+	for _, seq := range sequences {
+		if strings.Contains(body, seq) && strings.Contains(body, marker) {
 			return true
 		}
 	}
-
-	// Check for injected header name in body (might indicate partial injection)
-	if payload.InjectedHeader != "" {
-		// Header followed by value pattern
-		headerPattern := payload.InjectedHeader + ":"
-		if strings.Contains(body, headerPattern) {
-			return true
-		}
-	}
-
 	return false
 }
 
