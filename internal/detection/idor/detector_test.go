@@ -823,7 +823,7 @@ func TestOWASPMapping(t *testing.T) {
 	}
 
 	// Verify Top 10 mapping
-	expectedTop10 := []string{"A01:2021"}
+	expectedTop10 := []string{"A01:2025"}
 	if len(finding.Top10) == 0 || finding.Top10[0] != expectedTop10[0] {
 		t.Errorf("Expected Top10 %v, got %v", expectedTop10, finding.Top10)
 	}
