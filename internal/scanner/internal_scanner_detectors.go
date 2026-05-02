@@ -393,6 +393,22 @@ func (s *InternalScanner) testAPISpec(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testContentType probes a JSON endpoint for content-type confusion
+// (OWASP API3 / API8). No-op when EnableContentType is off.
+func (s *InternalScanner) testContentType(ctx context.Context, targetURL string) []*core.Finding {
+	if s.contentTypeDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing content-type confusion on '%s'...\n", targetURL)
+	}
+	res, err := s.contentTypeDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testJSDep fetches the URL, identifies any known JS libraries via their
 // <script src> URLs, and queries NVD for CVEs affecting the detected
 // version. Findings are emitted one per CVE so reports cite each

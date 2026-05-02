@@ -31,6 +31,14 @@ const (
 	// (e.g. /dev/null) and accepts an HMAC signature computed with the
 	// resulting empty key. Only emitted after replay confirmation.
 	VulnKidPathTraversal VulnerabilityType = "kid_path_traversal"
+	// VulnNoExpiration indicates a JWT issued without an exp (or nbf+exp)
+	// claim. Tokens that don't expire are reusable forever once leaked
+	// and bypass the standard "session timeout" defense.
+	VulnNoExpiration VulnerabilityType = "no_expiration"
+	// VulnLongLivedToken indicates a JWT whose exp is unreasonably far
+	// in the future (over a year). Long-lived tokens have similar replay
+	// implications to non-expiring ones once leaked.
+	VulnLongLivedToken VulnerabilityType = "long_lived_token"
 )
 
 // String returns the human-readable name of the vulnerability type.
@@ -52,6 +60,10 @@ func (v VulnerabilityType) String() string {
 		return "Embedded JWK Signature Forge"
 	case VulnKidPathTraversal:
 		return "Kid Header Path Traversal"
+	case VulnNoExpiration:
+		return "JWT Without Expiration"
+	case VulnLongLivedToken:
+		return "JWT With Excessive Lifetime"
 	default:
 		return string(v)
 	}
@@ -65,6 +77,8 @@ func (v VulnerabilityType) Severity() core.Severity {
 		return core.SeverityCritical
 	case VulnJWKInjection, VulnJKUInjection, VulnX5UInjection:
 		return core.SeverityHigh
+	case VulnNoExpiration, VulnLongLivedToken:
+		return core.SeverityMedium
 	default:
 		return core.SeverityMedium
 	}

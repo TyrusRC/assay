@@ -23,6 +23,7 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/adminpath"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
@@ -117,6 +118,7 @@ type InternalScanner struct {
 	apiVersionDetector  *apiversion.Detector
 	rateLimitDetector   *ratelimit.Detector
 	apiSpecRunner       *apispec.Runner
+	contentTypeDetector *contenttype.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -177,6 +179,7 @@ type InternalScanConfig struct {
 	EnableAPIVersion  bool   // Probe sibling API versions (API9:2023)
 	EnableRateLimit   bool   // Burst-probe for missing server-side rate limits (API4:2023)
 	APISpecURL        string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
+	EnableContentType bool   // Probe JSON endpoints for content-type confusion
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -255,6 +258,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableAdminPath:     true,
 		EnableAPIVersion:    true,
 		EnableRateLimit:     false, // off by default — burst probe is mildly load-bearing
+		EnableContentType:   true,
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -330,6 +334,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		apiVersionDetector:   apiversion.New(httpClient),
 		rateLimitDetector:    ratelimit.New(httpClient),
 		apiSpecRunner:        apispec.NewRunner(httpClient),
+		contentTypeDetector:  contenttype.New(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}

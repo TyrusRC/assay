@@ -96,6 +96,22 @@ func (d *Detector) Detect(ctx context.Context, token string, publicKey *rsa.Publ
 	default:
 	}
 
+	// Lifetime audit (no exp claim, or exp window > 1 year). Pure-static
+	// — no network, safe to call on every captured token.
+	expResult := d.DetectExpirationIssues(token)
+	result.TestedCount++
+	if expResult.Vulnerable {
+		result.Findings = append(result.Findings, &JWTFinding{
+			VulnType:      expResult.VulnType,
+			Severity:      expResult.VulnType.Severity(),
+			Description:   "JWT expiration audit: the token's lifetime semantics make replay attacks far more dangerous than they need to be.",
+			OriginalToken: token,
+			Evidence:      expResult.Evidence,
+			Remediation:   "Issue tokens with short lifetimes (15 min – 1 hour for access tokens) and rely on refresh tokens for longer sessions. Always include both `iat` and `exp` claims, and reject tokens that lack them server-side.",
+			Confirmed:     true, // claim audit is fully deterministic
+		})
+	}
+
 	weakResult := d.DetectWeakSecret(token)
 	result.TestedCount += len(d.weakSecrets)
 	if weakResult.Vulnerable {

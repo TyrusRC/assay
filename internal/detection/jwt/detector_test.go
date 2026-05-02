@@ -66,6 +66,58 @@ func TestNewDetector(t *testing.T) {
 	}
 }
 
+func TestDetector_DetectExpirationIssues_NoExp(t *testing.T) {
+	d := NewDetector()
+	header := map[string]interface{}{"alg": "HS256", "typ": "JWT"}
+	payload := map[string]interface{}{"sub": "alice"} // no exp claim
+	token := createTestJWT(header, payload, "secret")
+
+	res := d.DetectExpirationIssues(token)
+	if !res.Vulnerable {
+		t.Fatal("token without exp claim should flag as vulnerable")
+	}
+	if res.VulnType != VulnNoExpiration {
+		t.Errorf("VulnType = %v, want %v", res.VulnType, VulnNoExpiration)
+	}
+}
+
+func TestDetector_DetectExpirationIssues_LongLived(t *testing.T) {
+	d := NewDetector()
+	header := map[string]interface{}{"alg": "HS256", "typ": "JWT"}
+	now := time.Now().Unix()
+	payload := map[string]interface{}{
+		"sub": "alice",
+		"iat": now,
+		"exp": now + 5*365*24*60*60, // 5 years
+	}
+	token := createTestJWT(header, payload, "secret")
+
+	res := d.DetectExpirationIssues(token)
+	if !res.Vulnerable {
+		t.Fatal("5-year-lifetime token should flag as vulnerable")
+	}
+	if res.VulnType != VulnLongLivedToken {
+		t.Errorf("VulnType = %v, want %v", res.VulnType, VulnLongLivedToken)
+	}
+}
+
+func TestDetector_DetectExpirationIssues_Reasonable(t *testing.T) {
+	d := NewDetector()
+	header := map[string]interface{}{"alg": "HS256", "typ": "JWT"}
+	now := time.Now().Unix()
+	payload := map[string]interface{}{
+		"sub": "alice",
+		"iat": now,
+		"exp": now + 3600, // 1 hour
+	}
+	token := createTestJWT(header, payload, "secret")
+
+	res := d.DetectExpirationIssues(token)
+	if res.Vulnerable {
+		t.Errorf("1-hour-lifetime token should NOT flag, got %+v", res)
+	}
+}
+
 func TestDetector_Name(t *testing.T) {
 	detector := NewDetector()
 
