@@ -20,10 +20,15 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/graphql"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/headerinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hosthdr"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/adminpath"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jndi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jsdep"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ratelimit"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jwt"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ldap"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/lfi"
@@ -107,6 +112,11 @@ type InternalScanner struct {
 	hostHdrDetector     *hosthdr.Detector
 	oauthDetector       *oauth.Detector
 	jsdepDetector       *jsdep.Detector
+	dataExposureDetector *dataexposure.Detector
+	adminPathDetector   *adminpath.Detector
+	apiVersionDetector  *apiversion.Detector
+	rateLimitDetector   *ratelimit.Detector
+	apiSpecRunner       *apispec.Runner
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -162,6 +172,11 @@ type InternalScanConfig struct {
 	EnableOAuth       bool
 	EnableJSDep       bool   // Detect vulnerable JS libraries via NVD lookup
 	NVDAPIKey         string // Optional NVD API key (raises rate limit ~5→50/30s)
+	EnableDataExposure bool  // Walk JSON responses for sensitive field names (API3:2023)
+	EnableAdminPath   bool   // Probe admin/debug/internal paths (API5:2023, A05:2025)
+	EnableAPIVersion  bool   // Probe sibling API versions (API9:2023)
+	EnableRateLimit   bool   // Burst-probe for missing server-side rate limits (API4:2023)
+	APISpecURL        string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -236,6 +251,10 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableHostHdr:       true,
 		EnableOAuth:         true,
 		EnableJSDep:         true,
+		EnableDataExposure:  true,
+		EnableAdminPath:     true,
+		EnableAPIVersion:    true,
+		EnableRateLimit:     false, // off by default — burst probe is mildly load-bearing
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -305,7 +324,12 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		wsDetector:          ws.New(httpClient),
 		hostHdrDetector:     hosthdr.New(httpClient),
 		oauthDetector:       oauth.New(httpClient),
-		jsdepDetector:       jsdep.New(httpClient, config.NVDAPIKey),
+		jsdepDetector:        jsdep.New(httpClient, config.NVDAPIKey),
+		dataExposureDetector: dataexposure.New(httpClient),
+		adminPathDetector:    adminpath.New(httpClient),
+		apiVersionDetector:   apiversion.New(httpClient),
+		rateLimitDetector:    ratelimit.New(httpClient),
+		apiSpecRunner:        apispec.NewRunner(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}

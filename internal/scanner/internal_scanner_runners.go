@@ -415,6 +415,46 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 			emit(ctx, findingsChan, s.testJSDep(ctx, targetURL))
 		}()
 	}
+
+	if s.config.EnableDataExposure {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testDataExposure(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableAdminPath {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testAdminPath(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableAPIVersion {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testAPIVersion(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableRateLimit {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testRateLimit(ctx, targetURL))
+		}()
+	}
+
+	if s.config.APISpecURL != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testAPISpec(ctx, targetURL))
+		}()
+	}
 }
 
 // runOOBTests launches goroutines for OOB detection tests.

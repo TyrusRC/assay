@@ -40,6 +40,11 @@ var (
 	profile     string
 	noJSDep     bool
 	nvdAPIKey   string
+	rateLimit   bool
+	noDataExp   bool
+	noAdminPath bool
+	noAPIVer    bool
+	apiSpecURL  string
 )
 
 // scanCmd represents the scan command.
@@ -100,6 +105,11 @@ func init() {
 	scanCmd.Flags().StringVar(&profile, "profile", "", "Scan profile (quick, normal, thorough)")
 	scanCmd.Flags().BoolVar(&noJSDep, "no-jsdep", false, "Disable JS dependency / NVD CVE lookup")
 	scanCmd.Flags().StringVar(&nvdAPIKey, "nvd-api-key", "", "NVD CVE API key (raises rate limit ~5→50 req/30s; falls back to NVD_API_KEY env)")
+	scanCmd.Flags().BoolVar(&rateLimit, "rate-limit", false, "Burst-probe for missing rate limits (sends ~12 fast requests; off by default)")
+	scanCmd.Flags().BoolVar(&noDataExp, "no-data-exposure", false, "Disable JSON sensitive-field analysis")
+	scanCmd.Flags().BoolVar(&noAdminPath, "no-admin-path", false, "Disable admin / debug path probing")
+	scanCmd.Flags().BoolVar(&noAPIVer, "no-api-version", false, "Disable sibling API version enumeration")
+	scanCmd.Flags().StringVar(&apiSpecURL, "api-spec", "", "OpenAPI / Swagger JSON URL — runner exercises every documented endpoint")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -184,6 +194,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if noJSDep {
 		internalConfig.EnableJSDep = false
+	}
+	if rateLimit {
+		internalConfig.EnableRateLimit = true
+	}
+	if noDataExp {
+		internalConfig.EnableDataExposure = false
+	}
+	if noAdminPath {
+		internalConfig.EnableAdminPath = false
+	}
+	if noAPIVer {
+		internalConfig.EnableAPIVersion = false
+	}
+	if apiSpecURL != "" {
+		internalConfig.APISpecURL = apiSpecURL
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).
