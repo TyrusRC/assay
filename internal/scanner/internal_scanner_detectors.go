@@ -393,6 +393,74 @@ func (s *InternalScanner) testAPISpec(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testORMLeak probes for ORM expansion / over-fetch leaks
+// (OWASP API3:2023).
+func (s *InternalScanner) testORMLeak(ctx context.Context, targetURL string) []*core.Finding {
+	if s.ormLeakDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing ORM expansion leaks on '%s'...\n", targetURL)
+	}
+	res, err := s.ormLeakDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testTypeJuggling probes login-shaped paths for PHP loose-equality
+// auth bypass.
+func (s *InternalScanner) testTypeJuggling(ctx context.Context, targetURL string, scanCfg *Config) []*core.Finding {
+	if s.typeJugglingDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing type-juggling auth bypass on '%s'...\n", targetURL)
+	}
+	username := ""
+	if scanCfg != nil && scanCfg.Headers != nil {
+		username = scanCfg.Headers["X-Username"]
+	}
+	res, err := s.typeJugglingDetector.Detect(ctx, targetURL, username)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testDepConfusion probes the host for internal-package manifest
+// leaks that enable dependency-confusion.
+func (s *InternalScanner) testDepConfusion(ctx context.Context, targetURL string) []*core.Finding {
+	if s.depConfusionDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing for dependency-confusion manifests on '%s'...\n", targetURL)
+	}
+	res, err := s.depConfusionDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testTokenEntropy inspects Set-Cookie / embedded CSRF tokens for
+// insecure-randomness signals.
+func (s *InternalScanner) testTokenEntropy(ctx context.Context, targetURL string) []*core.Finding {
+	if s.tokenEntropyDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Inspecting token entropy on '%s'...\n", targetURL)
+	}
+	res, err := s.tokenEntropyDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testPromptInjection probes LLM-backed endpoints for prompt-injection
 // susceptibility (OWASP A04 / API10).
 func (s *InternalScanner) testPromptInjection(ctx context.Context, targetURL string) []*core.Finding {

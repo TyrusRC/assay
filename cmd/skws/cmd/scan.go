@@ -55,6 +55,10 @@ var (
 	noPromptInj bool
 	noXSLT      bool
 	noSAMLInj   bool
+	noORMLeak   bool
+	noTypeJug   bool
+	noDepConf   bool
+	noTokenEnt  bool
 )
 
 // scanCmd represents the scan command.
@@ -130,6 +134,10 @@ func init() {
 	scanCmd.Flags().BoolVar(&noPromptInj, "no-prompt-injection", false, "Disable LLM prompt-injection probe")
 	scanCmd.Flags().BoolVar(&noXSLT, "no-xslt", false, "Disable XSLT injection probe")
 	scanCmd.Flags().BoolVar(&noSAMLInj, "no-saml-injection", false, "Disable SAML SP envelope probe")
+	scanCmd.Flags().BoolVar(&noORMLeak, "no-orm-leak", false, "Disable ORM expansion / over-fetch probe")
+	scanCmd.Flags().BoolVar(&noTypeJug, "no-type-juggling", false, "Disable PHP loose-equality auth bypass probe")
+	scanCmd.Flags().BoolVar(&noDepConf, "no-dep-confusion", false, "Disable dependency-confusion manifest probe")
+	scanCmd.Flags().BoolVar(&noTokenEnt, "no-token-entropy", false, "Disable Set-Cookie / CSRF token-entropy analysis")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -259,6 +267,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if noSAMLInj {
 		internalConfig.EnableSAMLInj = false
+	}
+	if noORMLeak {
+		internalConfig.EnableORMLeak = false
+	}
+	if noTypeJug {
+		internalConfig.EnableTypeJuggling = false
+	}
+	if noDepConf {
+		internalConfig.EnableDepConfusion = false
+	}
+	if noTokenEnt {
+		internalConfig.EnableTokenEntropy = false
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).

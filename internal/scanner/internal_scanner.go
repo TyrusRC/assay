@@ -25,13 +25,17 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csrf"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/depconfusion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ormleak"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/promptinjection"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redos"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/samlinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tabnabbing"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tokenentropy"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/typejuggling"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xslt"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
@@ -137,6 +141,10 @@ type InternalScanner struct {
 	promptInjDetector   *promptinjection.Detector
 	xsltDetector        *xslt.Detector
 	samlInjDetector     *samlinj.Detector
+	ormLeakDetector     *ormleak.Detector
+	typeJugglingDetector *typejuggling.Detector
+	depConfusionDetector *depconfusion.Detector
+	tokenEntropyDetector *tokenentropy.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -207,6 +215,10 @@ type InternalScanConfig struct {
 	EnablePromptInj   bool   // LLM prompt-injection probe
 	EnableXSLT        bool   // XSLT injection probe
 	EnableSAMLInj     bool   // SAML SP malformed-envelope probe
+	EnableORMLeak    bool   // ORM expansion / over-fetch probe
+	EnableTypeJuggling bool // PHP loose-equality auth bypass probe (login-shaped paths)
+	EnableDepConfusion bool // Internal-package manifest leak probe
+	EnableTokenEntropy bool // Statistical entropy on Set-Cookie / CSRF tokens
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -295,6 +307,10 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnablePromptInj:     true,
 		EnableXSLT:          true,
 		EnableSAMLInj:       true,
+		EnableORMLeak:       true,
+		EnableTypeJuggling:  true,
+		EnableDepConfusion:  true,
+		EnableTokenEntropy:  true,
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -380,6 +396,10 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		promptInjDetector:    promptinjection.New(httpClient),
 		xsltDetector:         xslt.New(httpClient),
 		samlInjDetector:      samlinj.New(httpClient),
+		ormLeakDetector:      ormleak.New(httpClient),
+		typeJugglingDetector: typejuggling.New(httpClient),
+		depConfusionDetector: depconfusion.New(httpClient),
+		tokenEntropyDetector: tokenentropy.New(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}

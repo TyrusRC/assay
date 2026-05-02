@@ -535,6 +535,38 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 			emit(ctx, findingsChan, s.testSAMLInj(ctx, targetURL))
 		}()
 	}
+
+	if s.config.EnableORMLeak {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testORMLeak(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableTypeJuggling {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testTypeJuggling(ctx, targetURL, scanCfg))
+		}()
+	}
+
+	if s.config.EnableDepConfusion {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testDepConfusion(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableTokenEntropy {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testTokenEntropy(ctx, targetURL))
+		}()
+	}
 }
 
 // runOOBTests launches goroutines for OOB detection tests.

@@ -89,6 +89,11 @@ skws tools check
 | `--templates` | | Path to Nuclei template directory | |
 | `--profile` | | Scan profile (`quick`, `normal`, `thorough`) | |
 | `--list` | `-l` | Read targets from file | |
+| `--api-spec` | | OpenAPI / Swagger JSON URL — runner exercises every documented endpoint | |
+| `--rate-limit` | | Burst-probe for missing rate limits (~12 fast requests; opt-in) | `false` |
+| `--redos` | | Enable ReDoS timing probe (opt-in, adds latency on regex-shaped params) | `false` |
+| `--h2-reset` | | Probe HTTP/2 rapid-reset (CVE-2023-44487; opt-in, sends raw H/2 frames) | `false` |
+| `--no-data-exposure`, `--no-admin-path`, `--no-api-version`, `--no-content-type`, `--no-sse`, `--no-grpc-reflect`, `--no-csrf`, `--no-tabnabbing`, `--no-prompt-injection`, `--no-xslt`, `--no-saml-injection`, `--no-orm-leak`, `--no-type-juggling`, `--no-dep-confusion`, `--no-token-entropy` | | Per-detector off-switches | |
 
 ## Detection coverage
 
@@ -97,14 +102,16 @@ API Top 10, and CWE in its findings.
 
 | Category | Detectors |
 |---|---|
-| Injection | SQLi (error-based and boolean-blind), XSS, CMDi, SSTI, CSTI, NoSQL, LDAP, XPath, XXE, JNDI, SSI, email, CSV, login-form, web-storage |
+| Injection | SQLi (error-based and boolean-blind), XSS, CMDi, SSTI, CSTI, NoSQL, LDAP, XPath, XXE (param + URL-level POST), JNDI, SSI, email, CSV, login-form, web-storage, XSLT |
 | File handling | LFI, RFI, file upload |
-| Server-side | SSRF, HTTP request smuggling, race conditions (H/1 last-byte and H/2 single-packet), second-order |
-| Auth and access | JWT (alg=none / RS→HS / embedded JWK / kid traversal), OAuth/OIDC, IDOR/BOLA (single- and two-identity), GraphQL alias batching, CORS, mass assignment with re-fetch, path normalization, verb tampering |
+| Server-side | SSRF (with cloud-metadata for AWS / Azure / GCP / Alibaba / Tencent / IBM / Oracle / IPv6), HTTP request smuggling, race conditions (H/1 last-byte and H/2 single-packet), second-order, HTTP/2 rapid-reset (CVE-2023-44487, opt-in) |
+| Auth and access | JWT (alg=none / RS→HS / embedded JWK / kid traversal / lifetime audit), OAuth/OIDC, IDOR/BOLA (single- and two-identity), CORS, mass assignment with re-fetch, path normalization, verb tampering, SAML SP envelope (XSW + comment injection), type-juggling auth bypass, CSRF |
 | Cache | Web cache deception, web cache poisoning |
-| Headers / protocol | Security headers, open redirect, CRLF, header injection, host-header reflection, WebSockets (CSWSH / reflection), TLS configuration |
-| Config / exposure | Sensitive file exposure, cloud misconfig, subdomain takeover, DOM clobbering, prototype pollution, HPP, CSS/HTML injection |
+| Headers / protocol | Security headers, open redirect, CRLF, header injection, host-header reflection, WebSockets (CSWSH / reflection), SSE auth, gRPC reflection, TLS configuration, reverse-tabnabbing |
+| Config / exposure | Sensitive file exposure, cloud misconfig, subdomain takeover, DOM clobbering, prototype pollution, HPP, CSS/HTML injection, admin / debug path probe, content-type confusion |
+| API surfaces | OpenAPI spec runner (auth-bypass-on-spec + undocumented verbs), API version enumeration, sibling /v0 / legacy / beta probe, ORM expansion / over-fetch, JSON sensitive-field analyzer, rate-limit burst probe (opt-in), GraphQL (introspection / alias batching / depth bomb / field suggestion) |
 | DOM-aware (headless) | DOM-based XSS, client-side prototype pollution, DOM-based open redirect, client storage injection |
+| Modern / niche | LLM prompt injection, ReDoS timing probe (opt-in), dependency-confusion manifest leak, insecure-token entropy / sequential-id detector |
 | Components | JS dependencies parsed from `<script src>` and queried against the [NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities) |
 | Out-of-band | Blind detection via shared [interactsh](https://github.com/projectdiscovery/interactsh) callback server |
 
