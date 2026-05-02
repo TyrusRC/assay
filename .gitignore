@@ -64,9 +64,8 @@ secrets.yaml
 # Plans and docs
 docs/superpowers/
 
-# Markdown files (except CLAUDE.md and README.md)
+# Markdown files (except README.md)
 *.md
-!CLAUDE.md
 !README.md
 
 # Scan results output
