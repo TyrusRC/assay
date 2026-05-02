@@ -6,70 +6,79 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chromedp/chromedp"
+	"github.com/go-rod/rod"
 )
 
-// Page represents a single browser page with navigation and storage helpers.
-// All chromedp operations use the page's internal browser context.
-// The ctx parameter on public methods is used for caller-side cancellation.
+// Page wraps a single Rod page. Public API mirrors the chromedp-backed
+// version it replaces, so detectors compose unchanged.
 type Page struct {
-	ctx             context.Context
-	cancel          context.CancelFunc
+	page            *rod.Page // nil-safe: methods short-circuit when zero-value (used by Pool tests that never launch)
 	navigateTimeout time.Duration
 }
 
-// runWithCaller creates a derived context that cancels if the caller's context
-// is cancelled, but still carries the chromedp browser binding.
-func (p *Page) runWithCaller(caller context.Context, actions ...chromedp.Action) error {
-	// If caller context is already done, fail fast
-	select {
-	case <-caller.Done():
-		return caller.Err()
-	default:
-	}
-	return chromedp.Run(p.ctx, actions...)
-}
-
-// Navigate loads the specified URL in the browser page.
+// Navigate loads the URL, blocking until the load event or
+// navigateTimeout, whichever is first. Caller-side ctx cancellation
+// cancels the wait.
 func (p *Page) Navigate(ctx context.Context, url string) error {
+	if p == nil || p.page == nil {
+		return fmt.Errorf("headless: page not initialised")
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-
-	navCtx, cancel := context.WithTimeout(p.ctx, p.navigateTimeout)
-	defer cancel()
-
-	return chromedp.Run(navCtx, chromedp.Navigate(url))
+	timeout := p.navigateTimeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	page := p.page.Timeout(timeout).Context(ctx)
+	if err := page.Navigate(url); err != nil {
+		return err
+	}
+	return page.WaitLoad()
 }
 
-// EvalJS evaluates a JavaScript expression and returns the result as a string.
+// EvalJS evaluates a JavaScript expression in the page and returns the
+// result as a string. Numbers/objects are JSON-encoded for stability;
+// strings are returned unquoted.
+//
+// Rod's Eval expects a function literal — bare expressions like `"hi"`
+// throw `TypeError: "hi".apply is not a function`. We wrap the caller's
+// expression as `() => (expr)` so existing call sites keep passing plain
+// JS like `window.name` or `JSON.stringify(...)` and still get the
+// chromedp-era semantics.
 func (p *Page) EvalJS(ctx context.Context, expr string) (string, error) {
+	if p == nil || p.page == nil {
+		return "", fmt.Errorf("headless: page not initialised")
+	}
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	default:
 	}
-
-	var result interface{}
-	err := chromedp.Run(p.ctx, chromedp.Evaluate(expr, &result))
+	wrapped := "() => (" + expr + ")"
+	res, err := p.page.Context(ctx).Eval(wrapped)
 	if err != nil {
 		return "", err
 	}
-	if result == nil {
+	if res == nil {
 		return "", nil
 	}
-	switch v := result.(type) {
-	case string:
-		return v, nil
-	default:
-		b, marshalErr := json.Marshal(v)
-		if marshalErr != nil {
-			return fmt.Sprintf("%v", v), nil
+	// Strings come back unquoted; numbers, bools, objects come back as
+	// JSON-encoded text. gson.JSON.Str() returns "" for non-string values,
+	// so we use the JSON projection as a discriminator: a JSON-encoded
+	// string starts and ends with `"`, anything else (numbers, true/false,
+	// null, {…}, […]) does not.
+	v := res.Value
+	raw := v.JSON("", "")
+	if len(raw) >= 2 && raw[0] == '"' && raw[len(raw)-1] == '"' {
+		var unquoted string
+		if err := json.Unmarshal([]byte(raw), &unquoted); err == nil {
+			return unquoted, nil
 		}
-		return string(b), nil
 	}
+	return raw, nil
 }
 
 // GetLocalStorage returns all localStorage key-value pairs.
@@ -77,10 +86,11 @@ func (p *Page) GetLocalStorage(ctx context.Context) (map[string]string, error) {
 	return p.getStorageData(ctx, "localStorage")
 }
 
-// SetLocalStorage sets a key-value pair in localStorage.
+// SetLocalStorage sets one localStorage entry.
 func (p *Page) SetLocalStorage(ctx context.Context, key, value string) error {
 	expr := fmt.Sprintf(`localStorage.setItem(%q, %q)`, key, value)
-	return p.runWithCaller(ctx, chromedp.Evaluate(expr, nil))
+	_, err := p.EvalJS(ctx, expr)
+	return err
 }
 
 // GetSessionStorage returns all sessionStorage key-value pairs.
@@ -88,32 +98,31 @@ func (p *Page) GetSessionStorage(ctx context.Context) (map[string]string, error)
 	return p.getStorageData(ctx, "sessionStorage")
 }
 
-// SetSessionStorage sets a key-value pair in sessionStorage.
+// SetSessionStorage sets one sessionStorage entry.
 func (p *Page) SetSessionStorage(ctx context.Context, key, value string) error {
 	expr := fmt.Sprintf(`sessionStorage.setItem(%q, %q)`, key, value)
-	return p.runWithCaller(ctx, chromedp.Evaluate(expr, nil))
+	_, err := p.EvalJS(ctx, expr)
+	return err
 }
 
-// GetCookies returns all cookies as a key-value map.
+// GetCookies returns document.cookie parsed into a map. Note: this only
+// surfaces cookies visible to JS — HttpOnly cookies are excluded by
+// design. If a future detector needs HttpOnly access we can switch to
+// the CDP-level `network.GetCookies` instead.
 func (p *Page) GetCookies(ctx context.Context) (map[string]string, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
+	if p == nil || p.page == nil {
+		return nil, fmt.Errorf("headless: page not initialised")
 	}
-
-	var result string
-	err := chromedp.Run(p.ctx, chromedp.Evaluate(`document.cookie`, &result))
+	cookieStr, err := p.EvalJS(ctx, `document.cookie`)
 	if err != nil {
 		return nil, err
 	}
 
 	cookies := make(map[string]string)
-	if result == "" {
+	if cookieStr == "" {
 		return cookies, nil
 	}
-
-	for _, pair := range splitCookieString(result) {
+	for _, pair := range splitCookieString(cookieStr) {
 		if pair[0] != "" {
 			cookies[pair[0]] = pair[1]
 		}
@@ -121,64 +130,54 @@ func (p *Page) GetCookies(ctx context.Context) (map[string]string, error) {
 	return cookies, nil
 }
 
-// SetCookie sets a cookie via document.cookie.
+// SetCookie sets a cookie via document.cookie. JS-visible only.
 func (p *Page) SetCookie(ctx context.Context, name, value string) error {
 	expr := fmt.Sprintf(`document.cookie = %q`, name+"="+value)
-	return p.runWithCaller(ctx, chromedp.Evaluate(expr, nil))
+	_, err := p.EvalJS(ctx, expr)
+	return err
 }
 
-// GetWindowName returns the current window.name value.
+// GetWindowName returns window.name.
 func (p *Page) GetWindowName(ctx context.Context) (string, error) {
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	default:
-	}
-
-	var result string
-	err := chromedp.Run(p.ctx, chromedp.Evaluate(`window.name`, &result))
-	return result, err
+	return p.EvalJS(ctx, `window.name`)
 }
 
-// SetWindowName sets the window.name value.
+// SetWindowName sets window.name.
 func (p *Page) SetWindowName(ctx context.Context, value string) error {
 	expr := fmt.Sprintf(`window.name = %q`, value)
-	return p.runWithCaller(ctx, chromedp.Evaluate(expr, nil))
+	_, err := p.EvalJS(ctx, expr)
+	return err
 }
 
 // GetDOM returns the outer HTML of the document.
 func (p *Page) GetDOM(ctx context.Context) (string, error) {
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	default:
+	if p == nil || p.page == nil {
+		return "", fmt.Errorf("headless: page not initialised")
 	}
-
-	var html string
-	err := chromedp.Run(p.ctx, chromedp.OuterHTML("html", &html))
-	return html, err
+	html, err := p.page.Context(ctx).HTML()
+	if err != nil {
+		return "", err
+	}
+	return html, nil
 }
 
-// Reset clears page state by navigating to about:blank and clearing storage.
+// Reset returns the page to about:blank.
 func (p *Page) Reset(ctx context.Context) error {
-	return p.runWithCaller(ctx, chromedp.Navigate("about:blank"))
+	return p.Navigate(ctx, "about:blank")
 }
 
-// close cancels the browser context.
+// close releases the underlying rod.Page. Safe to call on a zero-value
+// Page (the Pool concurrency tests construct &Page{} literally).
 func (p *Page) close() {
-	if p.cancel != nil {
-		p.cancel()
+	if p == nil || p.page == nil {
+		return
 	}
+	_ = p.page.Close()
+	p.page = nil
 }
 
-// getStorageData extracts all key-value pairs from the given storage object.
+// getStorageData extracts a Web Storage area into a Go map.
 func (p *Page) getStorageData(ctx context.Context, storageName string) (map[string]string, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
 	expr := fmt.Sprintf(`(function() {
 		var result = {};
 		for (var i = 0; i < %s.length; i++) {
@@ -188,12 +187,10 @@ func (p *Page) getStorageData(ctx context.Context, storageName string) (map[stri
 		return JSON.stringify(result);
 	})()`, storageName, storageName, storageName)
 
-	var jsonStr string
-	err := chromedp.Run(p.ctx, chromedp.Evaluate(expr, &jsonStr))
+	jsonStr, err := p.EvalJS(ctx, expr)
 	if err != nil {
 		return nil, err
 	}
-
 	result := make(map[string]string)
 	if jsonStr == "" {
 		return result, nil
@@ -213,7 +210,6 @@ func splitCookieString(s string) [][2]string {
 			pair := parseCookiePair(s[start:i])
 			pairs = append(pairs, pair)
 			start = i + 1
-			// Skip space after semicolon
 			if start < len(s) && s[start] == ' ' {
 				start++
 			}
@@ -226,7 +222,6 @@ func splitCookieString(s string) [][2]string {
 	return pairs
 }
 
-// parseCookiePair splits "key=value" into [key, value].
 func parseCookiePair(s string) [2]string {
 	for i := 0; i < len(s); i++ {
 		if s[i] == '=' {
