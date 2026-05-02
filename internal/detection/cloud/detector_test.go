@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
-	"github.com/swiss-knife-for-web-security/skws/internal/payloads/cloud"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/cloud"
 )
 
 func TestNew(t *testing.T) {

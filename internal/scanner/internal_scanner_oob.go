@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // testOOBWithClient tests a parameter using out-of-band techniques with the provided client.

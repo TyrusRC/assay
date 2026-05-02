@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 func TestNew(t *testing.T) {

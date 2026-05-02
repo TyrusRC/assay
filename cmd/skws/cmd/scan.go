@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/swiss-knife-for-web-security/skws/internal/reporting"
-	"github.com/swiss-knife-for-web-security/skws/internal/scanner"
-	"github.com/swiss-knife-for-web-security/skws/internal/tools/sqlmap"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/reporting"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
 )
 
 var (

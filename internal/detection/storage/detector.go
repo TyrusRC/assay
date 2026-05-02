@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 // sessionCookiePatterns contains substrings that indicate a session-related cookie.

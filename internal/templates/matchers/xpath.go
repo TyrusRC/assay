@@ -6,7 +6,7 @@ import (
 	"github.com/antchfx/htmlquery"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 	"golang.org/x/net/html"
 )
 

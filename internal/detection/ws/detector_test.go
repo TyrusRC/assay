@@ -9,7 +9,7 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // upgradeHandler returns an httptest server that upgrades any GET to a

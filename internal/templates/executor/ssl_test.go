@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 )
 
 func TestNewSSLExecutor(t *testing.T) {

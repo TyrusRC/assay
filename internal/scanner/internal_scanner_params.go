@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 // uuidPattern matches UUID-like strings in path segments.

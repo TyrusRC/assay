@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 )
 
 func TestNewFileExecutor(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // blindSQLiSimilarityThreshold is the Jaccard cutoff for considering two

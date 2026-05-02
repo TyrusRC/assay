@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // emit forwards findings from a detector goroutine to the shared channel.

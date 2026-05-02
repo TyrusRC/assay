@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
 )
 
 // ---------------------------------------------------------------------------

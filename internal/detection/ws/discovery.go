@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // wsURLPattern catches `ws://...` and `wss://...` URLs in HTML/JS bodies.

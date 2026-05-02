@@ -3,8 +3,8 @@ package discovery
 import (
 	"context"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // injectableHeaders is the list of HTTP headers commonly used in injection attacks.

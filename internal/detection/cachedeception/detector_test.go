@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 const privateBody = `<!doctype html><html><body>

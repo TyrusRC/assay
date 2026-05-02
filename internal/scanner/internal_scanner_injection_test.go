@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 func TestInternalScanner_testNoSQL_Disabled(t *testing.T) {

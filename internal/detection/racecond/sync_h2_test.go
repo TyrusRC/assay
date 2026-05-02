@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/net/http2"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // startH2Server creates an httptest server with h2 ALPN configured. Go's

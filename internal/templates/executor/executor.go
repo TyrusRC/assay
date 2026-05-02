@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
-	"github.com/swiss-knife-for-web-security/skws/internal/headless"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
 )
 
 // Executor executes nuclei-compatible templates against targets.

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/techstack"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/techstack"
 )
 
 // TestInternalScanner_OOBReady_ConcurrentAccess exercises the internal

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 // DefaultTimeout is the default timeout for tool execution.

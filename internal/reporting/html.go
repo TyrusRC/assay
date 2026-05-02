@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 // htmlData holds template data for the HTML report.

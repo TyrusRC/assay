@@ -10,8 +10,8 @@ import (
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates/matchers"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
 )
 
 // WebSocketConfig configures WebSocket executor behaviour.

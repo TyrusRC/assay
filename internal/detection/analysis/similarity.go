@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // tokenize splits a string into a set of unique lowercase word tokens.

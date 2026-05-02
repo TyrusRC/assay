@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/swiss-knife-for-web-security/skws/cmd/skws/cmd"
+	"github.com/TyrusRC/swiss-knife-for-web-security/cmd/skws/cmd"
 )
 
 func main() {

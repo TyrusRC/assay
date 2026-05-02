@@ -1,4 +1,4 @@
-module github.com/swiss-knife-for-web-security/skws
+module github.com/TyrusRC/swiss-knife-for-web-security
 
 go 1.24.0
 

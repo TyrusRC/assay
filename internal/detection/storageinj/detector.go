@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/headless"
-	"github.com/swiss-knife-for-web-security/skws/internal/payloads/storageinj"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/storageinj"
 )
 
 // Detector tests for client-side storage injection vulnerabilities.

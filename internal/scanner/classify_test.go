@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 func TestClassifyParameter_ReflectedCanary(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/headless"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 )
 
 func TestNewHeadlessExecutor(t *testing.T) {

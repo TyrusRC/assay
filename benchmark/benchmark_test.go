@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/scanner"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates/parser"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/parser"
 )
 
 // BenchmarkParseTemplates benchmarks template parsing speed

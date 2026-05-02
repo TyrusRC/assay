@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 func TestIdentifyLibrary_AngularDashedFilename(t *testing.T) {

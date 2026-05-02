@@ -2,6 +2,7 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/TyrusRC/swiss-knife-for-web-security)](go.mod)
 [![Go Report Card](https://goreportcard.com/badge/github.com/TyrusRC/swiss-knife-for-web-security)](https://goreportcard.com/report/github.com/TyrusRC/swiss-knife-for-web-security)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![GitHub last commit](https://img.shields.io/github/last-commit/TyrusRC/swiss-knife-for-web-security)](https://github.com/TyrusRC/swiss-knife-for-web-security/commits/main)
 
 Swiss Knife for Web Security — a CLI web-application security scanner written in Go.
@@ -188,5 +189,5 @@ where practical.
 
 ## License
 
-No license has been declared yet. Until one is added, all rights are reserved
-by the repository owner.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the
+full text.

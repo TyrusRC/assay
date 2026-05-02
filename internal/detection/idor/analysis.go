@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // extractIDParameters extracts potential ID parameters from URL and body.

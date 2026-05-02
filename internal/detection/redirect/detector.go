@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/analysis"
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
-	"github.com/swiss-knife-for-web-security/skws/internal/payloads/redirect"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/redirect"
 )
 
 // Detector performs Open Redirect vulnerability detection.

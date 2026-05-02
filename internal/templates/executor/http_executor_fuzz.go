@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/http"
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 )
 
 // executeFuzzing executes fuzzing rules against the target.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 func TestDetector_Name(t *testing.T) {

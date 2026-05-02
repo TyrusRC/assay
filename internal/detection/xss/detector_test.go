@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
-	xsspayloads "github.com/swiss-knife-for-web-security/skws/internal/payloads/xss"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	xsspayloads "github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/xss"
 )
 
 func TestNew(t *testing.T) {

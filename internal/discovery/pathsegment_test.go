@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 func TestPathSegmentDiscoverer_Name(t *testing.T) {

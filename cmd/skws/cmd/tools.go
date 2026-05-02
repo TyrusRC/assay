@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/swiss-knife-for-web-security/skws/internal/tools/sqlmap"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
 )
 
 // toolsCmd represents the tools command.

@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/scanner"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
 )
 
 const (

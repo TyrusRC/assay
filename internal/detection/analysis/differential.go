@@ -3,7 +3,7 @@ package analysis
 import (
 	"context"
 
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // defaultSimilarityThreshold is the default threshold for considering two

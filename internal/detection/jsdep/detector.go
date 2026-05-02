@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
-	skwshttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // Detector finds JS libraries on a target page (via <script src=...>) and

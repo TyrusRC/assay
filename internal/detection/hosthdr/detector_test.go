@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // TestDetector_HostReflectedInLocation verifies that a server which

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/templates"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
 )
 
 func TestMatchTime_GreaterThan(t *testing.T) {

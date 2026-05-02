@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	internalhttp "github.com/swiss-knife-for-web-security/skws/internal/http"
+	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
 )
 
 // idpHandler returns an httptest server that simulates an OIDC IdP. The

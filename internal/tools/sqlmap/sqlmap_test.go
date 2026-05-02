@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/tools"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools"
 )
 
 func TestSQLMap_Name(t *testing.T) {

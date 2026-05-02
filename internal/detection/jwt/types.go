@@ -3,7 +3,7 @@ package jwt
 import (
 	"time"
 
-	"github.com/swiss-knife-for-web-security/skws/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 )
 
 // VulnerabilityType represents the type of JWT vulnerability detected.
