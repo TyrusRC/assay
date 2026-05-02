@@ -463,6 +463,30 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 			emit(ctx, findingsChan, s.testContentType(ctx, targetURL))
 		}()
 	}
+
+	if s.config.EnableSSE {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testSSE(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableGRPCReflect {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testGRPCReflect(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableH2Reset {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testH2Reset(ctx, targetURL))
+		}()
+	}
 }
 
 // runOOBTests launches goroutines for OOB detection tests.

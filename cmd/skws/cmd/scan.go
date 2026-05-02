@@ -46,6 +46,9 @@ var (
 	noAPIVer    bool
 	apiSpecURL  string
 	noCtypeConf bool
+	noSSE       bool
+	noGRPCRefl  bool
+	h2ResetOpt  bool
 )
 
 // scanCmd represents the scan command.
@@ -112,6 +115,9 @@ func init() {
 	scanCmd.Flags().BoolVar(&noAPIVer, "no-api-version", false, "Disable sibling API version enumeration")
 	scanCmd.Flags().StringVar(&apiSpecURL, "api-spec", "", "OpenAPI / Swagger JSON URL — runner exercises every documented endpoint")
 	scanCmd.Flags().BoolVar(&noCtypeConf, "no-content-type", false, "Disable content-type confusion probe")
+	scanCmd.Flags().BoolVar(&noSSE, "no-sse", false, "Disable SSE / event-stream auth probe")
+	scanCmd.Flags().BoolVar(&noGRPCRefl, "no-grpc-reflect", false, "Disable gRPC reflection probe")
+	scanCmd.Flags().BoolVar(&h2ResetOpt, "h2-reset", false, "Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default — sends raw HTTP/2 frames")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -214,6 +220,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if noCtypeConf {
 		internalConfig.EnableContentType = false
+	}
+	if noSSE {
+		internalConfig.EnableSSE = false
+	}
+	if noGRPCRefl {
+		internalConfig.EnableGRPCReflect = false
+	}
+	if h2ResetOpt {
+		internalConfig.EnableH2Reset = true
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).

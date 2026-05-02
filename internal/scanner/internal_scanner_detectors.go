@@ -393,6 +393,54 @@ func (s *InternalScanner) testAPISpec(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testSSE probes the host for unauthenticated text/event-stream
+// endpoints (OWASP API2 / API5).
+func (s *InternalScanner) testSSE(ctx context.Context, targetURL string) []*core.Finding {
+	if s.sseDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing SSE / event-stream endpoints on '%s'...\n", targetURL)
+	}
+	res, err := s.sseDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testGRPCReflect probes the host for an exposed gRPC reflection
+// service (OWASP API9).
+func (s *InternalScanner) testGRPCReflect(ctx context.Context, targetURL string) []*core.Finding {
+	if s.grpcReflectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing gRPC reflection on '%s'...\n", targetURL)
+	}
+	res, err := s.grpcReflectDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testH2Reset probes for HTTP/2 rapid-reset DDoS exposure
+// (CVE-2023-44487, OWASP API4). Off by default; opt-in via --h2-reset.
+func (s *InternalScanner) testH2Reset(ctx context.Context, targetURL string) []*core.Finding {
+	if s.h2ResetDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing HTTP/2 rapid-reset on '%s'...\n", targetURL)
+	}
+	res, err := s.h2ResetDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testContentType probes a JSON endpoint for content-type confusion
 // (OWASP API3 / API8). No-op when EnableContentType is off.
 func (s *InternalScanner) testContentType(ctx context.Context, targetURL string) []*core.Finding {

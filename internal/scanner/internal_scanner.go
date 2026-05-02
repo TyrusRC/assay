@@ -24,6 +24,9 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
@@ -119,6 +122,9 @@ type InternalScanner struct {
 	rateLimitDetector   *ratelimit.Detector
 	apiSpecRunner       *apispec.Runner
 	contentTypeDetector *contenttype.Detector
+	sseDetector         *sse.Detector
+	grpcReflectDetector *grpcreflect.Detector
+	h2ResetDetector     *h2reset.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -180,6 +186,9 @@ type InternalScanConfig struct {
 	EnableRateLimit   bool   // Burst-probe for missing server-side rate limits (API4:2023)
 	APISpecURL        string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
 	EnableContentType bool   // Probe JSON endpoints for content-type confusion
+	EnableSSE         bool   // Probe text/event-stream endpoints for missing auth
+	EnableGRPCReflect bool   // Probe gRPC reflection service exposure
+	EnableH2Reset     bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -259,6 +268,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableAPIVersion:    true,
 		EnableRateLimit:     false, // off by default — burst probe is mildly load-bearing
 		EnableContentType:   true,
+		EnableSSE:           true,
+		EnableGRPCReflect:   true,
+		EnableH2Reset:       false, // off by default — sends raw H/2 frames
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -335,6 +347,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		rateLimitDetector:    ratelimit.New(httpClient),
 		apiSpecRunner:        apispec.NewRunner(httpClient),
 		contentTypeDetector:  contenttype.New(httpClient),
+		sseDetector:          sse.New(httpClient),
+		grpcReflectDetector:  grpcreflect.New(httpClient),
+		h2ResetDetector:      h2reset.New(),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}
