@@ -24,9 +24,12 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redos"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tabnabbing"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
@@ -125,6 +128,9 @@ type InternalScanner struct {
 	sseDetector         *sse.Detector
 	grpcReflectDetector *grpcreflect.Detector
 	h2ResetDetector     *h2reset.Detector
+	csrfDetector        *csrf.Detector
+	tabnabbingDetector  *tabnabbing.Detector
+	redosDetector       *redos.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -189,6 +195,9 @@ type InternalScanConfig struct {
 	EnableSSE         bool   // Probe text/event-stream endpoints for missing auth
 	EnableGRPCReflect bool   // Probe gRPC reflection service exposure
 	EnableH2Reset     bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
+	EnableCSRF        bool   // Cross-Site Request Forgery probe
+	EnableTabnabbing  bool   // Static HTML scan for target=_blank without rel=noopener
+	EnableReDoS       bool   // Pathological-input timing probe for ReDoS surfaces
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -271,6 +280,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSSE:           true,
 		EnableGRPCReflect:   true,
 		EnableH2Reset:       false, // off by default — sends raw H/2 frames
+		EnableCSRF:          true,
+		EnableTabnabbing:    true,
+		EnableReDoS:         false, // off by default — adds latency on every regex-shaped param
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -350,6 +362,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		sseDetector:          sse.New(httpClient),
 		grpcReflectDetector:  grpcreflect.New(httpClient),
 		h2ResetDetector:      h2reset.New(),
+		csrfDetector:         csrf.New(httpClient),
+		tabnabbingDetector:   tabnabbing.New(httpClient),
+		redosDetector:        redos.New(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}

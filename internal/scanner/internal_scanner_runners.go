@@ -215,7 +215,7 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 // runURLLevelTests launches goroutines for URL-level tests (IDOR, CORS, and friends).
 // Each enabled detector runs in its own goroutine to maximize parallelism — they all
 // hit a shared findingsChan that the caller drains.
-func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string) {
+func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string, scanCfg *Config) {
 	if s.config.EnableIDOR {
 		wg.Add(1)
 		go func() {
@@ -485,6 +485,30 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 		go func() {
 			defer wg.Done()
 			emit(ctx, findingsChan, s.testH2Reset(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableCSRF {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testCSRF(ctx, targetURL, scanCfg))
+		}()
+	}
+
+	if s.config.EnableTabnabbing {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testTabnabbing(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableReDoS {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testReDoS(ctx, targetURL))
 		}()
 	}
 }

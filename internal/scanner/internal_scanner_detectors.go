@@ -393,6 +393,59 @@ func (s *InternalScanner) testAPISpec(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testCSRF probes a state-change endpoint for missing Origin / token
+// enforcement (OWASP A01 / API5).
+func (s *InternalScanner) testCSRF(ctx context.Context, targetURL string, scanCfg *Config) []*core.Finding {
+	if s.csrfDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing CSRF on '%s'...\n", targetURL)
+	}
+	method, body := "", ""
+	if scanCfg != nil {
+		method = scanCfg.Method
+		body = scanCfg.Data
+	}
+	res, err := s.csrfDetector.Detect(ctx, targetURL, method, body)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testTabnabbing scans the response HTML for `target=_blank` anchors
+// without rel=noopener / noreferrer (reverse-tabnabbing).
+func (s *InternalScanner) testTabnabbing(ctx context.Context, targetURL string) []*core.Finding {
+	if s.tabnabbingDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Scanning HTML for reverse-tabnabbing on '%s'...\n", targetURL)
+	}
+	res, err := s.tabnabbingDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testReDoS times pathological-input requests against regex-shaped
+// query parameters (OWASP A04, API4). Off by default — adds latency.
+func (s *InternalScanner) testReDoS(ctx context.Context, targetURL string) []*core.Finding {
+	if s.redosDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing ReDoS surfaces on '%s'...\n", targetURL)
+	}
+	res, err := s.redosDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testSSE probes the host for unauthenticated text/event-stream
 // endpoints (OWASP API2 / API5).
 func (s *InternalScanner) testSSE(ctx context.Context, targetURL string) []*core.Finding {

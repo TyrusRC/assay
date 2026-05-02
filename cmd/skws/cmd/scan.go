@@ -49,6 +49,9 @@ var (
 	noSSE       bool
 	noGRPCRefl  bool
 	h2ResetOpt  bool
+	noCSRF      bool
+	noTabnab    bool
+	redosOpt    bool
 )
 
 // scanCmd represents the scan command.
@@ -118,6 +121,9 @@ func init() {
 	scanCmd.Flags().BoolVar(&noSSE, "no-sse", false, "Disable SSE / event-stream auth probe")
 	scanCmd.Flags().BoolVar(&noGRPCRefl, "no-grpc-reflect", false, "Disable gRPC reflection probe")
 	scanCmd.Flags().BoolVar(&h2ResetOpt, "h2-reset", false, "Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default — sends raw HTTP/2 frames")
+	scanCmd.Flags().BoolVar(&noCSRF, "no-csrf", false, "Disable CSRF probe")
+	scanCmd.Flags().BoolVar(&noTabnab, "no-tabnabbing", false, "Disable reverse-tabnabbing HTML scan")
+	scanCmd.Flags().BoolVar(&redosOpt, "redos", false, "Enable ReDoS timing probe (off by default — adds latency on regex-shaped params)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -229,6 +235,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if h2ResetOpt {
 		internalConfig.EnableH2Reset = true
+	}
+	if noCSRF {
+		internalConfig.EnableCSRF = false
+	}
+	if noTabnab {
+		internalConfig.EnableTabnabbing = false
+	}
+	if redosOpt {
+		internalConfig.EnableReDoS = true
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).

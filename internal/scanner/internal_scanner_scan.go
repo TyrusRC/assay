@@ -140,7 +140,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
 	fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
-	s.runURLLevelTests(ctx, &wg, findingsChan, targetURL)
+	s.runURLLevelTests(ctx, &wg, findingsChan, targetURL, scanConfig)
 
 	// Wait for URL-level tests
 	wg.Wait()
