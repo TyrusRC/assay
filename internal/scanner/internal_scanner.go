@@ -27,9 +27,12 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/promptinjection"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redos"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/samlinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tabnabbing"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xslt"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
@@ -131,6 +134,9 @@ type InternalScanner struct {
 	csrfDetector        *csrf.Detector
 	tabnabbingDetector  *tabnabbing.Detector
 	redosDetector       *redos.Detector
+	promptInjDetector   *promptinjection.Detector
+	xsltDetector        *xslt.Detector
+	samlInjDetector     *samlinj.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -198,6 +204,9 @@ type InternalScanConfig struct {
 	EnableCSRF        bool   // Cross-Site Request Forgery probe
 	EnableTabnabbing  bool   // Static HTML scan for target=_blank without rel=noopener
 	EnableReDoS       bool   // Pathological-input timing probe for ReDoS surfaces
+	EnablePromptInj   bool   // LLM prompt-injection probe
+	EnableXSLT        bool   // XSLT injection probe
+	EnableSAMLInj     bool   // SAML SP malformed-envelope probe
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -283,6 +292,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableCSRF:          true,
 		EnableTabnabbing:    true,
 		EnableReDoS:         false, // off by default — adds latency on every regex-shaped param
+		EnablePromptInj:     true,
+		EnableXSLT:          true,
+		EnableSAMLInj:       true,
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
 		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
@@ -365,6 +377,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		csrfDetector:         csrf.New(httpClient),
 		tabnabbingDetector:   tabnabbing.New(httpClient),
 		redosDetector:        redos.New(httpClient),
+		promptInjDetector:    promptinjection.New(httpClient),
+		xsltDetector:         xslt.New(httpClient),
+		samlInjDetector:      samlinj.New(httpClient),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}

@@ -393,6 +393,52 @@ func (s *InternalScanner) testAPISpec(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testPromptInjection probes LLM-backed endpoints for prompt-injection
+// susceptibility (OWASP A04 / API10).
+func (s *InternalScanner) testPromptInjection(ctx context.Context, targetURL string) []*core.Finding {
+	if s.promptInjDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing LLM prompt-injection on '%s'...\n", targetURL)
+	}
+	res, err := s.promptInjDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testXSLT probes for server-side XSLT injection.
+func (s *InternalScanner) testXSLT(ctx context.Context, targetURL string) []*core.Finding {
+	if s.xsltDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing XSLT injection on '%s'...\n", targetURL)
+	}
+	res, err := s.xsltDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testSAMLInj probes SAML SP endpoints for malformed-envelope acceptance.
+func (s *InternalScanner) testSAMLInj(ctx context.Context, targetURL string) []*core.Finding {
+	if s.samlInjDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing SAML SP envelopes on '%s'...\n", targetURL)
+	}
+	res, err := s.samlInjDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testCSRF probes a state-change endpoint for missing Origin / token
 // enforcement (OWASP A01 / API5).
 func (s *InternalScanner) testCSRF(ctx context.Context, targetURL string, scanCfg *Config) []*core.Finding {

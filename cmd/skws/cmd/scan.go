@@ -52,6 +52,9 @@ var (
 	noCSRF      bool
 	noTabnab    bool
 	redosOpt    bool
+	noPromptInj bool
+	noXSLT      bool
+	noSAMLInj   bool
 )
 
 // scanCmd represents the scan command.
@@ -124,6 +127,9 @@ func init() {
 	scanCmd.Flags().BoolVar(&noCSRF, "no-csrf", false, "Disable CSRF probe")
 	scanCmd.Flags().BoolVar(&noTabnab, "no-tabnabbing", false, "Disable reverse-tabnabbing HTML scan")
 	scanCmd.Flags().BoolVar(&redosOpt, "redos", false, "Enable ReDoS timing probe (off by default — adds latency on regex-shaped params)")
+	scanCmd.Flags().BoolVar(&noPromptInj, "no-prompt-injection", false, "Disable LLM prompt-injection probe")
+	scanCmd.Flags().BoolVar(&noXSLT, "no-xslt", false, "Disable XSLT injection probe")
+	scanCmd.Flags().BoolVar(&noSAMLInj, "no-saml-injection", false, "Disable SAML SP envelope probe")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -244,6 +250,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if redosOpt {
 		internalConfig.EnableReDoS = true
+	}
+	if noPromptInj {
+		internalConfig.EnablePromptInj = false
+	}
+	if noXSLT {
+		internalConfig.EnableXSLT = false
+	}
+	if noSAMLInj {
+		internalConfig.EnableSAMLInj = false
 	}
 	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
 	// Empty after both → public tier (anonymous, ~5 req/30s).

@@ -511,6 +511,30 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 			emit(ctx, findingsChan, s.testReDoS(ctx, targetURL))
 		}()
 	}
+
+	if s.config.EnablePromptInj {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testPromptInjection(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableXSLT {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testXSLT(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableSAMLInj {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testSAMLInj(ctx, targetURL))
+		}()
+	}
 }
 
 // runOOBTests launches goroutines for OOB detection tests.
