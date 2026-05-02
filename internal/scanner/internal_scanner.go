@@ -13,22 +13,23 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/cmdi"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/cors"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/crlf"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/csvinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/csti"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/csvinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/exposure"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/fileupload"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/graphql"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/headerinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/hosthdr"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/oauth"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/idor"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/injection"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/jndi"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/jsdep"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/jwt"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/loginj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/ldap"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/lfi"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/loginj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/nosql"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/oauth"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/oob"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/pathnorm"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/racecond"
@@ -40,10 +41,10 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/ssti"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/storageinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/subtakeover"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/verbtamper"
-	"github.com/swiss-knife-for-web-security/skws/internal/detection/ws"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/techstack"
 	tlsdetect "github.com/swiss-knife-for-web-security/skws/internal/detection/tls"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/verbtamper"
+	"github.com/swiss-knife-for-web-security/skws/internal/detection/ws"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/xpath"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/xss"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/xxe"
@@ -105,6 +106,7 @@ type InternalScanner struct {
 	wsDetector          *ws.Detector
 	hostHdrDetector     *hosthdr.Detector
 	oauthDetector       *oauth.Detector
+	jsdepDetector       *jsdep.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -158,6 +160,8 @@ type InternalScanConfig struct {
 	EnableWS          bool
 	EnableHostHdr     bool
 	EnableOAuth       bool
+	EnableJSDep       bool   // Detect vulnerable JS libraries via NVD lookup
+	NVDAPIKey         string // Optional NVD API key (raises rate limit ~5→50/30s)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -167,6 +171,9 @@ type InternalScanConfig struct {
 	// Discovery and headless browser settings
 	EnableDiscovery     bool   // Auto-discover injectable points (default true)
 	EnableStorageInj    bool   // Test storage injection (default false, needs Chrome)
+	EnableDOMXSS        bool   // Test DOM-based XSS via headless browser (needs Chrome)
+	EnableProtoPoll     bool   // Test client-side prototype pollution via headless browser (needs Chrome)
+	EnableDOMRedirect   bool   // Test DOM-based open redirection via headless browser (needs Chrome)
 	HeadlessMaxBrowsers int    // Max browser contexts (default 3)
 	ChromePath          string // Explicit Chrome binary path
 
@@ -228,8 +235,12 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableWS:            true,
 		EnableHostHdr:       true,
 		EnableOAuth:         true,
+		EnableJSDep:         true,
 		EnableDiscovery:     true,
 		EnableStorageInj:    false, // Requires Chrome
+		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
+		EnableProtoPoll:     true,  // Requires Chrome (no-op when unavailable)
+		EnableDOMRedirect:   true,  // Requires Chrome (no-op when unavailable)
 		HeadlessMaxBrowsers: 3,
 		MaxPayloadsPerParam: 30,
 		IncludeWAFBypass:    true,
@@ -251,7 +262,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	// Create tech detector (may fail if wappalyzer can't initialize)
 	techDetector, techErr := techstack.NewDetector()
 	if techErr != nil && config.Verbose {
-		fmt.Fprintf(os.Stderr,"[!] Tech stack detection unavailable: %v\n", techErr)
+		fmt.Fprintf(os.Stderr, "[!] Tech stack detection unavailable: %v\n", techErr)
 	}
 
 	scanner := &InternalScanner{
@@ -294,6 +305,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		wsDetector:          ws.New(httpClient),
 		hostHdrDetector:     hosthdr.New(httpClient),
 		oauthDetector:       oauth.New(httpClient),
+		jsdepDetector:       jsdep.New(httpClient, config.NVDAPIKey),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}
@@ -317,8 +329,12 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		scanner.discoveryPipeline = pipeline
 	}
 
-	// Initialize headless browser pool if storage injection is enabled
-	if config.EnableStorageInj {
+	// Initialize headless browser pool if any DOM-aware detector is enabled.
+	// Storage injection, DOM XSS, prototype pollution, and DOM-based open
+	// redirect all need a real browser; we share one pool across them.
+	needHeadless := config.EnableStorageInj || config.EnableDOMXSS ||
+		config.EnableProtoPoll || config.EnableDOMRedirect
+	if needHeadless {
 		maxBrowsers := config.HeadlessMaxBrowsers
 		if maxBrowsers <= 0 {
 			maxBrowsers = 3
@@ -332,11 +348,13 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		pool, poolErr := headless.NewPool(poolConfig)
 		if poolErr != nil {
 			if config.Verbose {
-				fmt.Fprintf(os.Stderr,"[!] Headless browser unavailable: %v (storage injection will be skipped)\n", poolErr)
+				fmt.Fprintf(os.Stderr, "[!] Headless browser unavailable: %v (DOM-aware detectors will be skipped)\n", poolErr)
 			}
 		} else {
 			scanner.headlessPool = pool
-			scanner.storageInjDetector = storageinj.New(pool).WithVerbose(config.Verbose)
+			if config.EnableStorageInj {
+				scanner.storageInjDetector = storageinj.New(pool).WithVerbose(config.Verbose)
+			}
 		}
 	}
 
@@ -371,12 +389,12 @@ func (s *InternalScanner) startOOBClientAsync() {
 		if err != nil {
 			s.oobInitErr = err
 			if s.config.Verbose {
-				fmt.Fprintf(os.Stderr,"[!] OOB testing unavailable: %v\n", err)
+				fmt.Fprintf(os.Stderr, "[!] OOB testing unavailable: %v\n", err)
 			}
 		} else {
 			s.oobClient = oobClient
 			if s.config.Verbose {
-				fmt.Fprintf(os.Stderr,"[+] OOB testing enabled with URL: %s\n", oobClient.GetURL())
+				fmt.Fprintf(os.Stderr, "[+] OOB testing enabled with URL: %s\n", oobClient.GetURL())
 			}
 		}
 	}()
@@ -400,7 +418,7 @@ func (s *InternalScanner) waitForOOBClient(timeout time.Duration) bool {
 		return available
 	case <-time.After(timeout):
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] OOB initialization timeout after %v\n", timeout)
+			fmt.Fprintf(os.Stderr, "[!] OOB initialization timeout after %v\n", timeout)
 		}
 		return false
 	}

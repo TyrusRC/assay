@@ -79,7 +79,7 @@ func (s *InternalScanner) testOOBWithClient(ctx context.Context, targetURL strin
 
 		// Send payload — errors are expected for malformed payloads, continue to poll for interactions
 		if _, err := client.SendPayload(ctx, targetURL, paramName, testPayload, method); err != nil && s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] OOB payload send failed for %s: %v\n", p.payloadType, err)
+			fmt.Fprintf(os.Stderr, "[!] OOB payload send failed for %s: %v\n", p.payloadType, err)
 		}
 	}
 
@@ -118,4 +118,3 @@ func (s *InternalScanner) testOOBWithClient(ctx context.Context, targetURL strin
 
 	return findings
 }
-

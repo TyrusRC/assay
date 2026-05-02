@@ -82,8 +82,8 @@ func TestClassifyParameter_SetsClassification(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		paramName      string
+		name               string
+		paramName          string
 		wantClassification string
 	}{
 		{"id param", "id", core.ParamClassID},

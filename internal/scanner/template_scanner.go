@@ -122,7 +122,7 @@ func (s *TemplateScanner) LoadTemplates() ([]*templates.Template, error) {
 		tmpl, err := s.parser.ParseFile(path)
 		if err != nil {
 			if s.config.Verbose {
-				fmt.Fprintf(os.Stderr,"[!] Failed to load template %s: %v\n", path, err)
+				fmt.Fprintf(os.Stderr, "[!] Failed to load template %s: %v\n", path, err)
 			}
 			continue
 		}
@@ -165,7 +165,7 @@ func (s *TemplateScanner) Scan(ctx context.Context, target *core.Target, tmpls [
 	targetURL := target.URL()
 
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Template scanner starting for: %s (%d templates)\n", targetURL, len(tmpls))
+		fmt.Fprintf(os.Stderr, "[*] Template scanner starting for: %s (%d templates)\n", targetURL, len(tmpls))
 	}
 
 	var wg sync.WaitGroup
@@ -195,7 +195,7 @@ templateLoop:
 			execResults, err := s.executor.Execute(ctx, t, targetURL)
 			if err != nil {
 				if s.config.Verbose {
-					fmt.Fprintf(os.Stderr,"[!] Template %s error: %v\n", t.ID, err)
+					fmt.Fprintf(os.Stderr, "[!] Template %s error: %v\n", t.ID, err)
 				}
 				return
 			}

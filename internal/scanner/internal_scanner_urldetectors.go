@@ -21,15 +21,15 @@ import (
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/secheaders"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/storageinj"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/subtakeover"
+	tlsdetect "github.com/swiss-knife-for-web-security/skws/internal/detection/tls"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/verbtamper"
 	"github.com/swiss-knife-for-web-security/skws/internal/detection/ws"
-	tlsdetect "github.com/swiss-knife-for-web-security/skws/internal/detection/tls"
 )
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.
 func (s *InternalScanner) testJNDI(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing JNDI/Log4Shell on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing JNDI/Log4Shell on '%s'...\n", targetURL)
 	}
 
 	result, err := s.jndiDetector.Detect(ctx, targetURL, jndi.DetectOptions{
@@ -50,7 +50,7 @@ func (s *InternalScanner) testJNDI(ctx context.Context, targetURL string) []*cor
 // testSecHeaders tests for missing or insecure HTTP security headers.
 func (s *InternalScanner) testSecHeaders(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing security headers on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing security headers on '%s'...\n", targetURL)
 	}
 
 	result, err := s.secHeadersDetector.Detect(ctx, targetURL, secheaders.DetectOptions{
@@ -70,7 +70,7 @@ func (s *InternalScanner) testSecHeaders(ctx context.Context, targetURL string) 
 // testExposure tests for exposed sensitive files and directories.
 func (s *InternalScanner) testExposure(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing sensitive file exposure on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing sensitive file exposure on '%s'...\n", targetURL)
 	}
 
 	result, err := s.exposureDetector.Detect(ctx, targetURL, exposure.DetectOptions{
@@ -88,7 +88,7 @@ func (s *InternalScanner) testExposure(ctx context.Context, targetURL string) []
 // testCloud tests for cloud storage misconfigurations.
 func (s *InternalScanner) testCloud(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing cloud storage misconfigurations for '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing cloud storage misconfigurations for '%s'...\n", targetURL)
 	}
 
 	parsedURL, err := url.Parse(targetURL)
@@ -110,7 +110,7 @@ func (s *InternalScanner) testCloud(ctx context.Context, targetURL string) []*co
 // testSubTakeover tests for subdomain takeover vulnerabilities.
 func (s *InternalScanner) testSubTakeover(ctx context.Context) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing subdomain takeover (%d subdomains)...\n", len(s.config.Subdomains))
+		fmt.Fprintf(os.Stderr, "[*] Testing subdomain takeover (%d subdomains)...\n", len(s.config.Subdomains))
 	}
 
 	result, err := s.subTakeoverDetector.Detect(ctx, s.config.Subdomains, subtakeover.DetectOptions{
@@ -127,7 +127,7 @@ func (s *InternalScanner) testSubTakeover(ctx context.Context) []*core.Finding {
 // testTLS tests for TLS/SSL vulnerabilities and misconfigurations.
 func (s *InternalScanner) testTLS(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing TLS configuration on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing TLS configuration on '%s'...\n", targetURL)
 	}
 
 	result, err := s.tlsAnalyzer.Analyze(ctx, targetURL, tlsdetect.AnalyzeOptions{
@@ -148,7 +148,7 @@ func (s *InternalScanner) testTLS(ctx context.Context, targetURL string) []*core
 // testAuth tests for authentication vulnerabilities.
 func (s *InternalScanner) testAuth(ctx context.Context, loginURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing authentication on '%s'...\n", loginURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing authentication on '%s'...\n", loginURL)
 	}
 
 	var findings []*core.Finding
@@ -183,7 +183,7 @@ func (s *InternalScanner) testAuth(ctx context.Context, loginURL string) []*core
 // testGraphQL tests for GraphQL-specific vulnerabilities.
 func (s *InternalScanner) testGraphQL(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing GraphQL vulnerabilities on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing GraphQL vulnerabilities on '%s'...\n", targetURL)
 	}
 
 	// Discover GraphQL endpoints first
@@ -216,7 +216,7 @@ func (s *InternalScanner) testGraphQL(ctx context.Context, targetURL string) []*
 // testSmuggling tests for HTTP request smuggling vulnerabilities.
 func (s *InternalScanner) testSmuggling(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing HTTP smuggling on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing HTTP smuggling on '%s'...\n", targetURL)
 	}
 
 	parsedURL, err := url.Parse(targetURL)
@@ -259,7 +259,7 @@ func (s *InternalScanner) testSmuggling(ctx context.Context, targetURL string) [
 // testStorageInj tests for client-side storage injection vulnerabilities.
 func (s *InternalScanner) testStorageInj(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing storage injection on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing storage injection on '%s'...\n", targetURL)
 	}
 
 	result, err := s.storageInjDetector.Detect(ctx, targetURL, storageinj.DetectOptions{
@@ -270,7 +270,7 @@ func (s *InternalScanner) testStorageInj(ctx context.Context, targetURL string) 
 
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] Storage injection test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] Storage injection test error: %v\n", err)
 		}
 		return nil
 	}
@@ -284,13 +284,13 @@ func (s *InternalScanner) testStorageInj(ctx context.Context, targetURL string) 
 // testLogInj tests for log injection vulnerabilities via HTTP headers.
 func (s *InternalScanner) testLogInj(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing log injection on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing log injection on '%s'...\n", targetURL)
 	}
 
 	result, err := s.logInjDetector.Detect(ctx, targetURL, "", "GET", loginj.DefaultOptions())
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] Log injection test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] Log injection test error: %v\n", err)
 		}
 		return nil
 	}
@@ -304,7 +304,7 @@ func (s *InternalScanner) testLogInj(ctx context.Context, targetURL string) []*c
 // testFileUpload tests for file upload vulnerabilities.
 func (s *InternalScanner) testFileUpload(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing file upload on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing file upload on '%s'...\n", targetURL)
 	}
 
 	result, err := s.fileUploadDetector.Detect(ctx, targetURL, "", "POST", fileupload.DetectOptions{
@@ -317,7 +317,7 @@ func (s *InternalScanner) testFileUpload(ctx context.Context, targetURL string) 
 
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] File upload test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] File upload test error: %v\n", err)
 		}
 		return nil
 	}
@@ -331,7 +331,7 @@ func (s *InternalScanner) testFileUpload(ctx context.Context, targetURL string) 
 // testVerbTamper tests for HTTP verb tampering bypass vulnerabilities.
 func (s *InternalScanner) testVerbTamper(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing verb tampering on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing verb tampering on '%s'...\n", targetURL)
 	}
 
 	result, err := s.verbTamperDetector.Detect(ctx, targetURL, "", "GET", verbtamper.DetectOptions{
@@ -342,7 +342,7 @@ func (s *InternalScanner) testVerbTamper(ctx context.Context, targetURL string) 
 
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] Verb tampering test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] Verb tampering test error: %v\n", err)
 		}
 		return nil
 	}
@@ -356,7 +356,7 @@ func (s *InternalScanner) testVerbTamper(ctx context.Context, targetURL string) 
 // testPathNorm tests for path normalization bypass vulnerabilities.
 func (s *InternalScanner) testPathNorm(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing path normalization on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing path normalization on '%s'...\n", targetURL)
 	}
 
 	result, err := s.pathNormDetector.Detect(ctx, targetURL, "", "GET", pathnorm.DetectOptions{
@@ -366,7 +366,7 @@ func (s *InternalScanner) testPathNorm(ctx context.Context, targetURL string) []
 
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] Path normalization test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] Path normalization test error: %v\n", err)
 		}
 		return nil
 	}
@@ -380,7 +380,7 @@ func (s *InternalScanner) testPathNorm(ctx context.Context, targetURL string) []
 // testRaceCond tests for race condition vulnerabilities.
 func (s *InternalScanner) testRaceCond(ctx context.Context, targetURL string) []*core.Finding {
 	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr,"[*] Testing race conditions on '%s'...\n", targetURL)
+		fmt.Fprintf(os.Stderr, "[*] Testing race conditions on '%s'...\n", targetURL)
 	}
 
 	result, err := s.raceCondDetector.Detect(ctx, targetURL, "", "GET", racecond.DetectOptions{
@@ -390,7 +390,7 @@ func (s *InternalScanner) testRaceCond(ctx context.Context, targetURL string) []
 
 	if err != nil {
 		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr,"[!] Race condition test error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[!] Race condition test error: %v\n", err)
 		}
 		return nil
 	}

@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -598,7 +599,16 @@ func TestInternalScanner_DiscoveryDisabled(t *testing.T) {
 }
 
 func TestInternalScanner_StorageInjDisabledByDefault(t *testing.T) {
+	// All four DOM-aware detectors default to off in this test so we can
+	// assert the pool isn't built. The default config now creates a
+	// headless pool whenever ANY of {storageinj, domxss, protopoll,
+	// domredirect} is enabled — see needHeadless gate in NewInternalScanner.
 	config := DefaultInternalConfig()
+	config.EnableStorageInj = false
+	config.EnableDOMXSS = false
+	config.EnableProtoPoll = false
+	config.EnableDOMRedirect = false
+
 	scanner, err := NewInternalScanner(config)
 	if err != nil {
 		t.Fatalf("NewInternalScanner() error = %v", err)
@@ -606,7 +616,7 @@ func TestInternalScanner_StorageInjDisabledByDefault(t *testing.T) {
 	defer scanner.Close()
 
 	if scanner.headlessPool != nil {
-		t.Error("headlessPool should be nil when EnableStorageInj is false")
+		t.Error("headlessPool should be nil when no DOM-aware detector is enabled")
 	}
 	if scanner.storageInjDetector != nil {
 		t.Error("storageInjDetector should be nil when EnableStorageInj is false")
@@ -666,6 +676,46 @@ func TestInternalScanner_Scan_WithDiscovery(t *testing.T) {
 		if strings.Contains(e, "no parameters") {
 			t.Error("Discovery should have found form parameters, but got 'no parameters' error")
 		}
+	}
+}
+
+// TestInternalScanner_testXXEPost verifies the URL-level XXE-POST detector
+// emits a Critical finding when an endpoint reflects /etc/passwd content
+// from a POST application/xml body — the canonical XXE attack surface that
+// parameter-injection cannot reach.
+func TestInternalScanner_testXXEPost(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body := string(raw)
+		// Baseline (no DOCTYPE) gets a benign response.
+		if !strings.Contains(body, "<!DOCTYPE") || !strings.Contains(body, "ENTITY") {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<?xml version="1.0"?><stock><available>5</available></stock>`))
+			return
+		}
+		// XXE payload with file:/// → respond with /etc/passwd content embedded.
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><stock><available>root:x:0:0:root:/root:/bin/bash</available></stock>`))
+	}))
+	defer server.Close()
+
+	cfg := DefaultInternalConfig()
+	cfg.EnableXXE = true
+	s, err := NewInternalScanner(cfg)
+	if err != nil {
+		t.Fatalf("NewInternalScanner: %v", err)
+	}
+	defer s.Close()
+
+	findings := s.testXXEPost(context.Background(), server.URL+"/catalog/product/stock")
+	if len(findings) == 0 {
+		t.Fatalf("expected at least one XXE finding from POST application/xml probe, got 0")
+	}
+	got := strings.ToLower(findings[0].Type)
+	if !strings.Contains(got, "xxe") && !strings.Contains(got, "external entity") {
+		t.Errorf("expected XXE-related finding Type, got %q", findings[0].Type)
 	}
 }
 

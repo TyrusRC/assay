@@ -38,6 +38,8 @@ var (
 	targetList  string
 	templateDir string
 	profile     string
+	noJSDep     bool
+	nvdAPIKey   string
 )
 
 // scanCmd represents the scan command.
@@ -89,13 +91,15 @@ func init() {
 	scanCmd.Flags().IntVar(&risk, "risk", 1, "Risk level (1-3)")
 	scanCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	scanCmd.Flags().BoolVar(&htmlOutput, "html", false, "Output results as HTML report")
-scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
+	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
 	scanCmd.Flags().StringVar(&chromePath, "chrome-path", "", "Explicit Chrome/Chromium binary path for headless testing")
 	scanCmd.Flags().StringVarP(&targetList, "list", "l", "", "File containing target URLs (one per line)")
 	scanCmd.Flags().StringVar(&templateDir, "templates", "", "Path to nuclei-style template directory")
 	scanCmd.Flags().StringVar(&profile, "profile", "", "Scan profile (quick, normal, thorough)")
+	scanCmd.Flags().BoolVar(&noJSDep, "no-jsdep", false, "Disable JS dependency / NVD CVE lookup")
+	scanCmd.Flags().StringVar(&nvdAPIKey, "nvd-api-key", "", "NVD CVE API key (raises rate limit ~5→50 req/30s; falls back to NVD_API_KEY env)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -177,6 +181,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	if chromePath != "" {
 		internalConfig.ChromePath = chromePath
+	}
+	if noJSDep {
+		internalConfig.EnableJSDep = false
+	}
+	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
+	// Empty after both → public tier (anonymous, ~5 req/30s).
+	if nvdAPIKey != "" {
+		internalConfig.NVDAPIKey = nvdAPIKey
+	} else if env := os.Getenv("NVD_API_KEY"); env != "" {
+		internalConfig.NVDAPIKey = env
+	}
+	if verbose && internalConfig.EnableJSDep {
+		if internalConfig.NVDAPIKey != "" {
+			fmt.Fprintln(os.Stderr, "[*] NVD: authenticated tier (~50 req/30s)")
+		} else {
+			fmt.Fprintln(os.Stderr, "[*] NVD: anonymous tier (~5 req/30s; pass --nvd-api-key or set NVD_API_KEY for higher limit)")
+		}
 	}
 	internalConfig.Verbose = verbose
 	if err := s.SetInternalConfig(internalConfig); err != nil && verbose {

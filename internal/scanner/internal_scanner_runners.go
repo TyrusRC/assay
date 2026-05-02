@@ -375,6 +375,46 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 			emit(ctx, findingsChan, s.testOAuth(ctx, targetURL))
 		}()
 	}
+
+	if s.config.EnableXXE {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testXXEPost(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableDOMXSS && s.headlessPool != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testDOMXSS(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableProtoPoll && s.headlessPool != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testProtoPollutionDOM(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableDOMRedirect && s.headlessPool != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testDOMRedirect(ctx, targetURL))
+		}()
+	}
+
+	if s.config.EnableJSDep {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			emit(ctx, findingsChan, s.testJSDep(ctx, targetURL))
+		}()
+	}
 }
 
 // runOOBTests launches goroutines for OOB detection tests.

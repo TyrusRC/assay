@@ -34,7 +34,7 @@ func (p *Progress) IncrementTested() {
 	if p.enabled {
 		elapsed := time.Since(p.startTime).Round(time.Second)
 		phase := p.currentPhase.Load().(string)
-		fmt.Fprintf(os.Stderr,"\r[%s] %s | %d/%d params | %d findings found",
+		fmt.Fprintf(os.Stderr, "\r[%s] %s | %d/%d params | %d findings found",
 			elapsed, phase, tested, p.totalParams, atomic.LoadInt64(&p.findingsCount))
 	}
 }
@@ -48,7 +48,7 @@ func (p *Progress) IncrementFindings(count int) {
 func (p *Progress) SetPhase(phase string) {
 	p.currentPhase.Store(phase)
 	if p.enabled {
-		fmt.Fprintf(os.Stderr,"\n[*] %s\n", phase)
+		fmt.Fprintf(os.Stderr, "\n[*] %s\n", phase)
 	}
 }
 
@@ -56,7 +56,7 @@ func (p *Progress) SetPhase(phase string) {
 func (p *Progress) Finish() {
 	if p.enabled {
 		elapsed := time.Since(p.startTime).Round(time.Second)
-		fmt.Fprintf(os.Stderr,"\n[+] Scan complete in %s | %d findings\n",
+		fmt.Fprintf(os.Stderr, "\n[+] Scan complete in %s | %d findings\n",
 			elapsed, atomic.LoadInt64(&p.findingsCount))
 	}
 }
