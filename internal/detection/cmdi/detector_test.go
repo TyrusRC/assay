@@ -911,9 +911,12 @@ func TestDetector_Detect_VulnerableServerPasswdOutput(t *testing.T) {
 	client := internalhttp.NewClient()
 	detector := New(client)
 
+	// Use Linux platform so the payload set includes cat /etc/passwd
+	// variants — the universal "both" set has no passwd-style payloads.
 	result, err := detector.Detect(context.Background(), server.URL+"?cmd=test", "cmd", "GET", DetectOptions{
 		MaxPayloads:     20,
 		EnableTimeBased: false,
+		Platform:        cmdi.PlatformLinux,
 	})
 
 	if err != nil {

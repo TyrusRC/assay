@@ -265,13 +265,17 @@ func (s *SQLMap) Execute(ctx context.Context, req *tools.ToolRequest) (*tools.To
 	return result, nil
 }
 
-// ParseOutput parses SQLMap output and extracts findings.
+// ParseOutput parses SQLMap output and extracts findings. Recognises
+// both the verbose "sqlmap identified the following injection point"
+// banner (which precedes detailed Parameter/Type/Payload blocks) and
+// the terser "is injectable" signal that some SQLMap modes emit
+// without the structured detail block.
 func (s *SQLMap) ParseOutput(output, target string) *tools.ToolResult {
 	result := tools.NewToolResult(s.Name())
 
-	// Check for injection points
-	if strings.Contains(output, "sqlmap identified the following injection point") {
-		// Parse injection types and parameters
+	if strings.Contains(output, "sqlmap identified the following injection point") ||
+		strings.Contains(output, "is injectable") ||
+		strings.Contains(output, "are injectable") {
 		findings := s.extractFindings(output, target)
 		result.AddFindings(findings)
 	}

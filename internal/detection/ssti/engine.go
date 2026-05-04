@@ -171,15 +171,27 @@ func (d *Detector) detectByError(ctx context.Context, target, param, method stri
 			continue
 		}
 
-		// Check for engine-specific error patterns
+		// Check for engine-specific error patterns. Map iteration is
+		// non-deterministic and several engines share substring patterns
+		// (Jinja2's "TemplateSyntaxError" contains ERB's "SyntaxError"),
+		// so pick the engine with the LONGEST matching pattern in this
+		// response — the most specific signal wins regardless of order.
+		var bestEngine ssti.TemplateEngine = ssti.EngineUnknown
+		bestLen := 0
 		for engine, patterns := range engineErrors {
 			for _, pattern := range patterns {
 				if strings.Contains(resp.Body, pattern) {
 					result.errorPatterns = append(result.errorPatterns, pattern)
-					result.engine = engine
-					result.confidence = 0.9
+					if len(pattern) > bestLen {
+						bestLen = len(pattern)
+						bestEngine = engine
+					}
 				}
 			}
+		}
+		if bestLen > 0 {
+			result.engine = bestEngine
+			result.confidence = 0.9
 		}
 	}
 

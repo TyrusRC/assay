@@ -427,10 +427,14 @@ func TestDetector_isPayloadReflected(t *testing.T) {
 			want:    false,
 		},
 		{
+			// Empty payload carries no detection signal and previously
+			// caused findReflections to spin forever on strings.Index
+			// returning 0 indefinitely. Now returns false; nothing to
+			// reflect.
 			name:    "empty payload",
 			body:    `<div>some content</div>`,
 			payload: xsspayloads.Payload{Value: ``},
-			want:    true,
+			want:    false,
 		},
 	}
 

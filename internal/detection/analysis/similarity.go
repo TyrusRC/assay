@@ -8,9 +8,24 @@ import (
 )
 
 // tokenize splits a string into a set of unique lowercase word tokens.
+// Splits on whitespace AND HTML/JSON syntax characters so that markup-
+// dense bodies (which often contain no whitespace between tags) still
+// tokenize into comparable sets. Without this, two near-identical HTML
+// pages with one differing word would each collapse into a single
+// distinct token and report 0% similarity.
 func tokenize(s string) map[string]struct{} {
+	splitter := func(r rune) bool {
+		switch r {
+		case ' ', '\t', '\n', '\r', '<', '>', '/', '=', '"', '\'', '{', '}', '[', ']', ',', ':', ';':
+			return true
+		}
+		return false
+	}
 	tokens := make(map[string]struct{})
-	for _, word := range strings.Fields(s) {
+	for _, word := range strings.FieldsFunc(s, splitter) {
+		if word == "" {
+			continue
+		}
 		tokens[strings.ToLower(word)] = struct{}{}
 	}
 	return tokens

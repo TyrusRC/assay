@@ -154,7 +154,12 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 }
 
 // findReflections finds all positions where the probe appears in the response.
+// An empty probe matches at every byte position; we return nil instead of
+// looping forever, since "no probe" carries no detection signal.
 func (d *Detector) findReflections(body, probe string) []int {
+	if probe == "" {
+		return nil
+	}
 	var positions []int
 	start := 0
 	for {
@@ -222,24 +227,22 @@ var (
 )
 
 func (d *Detector) isInsideTag(ctx, tag string) bool {
-	var openTag, closeTag *regexp.Regexp
+	var openTag *regexp.Regexp
 	switch tag {
 	case "script":
-		openTag, closeTag = scriptOpenRe, scriptCloseRe
+		openTag = scriptOpenRe
 	case "style":
-		openTag, closeTag = styleOpenRe, styleCloseRe
+		openTag = styleOpenRe
 	default:
 		openTag = regexp.MustCompile(`(?i)<` + tag + `[^>]*>`)
-		closeTag = regexp.MustCompile(`(?i)</` + tag + `>`)
 	}
-
-	openMatch := openTag.FindStringIndex(ctx)
-	closeMatch := closeTag.FindStringIndex(ctx)
-
-	if openMatch != nil && (closeMatch == nil || openMatch[0] < closeMatch[0]) {
-		return true
-	}
-	return false
+	// `ctx` is a 400-char window around the reflection point; we're
+	// asking "is there any chance the reflection lies inside a <tag>...".
+	// The presence of an opening tag in that window is the right signal:
+	// a matched pair means we entered the scope; an unclosed open later
+	// in the window means we're still in it. A bare closing tag (without
+	// any open) cannot place the reflection inside the tag.
+	return openTag.MatchString(ctx)
 }
 
 // isInsideAttribute checks if position is inside an HTML attribute.
