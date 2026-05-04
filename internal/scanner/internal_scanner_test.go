@@ -608,6 +608,7 @@ func TestInternalScanner_StorageInjDisabledByDefault(t *testing.T) {
 	config.EnableDOMXSS = false
 	config.EnableProtoPoll = false
 	config.EnableDOMRedirect = false
+	config.EnablePostMsg = false // postMsg also takes the headless pool
 
 	scanner, err := NewInternalScanner(config)
 	if err != nil {
@@ -724,8 +725,15 @@ func TestInternalScanner_ApplicableTests_QueryParam(t *testing.T) {
 	param := core.Parameter{Name: "id", Location: core.ParamLocationQuery}
 	tests := scanner.applicableTests(param)
 
-	// Query params should get ALL injection detectors
-	expectedNames := []string{"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti", "redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi", "csvinj"}
+	// Query params should get ALL injection detectors enabled by default.
+	// massassign and protopollserver default to off (they mutate state)
+	// and are intentionally excluded from this set.
+	expectedNames := []string{
+		"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti",
+		"redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi", "csvinj",
+		"cachepoisoning", "cssinj", "deser", "domclobber", "emailinj",
+		"hpp", "htmlinj", "ssi",
+	}
 	if len(tests) != len(expectedNames) {
 		t.Errorf("applicableTests(query) returned %d tests, want %d", len(tests), len(expectedNames))
 	}

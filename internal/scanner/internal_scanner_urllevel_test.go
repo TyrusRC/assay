@@ -144,6 +144,9 @@ func TestInternalScanner_testExposure_Integration(t *testing.T) {
 }
 
 func TestInternalScanner_testCloud_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-bound test in -short mode")
+	}
 	config := &InternalScanConfig{
 		EnableCloud:    true,
 		RequestTimeout: 10 * time.Second,
@@ -160,6 +163,9 @@ func TestInternalScanner_testCloud_Integration(t *testing.T) {
 }
 
 func TestInternalScanner_testTLS_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-bound test in -short mode")
+	}
 	config := &InternalScanConfig{
 		EnableTLS:      true,
 		RequestTimeout: 10 * time.Second,
@@ -199,6 +205,9 @@ func TestInternalScanner_testGraphQL_Integration(t *testing.T) {
 }
 
 func TestInternalScanner_testSmuggling_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-bound test in -short mode")
+	}
 	config := &InternalScanConfig{
 		EnableSmuggling: true,
 		RequestTimeout:  10 * time.Second,
