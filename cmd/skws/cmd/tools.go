@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/nuclei"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
 )
 
@@ -55,8 +56,16 @@ func getRegisteredTools() []toolInfo {
 		description: "Automatic SQL injection detection and exploitation",
 	})
 
+	// Nuclei (community templates / CVE / fingerprint coverage)
+	n := nuclei.New()
+	tools = append(tools, toolInfo{
+		name:        n.Name(),
+		version:     n.Version(),
+		available:   n.IsAvailable(),
+		description: "ProjectDiscovery Nuclei — runs community YAML templates against the target",
+	})
+
 	// TODO: Add more tools as implemented
-	// - nuclei
 	// - ffuf
 	// - nikto
 

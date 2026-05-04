@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	nethttp "net/http"
 	"os"
 	"sync"
 	"time"
@@ -9,17 +10,25 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/auth"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/behavior"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachedeception"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachepoisoning"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cloud"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cmdi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cors"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/crlf"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cssinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csti"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csvinj"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/deser"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/domclobber"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/emailinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/exposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/fileupload"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/graphql"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/headerinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hosthdr"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hpp"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/htmlinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/adminpath"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
@@ -47,17 +56,23 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ldap"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/lfi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/loginj"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/massassign"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/nosql"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauth"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/pathnorm"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/postmsg"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/protopollution"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/racecond"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redirect"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/rfi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secheaders"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secondorder"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/smuggling"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssti"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storage"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storageinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/subtakeover"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/techstack"
@@ -145,6 +160,20 @@ type InternalScanner struct {
 	typeJugglingDetector *typejuggling.Detector
 	depConfusionDetector *depconfusion.Detector
 	tokenEntropyDetector *tokenentropy.Detector
+	cacheDeceptionDetector  *cachedeception.Detector
+	cachePoisoningDetector  *cachepoisoning.Detector
+	cssInjDetector          *cssinj.Detector
+	deserDetector           *deser.Detector
+	domClobberDetector      *domclobber.Detector
+	emailInjDetector        *emailinj.Detector
+	hppDetector             *hpp.Detector
+	htmlInjDetector         *htmlinj.Detector
+	massAssignDetector      *massassign.Detector
+	protoPollutionDetector  *protopollution.Detector
+	secondOrderDetector     *secondorder.Detector
+	ssiDetector             *ssi.Detector
+	storageDetector         *storage.Detector
+	postMsgDetector         *postmsg.Detector
 	discoveryPipeline   *discovery.Pipeline
 	headlessPool        *headless.Pool
 	oobClient           *oob.Client
@@ -156,174 +185,6 @@ type InternalScanner struct {
 	mu                  sync.Mutex
 }
 
-// InternalScanConfig configures the internal scanner behavior.
-type InternalScanConfig struct {
-	// Enable/disable specific checks
-	EnableSQLi        bool
-	EnableXSS         bool
-	EnableCMDI        bool
-	EnableSSRF        bool
-	EnableLFI         bool
-	EnableXXE         bool
-	EnableTechScan    bool
-	EnableOOB         bool
-	EnableNoSQL       bool
-	EnableSSTI        bool
-	EnableIDOR        bool
-	EnableJWT         bool
-	EnableRedirect    bool
-	EnableCORS        bool
-	EnableCRLF        bool
-	EnableLDAP        bool
-	EnableXPath       bool
-	EnableHeaderInj   bool
-	EnableCSTI        bool
-	EnableRFI         bool
-	EnableJNDI        bool
-	EnableSecHeaders  bool
-	EnableExposure    bool
-	EnableCloud       bool
-	EnableSubTakeover bool
-	EnableTLS         bool
-	EnableAuth        bool
-	EnableGraphQL     bool
-	EnableSmuggling   bool
-	EnableBehavior    bool
-	EnableLogInj      bool
-	EnableFileUpload  bool
-	EnableVerbTamper  bool
-	EnablePathNorm    bool
-	EnableRaceCond    bool
-	EnableCSVInj      bool
-	EnableWS          bool
-	EnableHostHdr     bool
-	EnableOAuth       bool
-	EnableJSDep       bool   // Detect vulnerable JS libraries via NVD lookup
-	NVDAPIKey         string // Optional NVD API key (raises rate limit ~5→50/30s)
-	EnableDataExposure bool  // Walk JSON responses for sensitive field names (API3:2023)
-	EnableAdminPath   bool   // Probe admin/debug/internal paths (API5:2023, A05:2025)
-	EnableAPIVersion  bool   // Probe sibling API versions (API9:2023)
-	EnableRateLimit   bool   // Burst-probe for missing server-side rate limits (API4:2023)
-	APISpecURL        string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
-	EnableContentType bool   // Probe JSON endpoints for content-type confusion
-	EnableSSE         bool   // Probe text/event-stream endpoints for missing auth
-	EnableGRPCReflect bool   // Probe gRPC reflection service exposure
-	EnableH2Reset     bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
-	EnableCSRF        bool   // Cross-Site Request Forgery probe
-	EnableTabnabbing  bool   // Static HTML scan for target=_blank without rel=noopener
-	EnableReDoS       bool   // Pathological-input timing probe for ReDoS surfaces
-	EnablePromptInj   bool   // LLM prompt-injection probe
-	EnableXSLT        bool   // XSLT injection probe
-	EnableSAMLInj     bool   // SAML SP malformed-envelope probe
-	EnableORMLeak    bool   // ORM expansion / over-fetch probe
-	EnableTypeJuggling bool // PHP loose-equality auth bypass probe (login-shaped paths)
-	EnableDepConfusion bool // Internal-package manifest leak probe
-	EnableTokenEntropy bool // Statistical entropy on Set-Cookie / CSRF tokens
-
-	// Template scanning
-	EnableTemplates bool     // Enable template-based scanning (default false)
-	TemplatePaths   []string // Paths to template files or directories
-	TemplateTags    []string // Tags to filter templates by
-
-	// Discovery and headless browser settings
-	EnableDiscovery     bool   // Auto-discover injectable points (default true)
-	EnableStorageInj    bool   // Test storage injection (default false, needs Chrome)
-	EnableDOMXSS        bool   // Test DOM-based XSS via headless browser (needs Chrome)
-	EnableProtoPoll     bool   // Test client-side prototype pollution via headless browser (needs Chrome)
-	EnableDOMRedirect   bool   // Test DOM-based open redirection via headless browser (needs Chrome)
-	HeadlessMaxBrowsers int    // Max browser contexts (default 3)
-	ChromePath          string // Explicit Chrome binary path
-
-	// Additional configuration for specific detectors
-	Subdomains []subtakeover.SubdomainInfo // Subdomain list for takeover detection
-	LoginURL   string                      // Login URL for auth testing
-
-	// Scan intensity
-	MaxPayloadsPerParam int
-	IncludeWAFBypass    bool
-
-	// Timeouts
-	RequestTimeout time.Duration
-	OOBPollTimeout time.Duration
-
-	// Verbosity
-	Verbose bool
-}
-
-// DefaultInternalConfig returns a reasonable default configuration.
-func DefaultInternalConfig() *InternalScanConfig {
-	return &InternalScanConfig{
-		EnableSQLi:          true,
-		EnableXSS:           true,
-		EnableCMDI:          true,
-		EnableSSRF:          true,
-		EnableLFI:           true,
-		EnableXXE:           true,
-		EnableTechScan:      true,
-		EnableOOB:           true, // OOB enabled by default - runs async to not block main scan
-		EnableNoSQL:         true,
-		EnableSSTI:          true,
-		EnableIDOR:          true,
-		EnableJWT:           false, // JWT requires token extraction, disable by default
-		EnableRedirect:      true,
-		EnableCORS:          true,
-		EnableCRLF:          true,
-		EnableLDAP:          true,
-		EnableXPath:         true,
-		EnableHeaderInj:     true,
-		EnableCSTI:          true,
-		EnableRFI:           true,
-		EnableJNDI:          true,
-		EnableSecHeaders:    true,
-		EnableExposure:      true,
-		EnableCloud:         true,
-		EnableSubTakeover:   false, // Requires subdomain list
-		EnableTLS:           true,
-		EnableAuth:          false, // Requires login URL
-		EnableGraphQL:       true,
-		EnableSmuggling:     true,
-		EnableBehavior:      true,
-		EnableLogInj:        true,
-		EnableFileUpload:    true,
-		EnableVerbTamper:    true,
-		EnablePathNorm:      true,
-		EnableRaceCond:      false, // Aggressive, sends many parallel requests
-		EnableCSVInj:        true,
-		EnableWS:            true,
-		EnableHostHdr:       true,
-		EnableOAuth:         true,
-		EnableJSDep:         true,
-		EnableDataExposure:  true,
-		EnableAdminPath:     true,
-		EnableAPIVersion:    true,
-		EnableRateLimit:     false, // off by default — burst probe is mildly load-bearing
-		EnableContentType:   true,
-		EnableSSE:           true,
-		EnableGRPCReflect:   true,
-		EnableH2Reset:       false, // off by default — sends raw H/2 frames
-		EnableCSRF:          true,
-		EnableTabnabbing:    true,
-		EnableReDoS:         false, // off by default — adds latency on every regex-shaped param
-		EnablePromptInj:     true,
-		EnableXSLT:          true,
-		EnableSAMLInj:       true,
-		EnableORMLeak:       true,
-		EnableTypeJuggling:  true,
-		EnableDepConfusion:  true,
-		EnableTokenEntropy:  true,
-		EnableDiscovery:     true,
-		EnableStorageInj:    false, // Requires Chrome
-		EnableDOMXSS:        true,  // Requires Chrome (no-op when unavailable)
-		EnableProtoPoll:     true,  // Requires Chrome (no-op when unavailable)
-		EnableDOMRedirect:   true,  // Requires Chrome (no-op when unavailable)
-		HeadlessMaxBrowsers: 3,
-		MaxPayloadsPerParam: 30,
-		IncludeWAFBypass:    true,
-		RequestTimeout:      10 * time.Second,
-		OOBPollTimeout:      10 * time.Second,
-		Verbose:             false,
-	}
-}
 
 // NewInternalScanner creates a new internal scanner.
 func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
@@ -400,6 +261,19 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		typeJugglingDetector: typejuggling.New(httpClient),
 		depConfusionDetector: depconfusion.New(httpClient),
 		tokenEntropyDetector: tokenentropy.New(httpClient),
+		cacheDeceptionDetector: cachedeception.New(httpClient),
+		cachePoisoningDetector: cachepoisoning.New(httpClient),
+		cssInjDetector:         cssinj.New(httpClient),
+		deserDetector:          deser.New(httpClient),
+		domClobberDetector:     domclobber.New(httpClient),
+		emailInjDetector:       emailinj.New(httpClient),
+		hppDetector:            hpp.New(httpClient),
+		htmlInjDetector:        htmlinj.New(httpClient),
+		massAssignDetector:     massassign.New(httpClient),
+		protoPollutionDetector: protopollution.New(httpClient),
+		secondOrderDetector:    secondorder.New(httpClient),
+		ssiDetector:            ssi.New(httpClient),
+		storageDetector:        storage.New(&nethttp.Client{Timeout: config.RequestTimeout}),
 		config:              config,
 		confirmed:           newConfirmedFindings(),
 	}
@@ -427,7 +301,8 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	// Storage injection, DOM XSS, prototype pollution, and DOM-based open
 	// redirect all need a real browser; we share one pool across them.
 	needHeadless := config.EnableStorageInj || config.EnableDOMXSS ||
-		config.EnableProtoPoll || config.EnableDOMRedirect
+		config.EnableProtoPoll || config.EnableDOMRedirect ||
+		config.EnablePostMsg
 	if needHeadless {
 		maxBrowsers := config.HeadlessMaxBrowsers
 		if maxBrowsers <= 0 {
@@ -448,6 +323,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 			scanner.headlessPool = pool
 			if config.EnableStorageInj {
 				scanner.storageInjDetector = storageinj.New(pool).WithVerbose(config.Verbose)
+			}
+			if config.EnablePostMsg {
+				scanner.postMsgDetector = postmsg.New(pool).WithVerbose(config.Verbose)
 			}
 		}
 	}

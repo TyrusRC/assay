@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"net/url"
@@ -14,51 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/reporting"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
-)
-
-var (
-	// Scan flags
-	timeout     time.Duration
-	concurrency int
-	headers     []string
-	cookies     string
-	userAgent   string
-	insecure    bool
-	data        string
-	method      string
-	level       int
-	risk        int
-	jsonOutput  bool
-	htmlOutput  bool
-	disableOOB  bool
-	noDiscovery bool
-	storageInj  bool
-	chromePath  string
-	targetList  string
-	templateDir string
-	profile     string
-	noJSDep     bool
-	nvdAPIKey   string
-	rateLimit   bool
-	noDataExp   bool
-	noAdminPath bool
-	noAPIVer    bool
-	apiSpecURL  string
-	noCtypeConf bool
-	noSSE       bool
-	noGRPCRefl  bool
-	h2ResetOpt  bool
-	noCSRF      bool
-	noTabnab    bool
-	redosOpt    bool
-	noPromptInj bool
-	noXSLT      bool
-	noSAMLInj   bool
-	noORMLeak   bool
-	noTypeJug   bool
-	noDepConf   bool
-	noTokenEnt  bool
 )
 
 // scanCmd represents the scan command.
@@ -97,7 +51,6 @@ Examples:
 func init() {
 	rootCmd.AddCommand(scanCmd)
 
-	// Scan-specific flags
 	scanCmd.Flags().DurationVarP(&timeout, "timeout", "t", 30*time.Minute, "Scan timeout")
 	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 3, "Number of concurrent tools")
 	scanCmd.Flags().StringArrayVarP(&headers, "header", "H", nil, "Custom headers (can be specified multiple times)")
@@ -138,16 +91,36 @@ func init() {
 	scanCmd.Flags().BoolVar(&noTypeJug, "no-type-juggling", false, "Disable PHP loose-equality auth bypass probe")
 	scanCmd.Flags().BoolVar(&noDepConf, "no-dep-confusion", false, "Disable dependency-confusion manifest probe")
 	scanCmd.Flags().BoolVar(&noTokenEnt, "no-token-entropy", false, "Disable Set-Cookie / CSRF token-entropy analysis")
+	scanCmd.Flags().BoolVar(&noCacheDec, "no-cache-deception", false, "Disable web cache deception probe")
+	scanCmd.Flags().BoolVar(&noCachePois, "no-cache-poisoning", false, "Disable unkeyed-header cache poisoning probe")
+	scanCmd.Flags().BoolVar(&noCSSInj, "no-css-injection", false, "Disable CSS injection probe")
+	scanCmd.Flags().BoolVar(&noDeser, "no-deserialization", false, "Disable insecure-deserialization probe")
+	scanCmd.Flags().BoolVar(&noDOMClob, "no-dom-clobber", false, "Disable DOM clobbering probe")
+	scanCmd.Flags().BoolVar(&noEmailInj, "no-email-injection", false, "Disable email-header injection probe")
+	scanCmd.Flags().BoolVar(&noHPP, "no-hpp", false, "Disable HTTP Parameter Pollution probe")
+	scanCmd.Flags().BoolVar(&noHTMLInj, "no-html-injection", false, "Disable HTML injection probe")
+	scanCmd.Flags().BoolVar(&massAssign, "mass-assign", false, "Enable mass-assignment probe (off by default — mutates state via PUT/POST/PATCH)")
+	scanCmd.Flags().BoolVar(&protoPollSrv, "proto-pollution-server", false, "Enable server-side prototype-pollution probe (off by default — modifies request shape)")
+	scanCmd.Flags().BoolVar(&noSecondOrd, "no-second-order", false, "Disable second-order injection probe")
+	scanCmd.Flags().BoolVar(&noSSIInj, "no-ssi", false, "Disable Server-Side Includes injection probe")
+	scanCmd.Flags().BoolVar(&noStorage, "no-storage", false, "Disable cookie / session-management audit")
+	scanCmd.Flags().BoolVar(&noNuclei, "no-nuclei", false, "Skip the Nuclei binary even when it's on PATH")
+	scanCmd.Flags().StringVar(&nucleiTags, "nuclei-tags", "", "Comma-separated tag filter passed to Nuclei (e.g. cve,rce)")
+	scanCmd.Flags().StringVar(&nucleiSev, "nuclei-severity", "", "Comma-separated severity filter for Nuclei (info,low,medium,high,critical)")
+	scanCmd.Flags().StringVar(&authACookie, "auth-a-cookie", "", "Cookie header for identity A (two-identity IDOR/BOLA probe)")
+	scanCmd.Flags().StringVar(&authBCookie, "auth-b-cookie", "", "Cookie header for identity B (two-identity IDOR/BOLA probe)")
+	scanCmd.Flags().StringArrayVar(&authAHdr, "auth-a-header", nil, "Header for identity A (repeatable, 'Key: Value')")
+	scanCmd.Flags().StringArrayVar(&authBHdr, "auth-b-header", nil, "Header for identity B (repeatable, 'Key: Value')")
+	scanCmd.Flags().StringVar(&idorURL, "idor-url", "", "Override URL for the two-identity IDOR/BOLA probe (defaults to scan target)")
+	scanCmd.Flags().BoolVar(&noPostMsg, "no-postmessage", false, "Disable the postMessage origin-validation probe (requires Chrome)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
-	// Collect targets from args, file, or stdin.
 	targets, err := collectTargets(args)
 	if err != nil {
 		return err
 	}
 
-	// Validate each target URL.
 	for _, target := range targets {
 		parsedURL, err := url.Parse(target)
 		if err != nil || parsedURL.Host == "" {
@@ -158,7 +131,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Validate level and risk bounds
 	if level < 1 || level > 5 {
 		return fmt.Errorf("level must be between 1 and 5, got %d", level)
 	}
@@ -166,7 +138,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("risk must be between 1 and 3, got %d", risk)
 	}
 
-	// Parse headers
 	headerMap := make(map[string]string)
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
@@ -176,13 +147,9 @@ func runScan(cmd *cobra.Command, args []string) error {
 		headerMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	}
 
-	// Create scanner
 	s := scanner.New()
-	// Release headless browser pool and OOB client when runScan returns,
-	// including on error paths and cancellation.
 	defer s.Close()
 
-	// Configure scanner with all CLI options
 	config := &scanner.Config{
 		Timeout:     timeout,
 		Concurrency: concurrency,
@@ -198,94 +165,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	s.SetConfig(config)
 
-	// Configure internal scanner - start with profile if specified
 	internalConfig := scanner.DefaultInternalConfig()
 	if profile != "" {
 		p := scanner.GetProfile(profile)
 		internalConfig = p.Config
 	}
-	if templateDir != "" {
-		internalConfig.EnableTemplates = true
-		internalConfig.TemplatePaths = []string{templateDir}
-	}
-	if disableOOB {
-		internalConfig.EnableOOB = false
-	}
-	if noDiscovery {
-		internalConfig.EnableDiscovery = false
-	}
-	if storageInj {
-		internalConfig.EnableStorageInj = true
-	}
-	if chromePath != "" {
-		internalConfig.ChromePath = chromePath
-	}
-	if noJSDep {
-		internalConfig.EnableJSDep = false
-	}
-	if rateLimit {
-		internalConfig.EnableRateLimit = true
-	}
-	if noDataExp {
-		internalConfig.EnableDataExposure = false
-	}
-	if noAdminPath {
-		internalConfig.EnableAdminPath = false
-	}
-	if noAPIVer {
-		internalConfig.EnableAPIVersion = false
-	}
-	if apiSpecURL != "" {
-		internalConfig.APISpecURL = apiSpecURL
-	}
-	if noCtypeConf {
-		internalConfig.EnableContentType = false
-	}
-	if noSSE {
-		internalConfig.EnableSSE = false
-	}
-	if noGRPCRefl {
-		internalConfig.EnableGRPCReflect = false
-	}
-	if h2ResetOpt {
-		internalConfig.EnableH2Reset = true
-	}
-	if noCSRF {
-		internalConfig.EnableCSRF = false
-	}
-	if noTabnab {
-		internalConfig.EnableTabnabbing = false
-	}
-	if redosOpt {
-		internalConfig.EnableReDoS = true
-	}
-	if noPromptInj {
-		internalConfig.EnablePromptInj = false
-	}
-	if noXSLT {
-		internalConfig.EnableXSLT = false
-	}
-	if noSAMLInj {
-		internalConfig.EnableSAMLInj = false
-	}
-	if noORMLeak {
-		internalConfig.EnableORMLeak = false
-	}
-	if noTypeJug {
-		internalConfig.EnableTypeJuggling = false
-	}
-	if noDepConf {
-		internalConfig.EnableDepConfusion = false
-	}
-	if noTokenEnt {
-		internalConfig.EnableTokenEntropy = false
-	}
-	// CLI flag wins over env; missing flag falls back to NVD_API_KEY env.
-	// Empty after both → public tier (anonymous, ~5 req/30s).
-	if nvdAPIKey != "" {
-		internalConfig.NVDAPIKey = nvdAPIKey
-	} else if env := os.Getenv("NVD_API_KEY"); env != "" {
-		internalConfig.NVDAPIKey = env
+	if err := applyCLIFlags(internalConfig); err != nil {
+		return err
 	}
 	if verbose && internalConfig.EnableJSDep {
 		if internalConfig.NVDAPIKey != "" {
@@ -299,17 +185,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to configure internal scanner: %v\n", err)
 	}
 
-	// Add all targets
 	for _, target := range targets {
 		if err := s.AddTarget(target); err != nil {
 			return fmt.Errorf("invalid target: %w", err)
 		}
 	}
 
-	// Register tools
 	registerTools(s)
 
-	// Setup signal handling
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -325,7 +208,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 		signal.Stop(sigChan)
 	}()
 
-	// Print scan start
 	if !jsonOutput && !htmlOutput {
 		if len(targets) == 1 {
 			printScanHeader(targets[0])
@@ -334,97 +216,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Run scan
 	result, err := s.Scan(ctx)
 	if err != nil {
 		return fmt.Errorf("scan failed: %w", err)
 	}
 
-	// Output results using the reporting package
 	report := reporting.NewReport(result)
 
 	if jsonOutput {
 		return report.WriteJSON(os.Stdout)
 	}
-
 	if htmlOutput {
 		return report.WriteHTML(os.Stdout)
 	}
-
 	return report.WriteText(os.Stdout)
-}
-
-// collectTargets gathers target URLs from CLI args, a file, or stdin.
-func collectTargets(args []string) ([]string, error) {
-	// Case 1: target list file specified via --list / -l
-	if targetList != "" {
-		f, err := os.Open(targetList)
-		if err != nil {
-			return nil, fmt.Errorf("cannot open target list file: %w", err)
-		}
-		defer f.Close()
-		targets := readTargetsFromReader(f)
-		if len(targets) == 0 {
-			return nil, fmt.Errorf("no valid targets found in %s", targetList)
-		}
-		return targets, nil
-	}
-
-	// Case 2: target provided as positional argument
-	if len(args) > 0 {
-		return []string{args[0]}, nil
-	}
-
-	// Case 3: read from stdin if piped
-	stat, err := os.Stdin.Stat()
-	if err == nil && stat.Mode()&os.ModeCharDevice == 0 {
-		targets := readTargetsFromReader(os.Stdin)
-		if len(targets) > 0 {
-			return targets, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no targets provided: specify a URL argument, use --list, or pipe URLs via stdin")
-}
-
-// readTargetsFromReader reads URLs from an io.Reader, one per line.
-// Empty lines and lines starting with '#' are skipped.
-func readTargetsFromReader(r *os.File) []string {
-	var targets []string
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		targets = append(targets, line)
-	}
-	return targets
-}
-
-func registerTools(s *scanner.Scanner) {
-	// Register SQLMap with validated options
-	sqlmapTool := sqlmap.New().WithOptions(sqlmap.Options{
-		Level:   level,
-		Risk:    risk,
-		Threads: concurrency,
-	})
-	s.RegisterTool(sqlmapTool)
-
-	// TODO: Add more tools as they are implemented
-	// - nuclei
-	// - ffuf
-	// - nikto
-}
-
-func printScanHeader(target string) {
-	fmt.Println("╔════════════════════════════════════════════════════════╗")
-	fmt.Println("║    SKWS - Swiss Knife for Web Security Scanner        ║")
-	fmt.Println("╚════════════════════════════════════════════════════════╝")
-	fmt.Println()
-	fmt.Printf("Target: %s\n", target)
-	fmt.Printf("Started: %s\n", time.Now().Format(time.RFC3339))
-	fmt.Println()
-	fmt.Println("Scanning...")
-	fmt.Println()
 }
