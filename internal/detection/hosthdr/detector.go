@@ -31,8 +31,14 @@ func (d *Detector) WithVerbose(v bool) *Detector { d.verbose = v; return d }
 
 // DetectOptions tunes the audit.
 type DetectOptions struct {
-	Timeout       time.Duration
-	AttackerHost  string // host string injected into Host / X-Forwarded-* headers
+	Timeout      time.Duration
+	AttackerHost string // host string injected into Host / X-Forwarded-* headers
+	// CacheTestEnabled toggles the cache-poisoning probe in
+	// DetectCachePoisoningViaHost. Required because the probe sends a
+	// poisoned request followed by a clean follow-up against the same
+	// path+query (using a unique X-Cache-Bust marker), which only makes
+	// sense when the user has opted in to cache-side testing.
+	CacheTestEnabled bool
 }
 
 // DefaultOptions returns sensible defaults. The default attacker host is

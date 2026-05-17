@@ -9,45 +9,45 @@ import (
 // InternalScanConfig configures the internal scanner behavior.
 type InternalScanConfig struct {
 	// Enable/disable specific checks
-	EnableSQLi        bool
-	EnableXSS         bool
-	EnableCMDI        bool
-	EnableSSRF        bool
-	EnableLFI         bool
-	EnableXXE         bool
-	EnableTechScan    bool
-	EnableOOB         bool
-	EnableNoSQL       bool
-	EnableSSTI        bool
-	EnableIDOR        bool
-	EnableJWT         bool
-	EnableRedirect    bool
-	EnableCORS        bool
-	EnableCRLF        bool
-	EnableLDAP        bool
-	EnableXPath       bool
-	EnableHeaderInj   bool
-	EnableCSTI        bool
-	EnableRFI         bool
-	EnableJNDI        bool
-	EnableSecHeaders  bool
-	EnableExposure    bool
-	EnableCloud       bool
-	EnableSubTakeover bool
-	EnableTLS         bool
-	EnableAuth        bool
-	EnableGraphQL     bool
-	EnableSmuggling   bool
-	EnableBehavior    bool
-	EnableLogInj      bool
-	EnableFileUpload  bool
-	EnableVerbTamper  bool
-	EnablePathNorm    bool
-	EnableRaceCond    bool
-	EnableCSVInj      bool
-	EnableWS          bool
-	EnableHostHdr     bool
-	EnableOAuth       bool
+	EnableSQLi         bool
+	EnableXSS          bool
+	EnableCMDI         bool
+	EnableSSRF         bool
+	EnableLFI          bool
+	EnableXXE          bool
+	EnableTechScan     bool
+	EnableOOB          bool
+	EnableNoSQL        bool
+	EnableSSTI         bool
+	EnableIDOR         bool
+	EnableJWT          bool
+	EnableRedirect     bool
+	EnableCORS         bool
+	EnableCRLF         bool
+	EnableLDAP         bool
+	EnableXPath        bool
+	EnableHeaderInj    bool
+	EnableCSTI         bool
+	EnableRFI          bool
+	EnableJNDI         bool
+	EnableSecHeaders   bool
+	EnableExposure     bool
+	EnableCloud        bool
+	EnableSubTakeover  bool
+	EnableTLS          bool
+	EnableAuth         bool
+	EnableGraphQL      bool
+	EnableSmuggling    bool
+	EnableBehavior     bool
+	EnableLogInj       bool
+	EnableFileUpload   bool
+	EnableVerbTamper   bool
+	EnablePathNorm     bool
+	EnableRaceCond     bool
+	EnableCSVInj       bool
+	EnableWS           bool
+	EnableHostHdr      bool
+	EnableOAuth        bool
 	EnableJSDep        bool   // Detect vulnerable JS libraries via NVD lookup
 	NVDAPIKey          string // Optional NVD API key (raises rate limit ~5→50/30s)
 	EnableDataExposure bool   // Walk JSON responses for sensitive field names (API3:2023)
@@ -69,6 +69,30 @@ type InternalScanConfig struct {
 	EnableTypeJuggling bool   // PHP loose-equality auth bypass probe (login-shaped paths)
 	EnableDepConfusion bool   // Internal-package manifest leak probe
 	EnableTokenEntropy bool   // Statistical entropy on Set-Cookie / CSRF tokens
+
+	// Wave-G — multi-step / stateful flows + advanced auth, all default-off
+	// because they need explicit URLs (login, refresh, logout, OAuth authorize,
+	// password-reset confirm, SSRF param, OpenAPI spec). Wiring them on without
+	// the URLs they need would only emit noise.
+	EnableTimingEnum       bool // Statistical timing-based account enumeration on LoginURL
+	EnablePasswordReset    bool // Reset-link host-header poisoning, cross-user token, replay
+	EnableSessionLifecycle bool // Refresh rotation, logout invalidation, concurrent sessions
+	EnableOAuthFlow        bool // OAuth state binding, redirect_uri match, PKCE downgrade, alg=none
+	EnableDNSRebinding     bool // Short-TTL multi-IP + SSRF allowlist bypass via hostname resolution
+	EnableHTTP2Advanced    bool // HPACK pollution, SETTINGS flood, flow-control exhaustion
+	EnableOpenAPISemantic  bool // Type coercion, discriminator confusion, nullable-default leaks
+
+	// URLs required by Wave-G detectors. Empty disables the corresponding probe.
+	RefreshURL       string
+	LogoutURL        string
+	ProtectedURL     string // Authenticated resource for session-lifecycle probes
+	PasswordResetURL string
+	OAuthAuthzURL    string
+	OAuthTokenURL    string
+	OAuthClientID    string
+	OAuthRedirectURI string
+	SSRFParam        string // Parameter name carrying the SSRF target URL
+	DNSRebindingHost string // Optional attacker-controlled rebinding host
 
 	EnableCacheDeception  bool // Web cache deception (extension/path strip + unauth replay)
 	EnableCachePoisoning  bool // Unkeyed-header reflection cache poisoning
@@ -198,16 +222,24 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSSI:             true,
 		EnableStorage:         true,
 		EnablePostMsg:         true, // requires Chrome — no-op when unavailable
-		EnableDiscovery:       true,
-		EnableStorageInj:      false, // Requires Chrome
-		EnableDOMXSS:          true,  // Requires Chrome (no-op when unavailable)
-		EnableProtoPoll:       true,  // Requires Chrome (no-op when unavailable)
-		EnableDOMRedirect:     true,  // Requires Chrome (no-op when unavailable)
-		HeadlessMaxBrowsers:   3,
-		MaxPayloadsPerParam:   30,
-		IncludeWAFBypass:      true,
-		RequestTimeout:        10 * time.Second,
-		OOBPollTimeout:        10 * time.Second,
-		Verbose:               false,
+		// Wave-G default-on flags but no-op without URLs; safe everywhere.
+		EnableTimingEnum:       true,
+		EnablePasswordReset:    true,
+		EnableSessionLifecycle: true,
+		EnableOAuthFlow:        true,
+		EnableDNSRebinding:     true,
+		EnableHTTP2Advanced:    false, // off — H/2 frame manipulation can be destructive
+		EnableOpenAPISemantic:  true,
+		EnableDiscovery:        true,
+		EnableStorageInj:       false, // Requires Chrome
+		EnableDOMXSS:           true,  // Requires Chrome (no-op when unavailable)
+		EnableProtoPoll:        true,  // Requires Chrome (no-op when unavailable)
+		EnableDOMRedirect:      true,  // Requires Chrome (no-op when unavailable)
+		HeadlessMaxBrowsers:    3,
+		MaxPayloadsPerParam:    30,
+		IncludeWAFBypass:       true,
+		RequestTimeout:         10 * time.Second,
+		OOBPollTimeout:         10 * time.Second,
+		Verbose:                false,
 	}
 }

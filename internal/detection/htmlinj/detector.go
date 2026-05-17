@@ -83,11 +83,15 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		payloads = payloads[:opts.MaxPayloads]
 	}
 
-	// Get baseline response to ensure the target is reachable
-	_, err := d.client.SendPayload(ctx, target, param, "skws_baseline_safe", method)
+	// Baseline run pins down what natural markers (e.g. menu HTML, footer
+	// copy) already appear in the page so we don't claim injection on tags
+	// that the application always renders. Without this gate, "<b>" in the
+	// stock template would make every probe a false positive.
+	baselineResp, err := d.client.SendPayload(ctx, target, param, "skws_baseline_safe", method)
 	if err != nil {
 		return result, fmt.Errorf("failed to get baseline: %w", err)
 	}
+	baselineBody := baselineResp.Body
 
 	for _, payload := range payloads {
 		select {
@@ -103,7 +107,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		if d.isReflected(resp.Body, payload) {
+		if d.isReflected(resp.Body, baselineBody, payload) {
 			finding := d.createFinding(target, param, payload, resp)
 			result.Findings = append(result.Findings, finding)
 			result.Vulnerable = true
@@ -114,12 +118,21 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	return result, nil
 }
 
-// isReflected checks whether the payload marker appears unencoded in the response body.
-func (d *Detector) isReflected(body string, payload htmlinj.Payload) bool {
+// isReflected checks whether the payload marker appears unencoded in the
+// response body AND was not already in the baseline. The baseline guard
+// rejects naturally-occurring tags (footer "<p>", nav "<a>") that would
+// otherwise look like injection on every probe.
+func (d *Detector) isReflected(body, baseline string, payload htmlinj.Payload) bool {
 	if body == "" || payload.Marker == "" {
 		return false
 	}
-	return strings.Contains(body, payload.Marker)
+	if !strings.Contains(body, payload.Marker) {
+		return false
+	}
+	if strings.Contains(baseline, payload.Marker) {
+		return false
+	}
+	return true
 }
 
 // createFinding creates a Finding from a successful HTML injection test.

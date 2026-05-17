@@ -15,6 +15,12 @@ type AuthState struct {
 	// Headers maps header name → value. Use this for Authorization,
 	// X-Auth-Token, etc. Header values are sent verbatim.
 	Headers map[string]string
+	// Username and Password seed login-shaped probes (session-lifecycle,
+	// password-reset cross-user, timing-based account enumeration) when
+	// the existing Cookies/Headers can't be reused for a fresh login.
+	// Optional — leave empty when not running those probes.
+	Username string
+	Password string
 }
 
 // HasAuth reports whether the AuthState carries any auth material.

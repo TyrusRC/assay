@@ -8,50 +8,42 @@ import (
 	"time"
 
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/adminpath"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/auth"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/behavior"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachedeception"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachepoisoning"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cloud"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cmdi"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cors"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/crlf"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cssinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csti"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csvinj"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/depconfusion"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/deser"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/domclobber"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/emailinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/exposure"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/fileupload"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/graphql"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/headerinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hosthdr"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hpp"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/htmlinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/adminpath"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apispec"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/apiversion"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/contenttype"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/csrf"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/depconfusion"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/grpcreflect"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/h2reset"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ormleak"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/promptinjection"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redos"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/samlinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tabnabbing"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tokenentropy"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/typejuggling"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xslt"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dataexposure"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/http2advanced"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/injection"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jndi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jsdep"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ratelimit"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jwt"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ldap"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/lfi"
@@ -59,27 +51,41 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/massassign"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/nosql"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauth"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauthflow"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/openapisemantic"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ormleak"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/passwordreset"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/pathnorm"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/postmsg"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/promptinjection"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/protopollution"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/racecond"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ratelimit"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redirect"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/redos"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/rfi"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/samlinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secheaders"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secondorder"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sessionlifecycle"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/smuggling"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssti"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storage"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storageinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/subtakeover"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tabnabbing"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/techstack"
 	tlsdetect "github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tls"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tokenentropy"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/typejuggling"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/verbtamper"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ws"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xpath"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xslt"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xss"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xxe"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/discovery"
@@ -100,91 +106,97 @@ type TechHint struct {
 // It complements external tools by providing detection for common vulnerabilities
 // using the internal detection modules.
 type InternalScanner struct {
-	client              *http.Client
-	sqliDetector        *injection.SQLiDetector
-	xssDetector         *xss.Detector
-	cmdiDetector        *cmdi.Detector
-	ssrfDetector        *ssrf.Detector
-	lfiDetector         *lfi.Detector
-	xxeDetector         *xxe.Detector
-	techDetector        *techstack.Detector
-	nosqlDetector       *nosql.Detector
-	sstiDetector        *ssti.Detector
-	idorDetector        *idor.Detector
-	jwtDetector         *jwt.Detector
-	redirectDetector    *redirect.Detector
-	corsDetector        *cors.Detector
-	crlfDetector        *crlf.Detector
-	ldapDetector        *ldap.Detector
-	xpathDetector       *xpath.Detector
-	headerInjDetector   *headerinj.Detector
-	cstiDetector        *csti.Detector
-	rfiDetector         *rfi.Detector
-	jndiDetector        *jndi.Detector
-	secHeadersDetector  *secheaders.Detector
-	exposureDetector    *exposure.Detector
-	cloudDetector       *cloud.Detector
-	subTakeoverDetector *subtakeover.Detector
-	tlsAnalyzer         *tlsdetect.Analyzer
-	authDetector        *auth.Detector
-	graphqlDetector     *graphql.Detector
-	smugglingDetector   *smuggling.Detector
-	behaviorDetector    *behavior.Detector
-	storageInjDetector  *storageinj.Detector
-	logInjDetector      *loginj.Detector
-	fileUploadDetector  *fileupload.Detector
-	verbTamperDetector  *verbtamper.Detector
-	pathNormDetector    *pathnorm.Detector
-	raceCondDetector    *racecond.Detector
-	csvInjDetector      *csvinj.Detector
-	wsDetector          *ws.Detector
-	hostHdrDetector     *hosthdr.Detector
-	oauthDetector       *oauth.Detector
-	jsdepDetector       *jsdep.Detector
-	dataExposureDetector *dataexposure.Detector
-	adminPathDetector   *adminpath.Detector
-	apiVersionDetector  *apiversion.Detector
-	rateLimitDetector   *ratelimit.Detector
-	apiSpecRunner       *apispec.Runner
-	contentTypeDetector *contenttype.Detector
-	sseDetector         *sse.Detector
-	grpcReflectDetector *grpcreflect.Detector
-	h2ResetDetector     *h2reset.Detector
-	csrfDetector        *csrf.Detector
-	tabnabbingDetector  *tabnabbing.Detector
-	redosDetector       *redos.Detector
-	promptInjDetector   *promptinjection.Detector
-	xsltDetector        *xslt.Detector
-	samlInjDetector     *samlinj.Detector
-	ormLeakDetector     *ormleak.Detector
-	typeJugglingDetector *typejuggling.Detector
-	depConfusionDetector *depconfusion.Detector
-	tokenEntropyDetector *tokenentropy.Detector
-	cacheDeceptionDetector  *cachedeception.Detector
-	cachePoisoningDetector  *cachepoisoning.Detector
-	cssInjDetector          *cssinj.Detector
-	deserDetector           *deser.Detector
-	domClobberDetector      *domclobber.Detector
-	emailInjDetector        *emailinj.Detector
-	hppDetector             *hpp.Detector
-	htmlInjDetector         *htmlinj.Detector
-	massAssignDetector      *massassign.Detector
-	protoPollutionDetector  *protopollution.Detector
-	secondOrderDetector     *secondorder.Detector
-	ssiDetector             *ssi.Detector
-	storageDetector         *storage.Detector
-	postMsgDetector         *postmsg.Detector
-	discoveryPipeline   *discovery.Pipeline
-	headlessPool        *headless.Pool
-	oobClient           *oob.Client
-	oobReady            chan struct{} // signals when OOB client is ready
-	oobInitErr          error         // error from OOB initialization
-	techHint            *TechHint
-	config              *InternalScanConfig
-	confirmed           *confirmedFindings
-	mu                  sync.Mutex
+	client                 *http.Client
+	sqliDetector           *injection.SQLiDetector
+	xssDetector            *xss.Detector
+	cmdiDetector           *cmdi.Detector
+	ssrfDetector           *ssrf.Detector
+	lfiDetector            *lfi.Detector
+	xxeDetector            *xxe.Detector
+	techDetector           *techstack.Detector
+	nosqlDetector          *nosql.Detector
+	sstiDetector           *ssti.Detector
+	idorDetector           *idor.Detector
+	jwtDetector            *jwt.Detector
+	redirectDetector       *redirect.Detector
+	corsDetector           *cors.Detector
+	crlfDetector           *crlf.Detector
+	ldapDetector           *ldap.Detector
+	xpathDetector          *xpath.Detector
+	headerInjDetector      *headerinj.Detector
+	cstiDetector           *csti.Detector
+	rfiDetector            *rfi.Detector
+	jndiDetector           *jndi.Detector
+	secHeadersDetector     *secheaders.Detector
+	exposureDetector       *exposure.Detector
+	cloudDetector          *cloud.Detector
+	subTakeoverDetector    *subtakeover.Detector
+	tlsAnalyzer            *tlsdetect.Analyzer
+	authDetector           *auth.Detector
+	graphqlDetector        *graphql.Detector
+	smugglingDetector      *smuggling.Detector
+	behaviorDetector       *behavior.Detector
+	storageInjDetector     *storageinj.Detector
+	logInjDetector         *loginj.Detector
+	fileUploadDetector     *fileupload.Detector
+	verbTamperDetector     *verbtamper.Detector
+	pathNormDetector       *pathnorm.Detector
+	raceCondDetector       *racecond.Detector
+	csvInjDetector         *csvinj.Detector
+	wsDetector             *ws.Detector
+	hostHdrDetector        *hosthdr.Detector
+	oauthDetector          *oauth.Detector
+	jsdepDetector          *jsdep.Detector
+	dataExposureDetector   *dataexposure.Detector
+	adminPathDetector      *adminpath.Detector
+	apiVersionDetector     *apiversion.Detector
+	rateLimitDetector      *ratelimit.Detector
+	apiSpecRunner          *apispec.Runner
+	contentTypeDetector    *contenttype.Detector
+	sseDetector            *sse.Detector
+	grpcReflectDetector    *grpcreflect.Detector
+	h2ResetDetector        *h2reset.Detector
+	csrfDetector           *csrf.Detector
+	tabnabbingDetector     *tabnabbing.Detector
+	redosDetector          *redos.Detector
+	promptInjDetector      *promptinjection.Detector
+	xsltDetector           *xslt.Detector
+	samlInjDetector        *samlinj.Detector
+	ormLeakDetector        *ormleak.Detector
+	typeJugglingDetector   *typejuggling.Detector
+	depConfusionDetector   *depconfusion.Detector
+	tokenEntropyDetector   *tokenentropy.Detector
+	cacheDeceptionDetector *cachedeception.Detector
+	cachePoisoningDetector *cachepoisoning.Detector
+	cssInjDetector         *cssinj.Detector
+	deserDetector          *deser.Detector
+	domClobberDetector     *domclobber.Detector
+	emailInjDetector       *emailinj.Detector
+	hppDetector            *hpp.Detector
+	htmlInjDetector        *htmlinj.Detector
+	massAssignDetector     *massassign.Detector
+	protoPollutionDetector *protopollution.Detector
+	secondOrderDetector    *secondorder.Detector
+	ssiDetector            *ssi.Detector
+	storageDetector        *storage.Detector
+	postMsgDetector        *postmsg.Detector
+	// Wave-G — stateful auth flow detectors (default-on but URL-gated)
+	passwordResetDetector    *passwordreset.Detector
+	sessionLifecycleDetector *sessionlifecycle.Detector
+	oauthFlowDetector        *oauthflow.Detector
+	dnsRebindingDetector     *dnsrebinding.Detector
+	openAPISemanticDetector  *openapisemantic.Detector
+	http2AdvancedDetector    *http2advanced.Detector
+	discoveryPipeline        *discovery.Pipeline
+	headlessPool             *headless.Pool
+	oobClient                *oob.Client
+	oobReady                 chan struct{} // signals when OOB client is ready
+	oobInitErr               error         // error from OOB initialization
+	techHint                 *TechHint
+	config                   *InternalScanConfig
+	confirmed                *confirmedFindings
+	mu                       sync.Mutex
 }
-
 
 // NewInternalScanner creates a new internal scanner.
 func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
@@ -202,80 +214,89 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	}
 
 	scanner := &InternalScanner{
-		client:              httpClient,
-		sqliDetector:        injection.NewSQLiDetector(),
-		xssDetector:         xss.New(httpClient),
-		cmdiDetector:        cmdi.New(httpClient),
-		ssrfDetector:        ssrf.New(httpClient),
-		lfiDetector:         lfi.New(httpClient),
-		xxeDetector:         xxe.New(httpClient),
-		techDetector:        techDetector,
-		nosqlDetector:       nosql.New(httpClient),
-		sstiDetector:        ssti.New(httpClient),
-		idorDetector:        idor.New(httpClient),
-		jwtDetector:         jwt.NewDetector(),
-		redirectDetector:    redirect.New(httpClient),
-		corsDetector:        cors.New(httpClient),
-		crlfDetector:        crlf.New(httpClient),
-		ldapDetector:        ldap.New(httpClient),
-		xpathDetector:       xpath.New(httpClient),
-		headerInjDetector:   headerinj.New(httpClient),
-		cstiDetector:        csti.New(httpClient),
-		rfiDetector:         rfi.New(httpClient),
-		jndiDetector:        jndi.New(httpClient),
-		secHeadersDetector:  secheaders.New(httpClient),
-		exposureDetector:    exposure.New(httpClient),
-		cloudDetector:       cloud.New(httpClient),
-		subTakeoverDetector: subtakeover.New(httpClient),
-		tlsAnalyzer:         tlsdetect.New(httpClient),
-		authDetector:        auth.New(httpClient),
-		graphqlDetector:     graphql.New(httpClient),
-		smugglingDetector:   smuggling.NewDetector(),
-		behaviorDetector:    behavior.New(httpClient),
-		logInjDetector:      loginj.New(httpClient),
-		fileUploadDetector:  fileupload.New(httpClient),
-		verbTamperDetector:  verbtamper.New(httpClient),
-		pathNormDetector:    pathnorm.New(httpClient),
-		raceCondDetector:    racecond.New(httpClient),
-		csvInjDetector:      csvinj.New(httpClient),
-		wsDetector:          ws.New(httpClient),
-		hostHdrDetector:     hosthdr.New(httpClient),
-		oauthDetector:       oauth.New(httpClient),
-		jsdepDetector:        jsdep.New(httpClient, config.NVDAPIKey),
-		dataExposureDetector: dataexposure.New(httpClient),
-		adminPathDetector:    adminpath.New(httpClient),
-		apiVersionDetector:   apiversion.New(httpClient),
-		rateLimitDetector:    ratelimit.New(httpClient),
-		apiSpecRunner:        apispec.NewRunner(httpClient),
-		contentTypeDetector:  contenttype.New(httpClient),
-		sseDetector:          sse.New(httpClient),
-		grpcReflectDetector:  grpcreflect.New(httpClient),
-		h2ResetDetector:      h2reset.New(),
-		csrfDetector:         csrf.New(httpClient),
-		tabnabbingDetector:   tabnabbing.New(httpClient),
-		redosDetector:        redos.New(httpClient),
-		promptInjDetector:    promptinjection.New(httpClient),
-		xsltDetector:         xslt.New(httpClient),
-		samlInjDetector:      samlinj.New(httpClient),
-		ormLeakDetector:      ormleak.New(httpClient),
-		typeJugglingDetector: typejuggling.New(httpClient),
-		depConfusionDetector: depconfusion.New(httpClient),
-		tokenEntropyDetector: tokenentropy.New(httpClient),
-		cacheDeceptionDetector: cachedeception.New(httpClient),
-		cachePoisoningDetector: cachepoisoning.New(httpClient),
-		cssInjDetector:         cssinj.New(httpClient),
-		deserDetector:          deser.New(httpClient),
-		domClobberDetector:     domclobber.New(httpClient),
-		emailInjDetector:       emailinj.New(httpClient),
-		hppDetector:            hpp.New(httpClient),
-		htmlInjDetector:        htmlinj.New(httpClient),
-		massAssignDetector:     massassign.New(httpClient),
-		protoPollutionDetector: protopollution.New(httpClient),
-		secondOrderDetector:    secondorder.New(httpClient),
-		ssiDetector:            ssi.New(httpClient),
-		storageDetector:        storage.New(&nethttp.Client{Timeout: config.RequestTimeout}),
-		config:              config,
-		confirmed:           newConfirmedFindings(),
+		client:                   httpClient,
+		sqliDetector:             injection.NewSQLiDetector(),
+		xssDetector:              xss.New(httpClient),
+		cmdiDetector:             cmdi.New(httpClient),
+		ssrfDetector:             ssrf.New(httpClient),
+		lfiDetector:              lfi.New(httpClient),
+		xxeDetector:              xxe.New(httpClient),
+		techDetector:             techDetector,
+		nosqlDetector:            nosql.New(httpClient),
+		sstiDetector:             ssti.New(httpClient),
+		idorDetector:             idor.New(httpClient),
+		jwtDetector:              jwt.NewDetector(),
+		redirectDetector:         redirect.New(httpClient),
+		corsDetector:             cors.New(httpClient),
+		crlfDetector:             crlf.New(httpClient),
+		ldapDetector:             ldap.New(httpClient),
+		xpathDetector:            xpath.New(httpClient),
+		headerInjDetector:        headerinj.New(httpClient),
+		cstiDetector:             csti.New(httpClient),
+		rfiDetector:              rfi.New(httpClient),
+		jndiDetector:             jndi.New(httpClient),
+		secHeadersDetector:       secheaders.New(httpClient),
+		exposureDetector:         exposure.New(httpClient),
+		cloudDetector:            cloud.New(httpClient),
+		subTakeoverDetector:      subtakeover.New(httpClient),
+		tlsAnalyzer:              tlsdetect.New(httpClient),
+		authDetector:             auth.New(httpClient),
+		graphqlDetector:          graphql.New(httpClient),
+		smugglingDetector:        smuggling.NewDetector(),
+		behaviorDetector:         behavior.New(httpClient),
+		logInjDetector:           loginj.New(httpClient),
+		fileUploadDetector:       fileupload.New(httpClient),
+		verbTamperDetector:       verbtamper.New(httpClient),
+		pathNormDetector:         pathnorm.New(httpClient),
+		raceCondDetector:         racecond.New(httpClient),
+		csvInjDetector:           csvinj.New(httpClient),
+		wsDetector:               ws.New(httpClient),
+		hostHdrDetector:          hosthdr.New(httpClient),
+		oauthDetector:            oauth.New(httpClient),
+		jsdepDetector:            jsdep.New(httpClient, config.NVDAPIKey),
+		dataExposureDetector:     dataexposure.New(httpClient),
+		adminPathDetector:        adminpath.New(httpClient),
+		apiVersionDetector:       apiversion.New(httpClient),
+		rateLimitDetector:        ratelimit.New(httpClient),
+		apiSpecRunner:            apispec.NewRunner(httpClient),
+		contentTypeDetector:      contenttype.New(httpClient),
+		sseDetector:              sse.New(httpClient),
+		grpcReflectDetector:      grpcreflect.New(httpClient),
+		h2ResetDetector:          h2reset.New(),
+		csrfDetector:             csrf.New(httpClient),
+		tabnabbingDetector:       tabnabbing.New(httpClient),
+		redosDetector:            redos.New(httpClient),
+		promptInjDetector:        promptinjection.New(httpClient),
+		xsltDetector:             xslt.New(httpClient),
+		samlInjDetector:          samlinj.New(httpClient),
+		ormLeakDetector:          ormleak.New(httpClient),
+		typeJugglingDetector:     typejuggling.New(httpClient),
+		depConfusionDetector:     depconfusion.New(httpClient),
+		tokenEntropyDetector:     tokenentropy.New(httpClient),
+		cacheDeceptionDetector:   cachedeception.New(httpClient),
+		cachePoisoningDetector:   cachepoisoning.New(httpClient),
+		cssInjDetector:           cssinj.New(httpClient),
+		deserDetector:            deser.New(httpClient),
+		domClobberDetector:       domclobber.New(httpClient),
+		emailInjDetector:         emailinj.New(httpClient),
+		hppDetector:              hpp.New(httpClient),
+		htmlInjDetector:          htmlinj.New(httpClient),
+		massAssignDetector:       massassign.New(httpClient),
+		protoPollutionDetector:   protopollution.New(httpClient),
+		secondOrderDetector:      secondorder.New(httpClient),
+		ssiDetector:              ssi.New(httpClient),
+		storageDetector:          storage.New(&nethttp.Client{Timeout: config.RequestTimeout}),
+		passwordResetDetector:    passwordreset.New(httpClient),
+		sessionLifecycleDetector: sessionlifecycle.New(httpClient),
+		oauthFlowDetector:        oauthflow.New(httpClient),
+		dnsRebindingDetector:     dnsrebinding.New(httpClient),
+		openAPISemanticDetector:  openapisemantic.New(httpClient),
+		// http2AdvancedDetector is target-scoped; lazily replaced per scan in
+		// testHTTP2Advanced because http2advanced.New takes a target string,
+		// not an *http.Client.
+		http2AdvancedDetector: http2advanced.New(""),
+		config:                config,
+		confirmed:             newConfirmedFindings(),
 	}
 
 	// Initialize discovery pipeline with all discoverers

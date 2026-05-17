@@ -30,6 +30,29 @@ func (s *InternalScanner) runURLLevelTests(ctx context.Context, wg *sync.WaitGro
 	s.launchURLDOM(ctx, wg, findingsChan, targetURL)
 	s.launchURLAPI(ctx, wg, findingsChan, targetURL)
 	s.launchURLModern(ctx, wg, findingsChan, targetURL, scanCfg)
+	s.launchURLAuthFlow(ctx, wg, findingsChan, targetURL)
+}
+
+// launchURLAuthFlow dispatches the Wave-G stateful-auth probes. Each one is
+// gated on both its enable flag AND the presence of the URL it needs — an
+// OAuth-flow probe with no AuthzURL can't do anything useful, so silently
+// drop it rather than burn a goroutine on a no-op.
+func (s *InternalScanner) launchURLAuthFlow(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string) {
+	c := s.config
+	s.launchIf(wg, c.EnableTimingEnum && c.LoginURL != "",
+		func() { emit(ctx, findingsChan, s.testTimingEnum(ctx, c.LoginURL)) })
+	s.launchIf(wg, c.EnablePasswordReset && c.PasswordResetURL != "",
+		func() { emit(ctx, findingsChan, s.testPasswordReset(ctx, c.PasswordResetURL)) })
+	s.launchIf(wg, c.EnableSessionLifecycle && c.LoginURL != "" && c.ProtectedURL != "",
+		func() { emit(ctx, findingsChan, s.testSessionLifecycle(ctx)) })
+	s.launchIf(wg, c.EnableOAuthFlow && c.OAuthAuthzURL != "",
+		func() { emit(ctx, findingsChan, s.testOAuthFlow(ctx)) })
+	s.launchIf(wg, c.EnableDNSRebinding,
+		func() { emit(ctx, findingsChan, s.testDNSRebinding(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableOpenAPISemantic && c.APISpecURL != "",
+		func() { emit(ctx, findingsChan, s.testOpenAPISemantic(ctx)) })
+	s.launchIf(wg, c.EnableHTTP2Advanced,
+		func() { emit(ctx, findingsChan, s.testHTTP2Advanced(ctx, targetURL)) })
 }
 
 // launchURLClassic dispatches the classic OWASP-Top-10 URL-level probes:
