@@ -223,7 +223,7 @@ func TestDetector_OWASPMapping(t *testing.T) {
 		t.Errorf("Expected WSTG-INPV-10 mapping, got %v", finding.WSTG)
 	}
 
-	if len(finding.Top10) == 0 || finding.Top10[0] != "A03:2025" {
+	if len(finding.Top10) == 0 || finding.Top10[0] != "A05:2025" {
 		t.Errorf("Expected A03:2025 mapping, got %v", finding.Top10)
 	}
 

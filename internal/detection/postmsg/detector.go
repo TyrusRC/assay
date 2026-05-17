@@ -142,7 +142,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 	finding.Remediation = "Validate event.origin in every window.message listener before acting on event.data. Compare against an allowlist of trusted origins; never use startsWith / regex / includes against the origin string. Reference: https://developer.mozilla.org/docs/Web/API/Window/postMessage and OWASP WSTG-CLNT-11."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-11"},
-		[]string{"A03:2025", "A04:2025"},
+		[]string{"A05:2025", "A06:2025"},
 		[]string{"CWE-346", "CWE-942"},
 	)
 

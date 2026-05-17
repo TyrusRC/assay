@@ -220,7 +220,7 @@ func buildFinding(target, payloadDesc, baseline, evidence string) *core.Finding 
 	finding.Remediation = "Pin the system prompt outside the user-content channel (separate API field or wrapper layer). Validate user input against jailbreak patterns. Apply output filters that reject the canary patterns the prompt-injection probes use. Do not feed model output into a privileged execution context (no `eval`, no shell, no SQL)."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A04:2025"},
+		[]string{"A06:2025"},
 		[]string{"CWE-1426"},
 	)
 	finding.APITop10 = []string{"API10:2023"}

@@ -269,7 +269,7 @@ func (d *Detector) createFinding(target, param string, payload hpppayloads.Paylo
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-04"}, // Testing for HTTP Parameter Pollution
-		[]string{"A03:2025"},     // Injection
+		[]string{"A05:2025"},     // Injection
 		[]string{"CWE-235"},      // Improper Handling of Extra Parameters
 	)
 

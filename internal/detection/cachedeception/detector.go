@@ -204,7 +204,7 @@ func (d *Detector) buildFinding(target string, p probeURL, resp *internalhttp.Re
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-ATHN-06", "WSTG-CONF-08"},
-		[]string{"A04:2025", "A05:2025"},
+		[]string{"A06:2025", "A02:2025"},
 		[]string{"CWE-524", "CWE-525"},
 	)
 	finding.APITop10 = []string{"API1:2023", "API3:2023"}

@@ -226,7 +226,7 @@ func (d *Detector) DetectAliasBatching(ctx context.Context, target string, opts 
 	finding.Remediation = "Apply rate limiting at the GraphQL document level — count the number of aliased fields in the parsed query, not the number of HTTP requests. Reject queries that exceed an alias budget for sensitive operations (login, password reset, OTP). Disable field aliasing entirely for authentication mutations if your engine supports it. Apollo Server supports operation complexity / alias-count plugins; Hasura supports query depth and node count limits. Reference: PortSwigger Web Security Academy 'Bypassing rate limits using GraphQL aliases'."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-13"},
-		[]string{"A04:2025"},
+		[]string{"A06:2025"},
 		[]string{"CWE-307", "CWE-799"},
 	)
 	finding.APITop10 = []string{"API4:2023"}

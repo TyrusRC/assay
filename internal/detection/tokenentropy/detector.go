@@ -221,7 +221,7 @@ func buildFinding(target, name, value, source, reason string) *core.Finding {
 	finding.Remediation = "Generate session / CSRF tokens with crypto/rand (Go), `secrets.token_urlsafe()` (Python), `crypto.randomBytes()` (Node), or the equivalent CSPRNG in your language. Aim for at least 128 bits of entropy and a base64url alphabet."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-SESS-01"},
-		[]string{"A02:2025"},
+		[]string{"A04:2025"},
 		[]string{"CWE-330"},
 	)
 	finding.APITop10 = []string{"API2:2023"}

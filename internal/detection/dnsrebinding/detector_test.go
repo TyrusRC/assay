@@ -123,7 +123,7 @@ func TestDetectShortTTLMultiIP_MixedScope(t *testing.T) {
 	if len(f.WSTG) == 0 || f.WSTG[0] != "WSTG-INPV-19" {
 		t.Errorf("missing WSTG mapping: %+v", f.WSTG)
 	}
-	if len(f.Top10) == 0 || f.Top10[0] != "A10:2025" {
+	if len(f.Top10) == 0 || f.Top10[0] != "A01:2025" {
 		t.Errorf("missing Top10 mapping: %+v", f.Top10)
 	}
 	if len(f.CWE) < 2 {

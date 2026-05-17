@@ -156,7 +156,7 @@ func buildFinding(target string, alt alternativeParser, resp *skwshttp.Response)
 	finding.Remediation = "Pin the request parser to a single content-type per endpoint, or apply the same authentication / validation / rate-limit logic across every parser the route accepts. Reject unexpected content-types with 415."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-12"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-436"},
 	)
 	finding.APITop10 = []string{"API3:2023", "API8:2023"}

@@ -119,7 +119,7 @@ func TestDetectSettingsFlood_AgainstRealH2(t *testing.T) {
 		if !containsAny(f.CWE, "CWE-400", "CWE-770") {
 			t.Errorf("expected CWE-400 or CWE-770, got %v", f.CWE)
 		}
-		if !containsAny(f.Top10, "A05:2025") {
+		if !containsAny(f.Top10, "A02:2025") {
 			t.Errorf("expected A05:2025 in Top10, got %v", f.Top10)
 		}
 	}

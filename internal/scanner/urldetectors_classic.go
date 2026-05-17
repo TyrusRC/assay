@@ -209,7 +209,7 @@ func (s *InternalScanner) testSmuggling(ctx context.Context, targetURL string) [
 		finding.Remediation = "Ensure consistent interpretation of Content-Length and Transfer-Encoding headers between frontend and backend servers."
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-15"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-444"},
 		)
 		findings = append(findings, finding)

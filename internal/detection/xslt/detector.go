@@ -132,7 +132,7 @@ func buildFinding(target, kind, marker, body string, sev core.Severity) *core.Fi
 	finding.Remediation = "Disable XSLT processing if it isn't required. If it is, run it in a sandboxed processor (e.g. Saxon-HE with `setURIResolver` denying file://; Apache Xalan with the SecureProcessing feature). Reject any document() / system-property / extension-namespace constructs that arrive in user-supplied stylesheets."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-11"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-91"},
 	)
 	finding.APITop10 = []string{"API3:2023", "API8:2023"}

@@ -138,7 +138,7 @@ func buildFinding(targetURL string, lib Library, cpe string, cve CVE) *core.Find
 	)
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-09"},
-		[]string{"A06:2025"},
+		[]string{"A03:2025"},
 		[]string{"CWE-1104"},
 	)
 	finding.References = []string{

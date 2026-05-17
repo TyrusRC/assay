@@ -185,7 +185,7 @@ func buildFinding(targetURL, param, payloadDesc string, base, payload time.Durat
 	finding.Remediation = "Replace the affected regex with a linear-time engine (RE2, Hyperscan), or simplify the pattern to avoid nested quantifiers and overlapping alternations. Validate input length before regex evaluation."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A04:2025"},
+		[]string{"A06:2025"},
 		[]string{"CWE-1333"},
 	)
 	finding.APITop10 = []string{"API4:2023"}

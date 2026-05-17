@@ -154,7 +154,7 @@ func buildFinding(probedURL, path string, resp *skwshttp.Response, services []st
 	finding.Remediation = "Disable gRPC reflection in production deployments. Build the server without `reflection.Register(s)` (Go) / `ProtoReflectionService.newInstance()` (Java) / `grpc_reflection.enable_server_reflection()` (Python) outside development environments."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-04"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-200"},
 	)
 	finding.APITop10 = []string{"API9:2023"}

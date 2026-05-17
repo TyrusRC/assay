@@ -138,7 +138,7 @@ func buildFinding(targetURL, href string) *core.Finding {
 	finding.Remediation = "Add `rel=\"noopener noreferrer\"` to every `<a target=\"_blank\">` link. Modern browsers default-imply noopener but older tabs and embedded webviews do not."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-13"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-1022"},
 	)
 	return finding

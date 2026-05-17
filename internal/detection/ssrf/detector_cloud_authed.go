@@ -282,9 +282,10 @@ func (d *Detector) buildCloudAuthedFinding(
 
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A10:2025"},
+		[]string{"A01:2025"},
 		[]string{"CWE-918"},
 	)
+	f.APITop10 = []string{"API7:2023"} // Server Side Request Forgery
 	return f
 }
 

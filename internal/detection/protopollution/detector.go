@@ -208,7 +208,7 @@ func (d *Detector) createFinding(target, param string, payload protopollution.Pa
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-06"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-1321"},
 	)
 

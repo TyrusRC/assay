@@ -10,6 +10,10 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/auth"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/http2advanced"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/mfabypass"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/paddingoracle"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sessionfixation"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/stacktrace"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauthflow"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/openapisemantic"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/passwordreset"
@@ -164,6 +168,80 @@ func (s *InternalScanner) testHTTP2Advanced(ctx context.Context, targetURL strin
 		Target:           targetURL,
 		AllowDestructive: false, // safe default; opt-in via flag if ever exposed
 		Timeout:          s.config.RequestTimeout,
+	})
+	if err != nil || !result.Vulnerable {
+		return nil
+	}
+	return result.Findings
+}
+
+// testSessionFixation runs the pre-auth cookie + query-string session checks
+// against the configured login + protected URLs.
+func (s *InternalScanner) testSessionFixation(ctx context.Context) []*core.Finding {
+	c := s.config
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing session fixation (login=%s)...\n", c.LoginURL)
+	}
+	result, err := s.sessionFixationDetector.DetectAll(ctx, sessionfixation.DetectOptions{
+		LoginURL:     c.LoginURL,
+		ProtectedURL: c.ProtectedURL,
+		Username:     c.AuthA.Username,
+		Password:     c.AuthA.Password,
+		Timeout:      c.RequestTimeout,
+	})
+	if err != nil || !result.Vulnerable {
+		return nil
+	}
+	return result.Findings
+}
+
+// testStackTrace probes the target with malformed input designed to trigger
+// framework errors, then matches the response body against the framework
+// stack-trace pattern catalog.
+func (s *InternalScanner) testStackTrace(ctx context.Context, targetURL string) []*core.Finding {
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing stack-trace disclosure on '%s'...\n", targetURL)
+	}
+	result, err := s.stackTraceDetector.DetectFromBaseline(ctx, targetURL, stacktrace.DetectOptions{
+		Timeout: s.config.RequestTimeout,
+	})
+	if err != nil || !result.Vulnerable {
+		return nil
+	}
+	return result.Findings
+}
+
+// testMFABypass runs the four MFA-bypass probes against the configured
+// MFA submission endpoint.
+func (s *InternalScanner) testMFABypass(ctx context.Context) []*core.Finding {
+	c := s.config
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing MFA bypass (mfa=%s)...\n", c.MFASubmitURL)
+	}
+	result, err := s.mfaBypassDetector.DetectAll(ctx, mfabypass.DetectOptions{
+		LoginURL:     c.LoginURL,
+		MFASubmitURL: c.MFASubmitURL,
+		ProtectedURL: c.ProtectedURL,
+		Username:     c.AuthA.Username,
+		Password:     c.AuthA.Password,
+		Timeout:      c.RequestTimeout,
+	})
+	if err != nil || !result.Vulnerable {
+		return nil
+	}
+	return result.Findings
+}
+
+// testPaddingOracle runs a CBC padding-oracle probe against a configured
+// encrypted token. Caller must supply both the token sample and the param
+// name carrying it (cookie or query string).
+func (s *InternalScanner) testPaddingOracle(ctx context.Context, targetURL string) []*core.Finding {
+	c := s.config
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing CBC padding oracle (param=%s)...\n", c.PaddingOracleParam)
+	}
+	result, err := s.paddingOracleDetector.DetectFromToken(ctx, targetURL, c.PaddingOracleParam, c.PaddingOracleToken, paddingoracle.DetectOptions{
+		Timeout: c.RequestTimeout,
 	})
 	if err != nil || !result.Vulnerable {
 		return nil

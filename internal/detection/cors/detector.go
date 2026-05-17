@@ -403,7 +403,7 @@ func (d *Detector) createFinding(target string, origin testOrigin, corsResult *c
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-07"}, // Test Cross Origin Resource Sharing (not exact but closest)
-		[]string{"A05:2025"},     // Security Misconfiguration
+		[]string{"A02:2025"},     // Security Misconfiguration
 		[]string{"CWE-942"},      // Permissive CORS Policy
 	)
 
@@ -437,7 +437,7 @@ func (d *Detector) createPreflightFinding(target string, corsResult *corsTestRes
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-07"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-942"},
 	)
 

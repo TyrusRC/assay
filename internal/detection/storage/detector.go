@@ -207,7 +207,7 @@ func (d *Detector) analyzeCookieFlags(target string, c *http.Cookie) []*core.Fin
 		)
 		f.WithOWASPMapping(
 			[]string{"WSTG-SESS-02"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-614"},
 		)
 		findings = append(findings, f)
@@ -225,7 +225,7 @@ func (d *Detector) analyzeCookieFlags(target string, c *http.Cookie) []*core.Fin
 		)
 		f.WithOWASPMapping(
 			[]string{"WSTG-SESS-02"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-1004"},
 		)
 		findings = append(findings, f)
@@ -243,7 +243,7 @@ func (d *Detector) analyzeCookieFlags(target string, c *http.Cookie) []*core.Fin
 		)
 		f.WithOWASPMapping(
 			[]string{"WSTG-SESS-02"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-16"},
 		)
 		findings = append(findings, f)
@@ -258,7 +258,7 @@ func (d *Detector) analyzeCookieFlags(target string, c *http.Cookie) []*core.Fin
 		)
 		f.WithOWASPMapping(
 			[]string{"WSTG-SESS-02"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-16"},
 		)
 		findings = append(findings, f)
@@ -280,7 +280,7 @@ func (d *Detector) analyzeCookieFlags(target string, c *http.Cookie) []*core.Fin
 		)
 		f.WithOWASPMapping(
 			[]string{"WSTG-SESS-02"},
-			[]string{"A05:2025"},
+			[]string{"A02:2025"},
 			[]string{"CWE-16"},
 		)
 		findings = append(findings, f)

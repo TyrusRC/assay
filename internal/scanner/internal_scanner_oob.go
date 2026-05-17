@@ -104,13 +104,13 @@ func (s *InternalScanner) testOOBWithClient(ctx context.Context, targetURL strin
 		// Add OWASP mappings based on payload type
 		switch interaction.PayloadType {
 		case oob.PayloadTypeSQLi:
-			finding.WithOWASPMapping([]string{"WSTG-INPV-05"}, []string{"A03:2025"}, []string{"CWE-89"})
+			finding.WithOWASPMapping([]string{"WSTG-INPV-05"}, []string{"A05:2025"}, []string{"CWE-89"})
 		case oob.PayloadTypeSSRF:
-			finding.WithOWASPMapping([]string{"WSTG-INPV-19"}, []string{"A10:2025"}, []string{"CWE-918"})
+			finding.WithOWASPMapping([]string{"WSTG-INPV-19"}, []string{"A01:2025"}, []string{"CWE-918"})
 		case oob.PayloadTypeRCE:
-			finding.WithOWASPMapping([]string{"WSTG-INPV-12"}, []string{"A03:2025"}, []string{"CWE-78"})
+			finding.WithOWASPMapping([]string{"WSTG-INPV-12"}, []string{"A05:2025"}, []string{"CWE-78"})
 		case oob.PayloadTypeXXE:
-			finding.WithOWASPMapping([]string{"WSTG-INPV-07"}, []string{"A05:2025"}, []string{"CWE-611"})
+			finding.WithOWASPMapping([]string{"WSTG-INPV-07"}, []string{"A02:2025"}, []string{"CWE-611"})
 		}
 
 		findings = append(findings, finding)

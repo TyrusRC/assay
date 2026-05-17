@@ -160,7 +160,7 @@ func (d *Detector) createFinding(target, param string, payload cssinj.Payload, r
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-05"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-1236"},
 	)
 

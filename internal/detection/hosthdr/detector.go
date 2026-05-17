@@ -197,7 +197,7 @@ func (d *Detector) createFinding(target, header, desc, attacker string, resp *ht
 		"Configure reverse proxies to drop or normalize these headers before they reach the application."
 	f.WithOWASPMapping(
 		[]string{"WSTG-CONF-09"},   // Test for Subdomain Takeover / proxy misconfig family
-		[]string{"A05:2025"},       // Security Misconfiguration
+		[]string{"A02:2025"},       // Security Misconfiguration
 		[]string{"CWE-644"},        // Improper Neutralization of HTTP Headers for Scripting Syntax
 	)
 	return f

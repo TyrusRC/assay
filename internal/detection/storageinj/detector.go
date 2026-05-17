@@ -137,7 +137,7 @@ func (d *Detector) testInjection(ctx context.Context, page *headless.Page, targe
 				finding.Remediation = "Sanitize all values read from client-side storage before inserting into the DOM. Use textContent instead of innerHTML."
 				finding.WithOWASPMapping(
 					[]string{"WSTG-CLNT-12"},
-					[]string{"A03:2025"},
+					[]string{"A05:2025"},
 					[]string{"CWE-79"},
 				)
 				result.Findings = append(result.Findings, finding)
@@ -183,7 +183,7 @@ func (d *Detector) checkKeysForSensitiveData(data map[string]string, storageName
 				finding.Remediation = "Avoid storing sensitive data in client-side storage. Use HttpOnly cookies for session tokens. Use server-side sessions for sensitive data."
 				finding.WithOWASPMapping(
 					[]string{"WSTG-SESS-02"},
-					[]string{"A02:2025"},
+					[]string{"A04:2025"},
 					[]string{"CWE-922"},
 				)
 				result.Findings = append(result.Findings, finding)

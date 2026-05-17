@@ -326,7 +326,7 @@ func (s *SQLMap) extractFindings(output, target string) []*core.Finding {
 			// Add OWASP mappings
 			finding.WithOWASPMapping(
 				[]string{"WSTG-INPV-05"},
-				[]string{"A03:2025"},
+				[]string{"A05:2025"},
 				[]string{"CWE-89"},
 			)
 
@@ -342,7 +342,7 @@ func (s *SQLMap) extractFindings(output, target string) []*core.Finding {
 		finding.Tool = s.Name()
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-05"},
-			[]string{"A03:2025"},
+			[]string{"A05:2025"},
 			[]string{"CWE-89"},
 		)
 		findings = append(findings, finding)

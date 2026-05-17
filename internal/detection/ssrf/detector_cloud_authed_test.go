@@ -101,7 +101,7 @@ func TestDetector_ProbeIMDSv2(t *testing.T) {
 	if len(finding.WSTG) == 0 || finding.WSTG[0] != "WSTG-INPV-19" {
 		t.Errorf("WSTG mapping missing/wrong: %v", finding.WSTG)
 	}
-	if len(finding.Top10) == 0 || finding.Top10[0] != "A10:2025" {
+	if len(finding.Top10) == 0 || finding.Top10[0] != "A01:2025" {
 		t.Errorf("Top10 mapping missing/wrong: %v", finding.Top10)
 	}
 	if len(finding.CWE) == 0 || finding.CWE[0] != "CWE-918" {

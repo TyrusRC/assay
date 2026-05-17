@@ -371,7 +371,7 @@ func newForwardedHostFinding(target, via, attacker string) *core.Finding {
 		"validate that the forwarded host matches an approved virtual host."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-20"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-20", "CWE-444"},
 	)
 	return f
@@ -394,7 +394,7 @@ func newAbsoluteURIFinding(target, attacker string) *core.Finding {
 		"agree on the authoritative routing key for a given request."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-20"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-444", "CWE-20"},
 	)
 	return f
@@ -417,7 +417,7 @@ func newCachePoisoningFinding(target, attacker string) *core.Finding {
 		"influences response content but isn't keyed by the cache as a poisoning risk."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-20"},
-		[]string{"A03:2025", "A05:2025"},
+		[]string{"A05:2025", "A02:2025"},
 		[]string{"CWE-444", "CWE-20"},
 	)
 	return f

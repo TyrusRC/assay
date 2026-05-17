@@ -13,8 +13,8 @@ func TestGetCategory(t *testing.T) {
 		{"A03:2021", true},
 		{"A10:2021", true},
 		{"A01:2025", true},
-		{"A03:2025", true},
-		{"A10:2025", true},
+		{"A05:2025", true},
+		{"A01:2025", true},
 		{"A11:2021", false},
 		{"A11:2025", false},
 		{"", false},
@@ -58,12 +58,12 @@ func TestGetCategory_Fields(t *testing.T) {
 }
 
 func TestGetCategory_2025Fields(t *testing.T) {
-	cat := GetCategory("A03:2025")
+	cat := GetCategory("A05:2025")
 	if cat == nil {
 		t.Fatal("Expected non-nil category for A03:2025")
 	}
 
-	if cat.ID != "A03:2025" {
+	if cat.ID != "A05:2025" {
 		t.Errorf("Expected ID 'A03:2025', got '%s'", cat.ID)
 	}
 	if cat.Version != "2025" {
@@ -102,10 +102,10 @@ func TestGetRisk(t *testing.T) {
 		{"A03:2021", true},
 		{"A10:2021", true},
 		{"A01:2025", true},
-		{"A03:2025", true},
-		{"A10:2025", true},
+		{"A05:2025", true},
+		{"A01:2025", true},
 		{"A04:2021", false}, // Not all categories have risk metadata
-		{"A04:2025", false},
+		{"A06:2025", false},
 		{"invalid", false},
 	}
 
@@ -166,8 +166,8 @@ func TestGetAllCategories(t *testing.T) {
 
 	// Verify all 2025 categories are present
 	expected2025IDs := []string{
-		"A01:2025", "A02:2025", "A03:2025", "A04:2025", "A05:2025",
-		"A06:2025", "A07:2025", "A08:2025", "A09:2025", "A10:2025",
+		"A01:2025", "A04:2025", "A05:2025", "A06:2025", "A02:2025",
+		"A03:2025", "A07:2025", "A08:2025", "A09:2025", "A01:2025",
 	}
 
 	for _, id := range expected2025IDs {
@@ -182,12 +182,12 @@ func TestGetTop10ForVulnerability(t *testing.T) {
 		vulnType string
 		expected string
 	}{
-		{"SQL Injection", "A03:2025"},
-		{"XSS", "A03:2025"},
-		{"Command Injection", "A03:2025"},
-		{"SSRF", "A10:2025"},
+		{"SQL Injection", "A05:2025"},
+		{"XSS", "A05:2025"},
+		{"Command Injection", "A05:2025"},
+		{"SSRF", "A01:2025"},
 		{"LFI", "A01:2025"},
-		{"XXE", "A05:2025"},
+		{"XXE", "A02:2025"},
 		{"Broken Access Control", "A01:2025"},
 		{"Unknown Vuln", ""},
 	}
@@ -238,10 +238,10 @@ func TestGetSeverityForCategory(t *testing.T) {
 		{"A01:2021", "medium"}, // AvgCVSS 6.92
 		{"A03:2021", "high"},   // AvgCVSS 7.25
 		{"A10:2021", "high"},   // AvgCVSS 8.28
-		{"A01:2025", "medium"}, // Same stats as 2021
-		{"A03:2025", "high"},
-		{"A10:2025", "high"},
-		{"invalid", "medium"}, // Default
+		{"A01:2025", "medium"}, // Same stats as A01:2021
+		{"A05:2025", "high"},   // Same stats as A03:2021
+		{"A10:2025", "medium"}, // New category, AvgCVSS 6.75
+		{"invalid", "medium"},  // Default
 	}
 
 	for _, tt := range tests {
@@ -354,9 +354,10 @@ func TestGetRisk_2025(t *testing.T) {
 		wantRank int
 	}{
 		{"A01:2021", "A01:2025", 1},
-		{"A02:2021", "A02:2025", 2},
-		{"A03:2021", "A03:2025", 3},
-		{"A10:2021", "A10:2025", 10},
+		{"A02:2021", "A04:2025", 2},
+		{"A03:2021", "A05:2025", 3},
+		// A10:2021 SSRF folded into A01:2025 Broken Access Control;
+		// rank is no longer equivalent so it is excluded from this table.
 	}
 
 	for _, tt := range tests {
@@ -382,20 +383,25 @@ func TestGetRisk_2025(t *testing.T) {
 }
 
 func TestCategory2025HasSameDataAs2021(t *testing.T) {
+	// 2021 → 2025 ordinal rotation. SSRF (A10:2021) folded into A01:2025
+	// Broken Access Control with a wider CWE list, so it is excluded from the
+	// equivalence check. A06:2021 "Vulnerable Components" → A03:2025 "Supply
+	// Chain Failures" is a rename + scope-widening, so names/CWEs differ —
+	// only the slot mapping is asserted.
 	pairs := []struct {
-		id2021 string
-		id2025 string
+		id2021      string
+		id2025      string
+		strictMatch bool
 	}{
-		{"A01:2021", "A01:2025"},
-		{"A02:2021", "A02:2025"},
-		{"A03:2021", "A03:2025"},
-		{"A04:2021", "A04:2025"},
-		{"A05:2021", "A05:2025"},
-		{"A06:2021", "A06:2025"},
-		{"A07:2021", "A07:2025"},
-		{"A08:2021", "A08:2025"},
-		{"A09:2021", "A09:2025"},
-		{"A10:2021", "A10:2025"},
+		{"A01:2021", "A01:2025", true},
+		{"A02:2021", "A04:2025", true},
+		{"A03:2021", "A05:2025", true},
+		{"A04:2021", "A06:2025", true},
+		{"A05:2021", "A02:2025", true},
+		{"A06:2021", "A03:2025", false}, // renamed to Supply Chain Failures
+		{"A07:2021", "A07:2025", false}, // renamed to drop "Identification"
+		{"A08:2021", "A08:2025", false}, // renamed "and" → "or"
+		{"A09:2021", "A09:2025", true},
 	}
 
 	for _, pair := range pairs {
@@ -408,16 +414,16 @@ func TestCategory2025HasSameDataAs2021(t *testing.T) {
 			if cat2025 == nil {
 				t.Fatalf("Missing %s", pair.id2025)
 			}
-			if cat2021.Name != cat2025.Name {
+			if pair.strictMatch && cat2021.Name != cat2025.Name {
 				t.Errorf("Name mismatch: %s vs %s", cat2021.Name, cat2025.Name)
 			}
-			if cat2021.Description != cat2025.Description {
+			if pair.strictMatch && cat2021.Description != cat2025.Description {
 				t.Errorf("Description mismatch for %s", pair.id2025)
 			}
-			if cat2021.Remediation != cat2025.Remediation {
+			if pair.strictMatch && cat2021.Remediation != cat2025.Remediation {
 				t.Errorf("Remediation mismatch for %s", pair.id2025)
 			}
-			if len(cat2021.CWEs) != len(cat2025.CWEs) {
+			if pair.strictMatch && len(cat2021.CWEs) != len(cat2025.CWEs) {
 				t.Errorf("CWEs length mismatch for %s: %d vs %d", pair.id2025, len(cat2021.CWEs), len(cat2025.CWEs))
 			}
 		})

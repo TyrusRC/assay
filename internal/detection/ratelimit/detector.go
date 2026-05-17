@@ -174,7 +174,7 @@ func buildFinding(targetURL string, u *url.URL, statuses []int) *core.Finding {
 	finding.Remediation = "Apply per-IP and per-user rate limits at the edge or application layer. Authentication, password-reset, signup, and checkout flows in particular should ship with strict short-window limits and CAPTCHA or PoW for high-volume callers."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-BUSL-04"},
-		[]string{"A04:2025"},
+		[]string{"A06:2025"},
 		[]string{"CWE-770"},
 	)
 	finding.APITop10 = []string{"API4:2023", "API6:2023"}

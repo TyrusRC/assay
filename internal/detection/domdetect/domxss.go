@@ -80,7 +80,7 @@ func DetectXSS(ctx context.Context, runner Runner, targetURL string) (*XSSResult
 		finding.Remediation = "Encode user input before inserting into the DOM. Use textContent / setAttribute / safe templating libraries; never pass untrusted strings to innerHTML, eval, or Function()."
 		finding.WithOWASPMapping(
 			[]string{"WSTG-CLNT-01"},
-			[]string{"A03:2025"},
+			[]string{"A05:2025"},
 			[]string{"CWE-79"},
 		)
 		res.Findings = append(res.Findings, finding)

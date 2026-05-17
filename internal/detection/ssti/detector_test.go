@@ -512,7 +512,7 @@ func TestDetector_createFinding(t *testing.T) {
 			if len(finding.WSTG) == 0 || finding.WSTG[0] != "WSTG-INPV-18" {
 				t.Error("WSTG mapping not set correctly")
 			}
-			if len(finding.Top10) == 0 || finding.Top10[0] != "A03:2025" {
+			if len(finding.Top10) == 0 || finding.Top10[0] != "A05:2025" {
 				t.Error("Top10 mapping not set correctly")
 			}
 			if len(finding.CWE) < 2 {
@@ -735,7 +735,7 @@ func TestFinding_OWASPMapping(t *testing.T) {
 	// Verify A03:2021 (Injection) is included
 	foundTop10 := false
 	for _, a := range finding.Top10 {
-		if a == "A03:2025" {
+		if a == "A05:2025" {
 			foundTop10 = true
 			break
 		}

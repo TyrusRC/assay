@@ -49,6 +49,7 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/lfi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/loginj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/massassign"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/mfabypass"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/nosql"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauth"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauthflow"
@@ -56,6 +57,7 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/openapisemantic"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ormleak"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/passwordreset"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/paddingoracle"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/pathnorm"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/postmsg"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/promptinjection"
@@ -68,12 +70,14 @@ import (
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/samlinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secheaders"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secondorder"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sessionfixation"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sessionlifecycle"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/smuggling"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/sse"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssi"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssrf"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssti"
+	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/stacktrace"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storage"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storageinj"
 	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/subtakeover"
@@ -187,7 +191,12 @@ type InternalScanner struct {
 	dnsRebindingDetector     *dnsrebinding.Detector
 	openAPISemanticDetector  *openapisemantic.Detector
 	http2AdvancedDetector    *http2advanced.Detector
-	discoveryPipeline        *discovery.Pipeline
+	// Wave-H — coverage gaps from OWASP API/Top10/WSTG mapping audit
+	sessionFixationDetector *sessionfixation.Detector
+	stackTraceDetector      *stacktrace.Detector
+	mfaBypassDetector       *mfabypass.Detector
+	paddingOracleDetector   *paddingoracle.Detector
+	discoveryPipeline       *discovery.Pipeline
 	headlessPool             *headless.Pool
 	oobClient                *oob.Client
 	oobReady                 chan struct{} // signals when OOB client is ready
@@ -294,8 +303,12 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		// http2AdvancedDetector is target-scoped; lazily replaced per scan in
 		// testHTTP2Advanced because http2advanced.New takes a target string,
 		// not an *http.Client.
-		http2AdvancedDetector: http2advanced.New(""),
-		config:                config,
+		http2AdvancedDetector:   http2advanced.New(""),
+		sessionFixationDetector: sessionfixation.New(httpClient),
+		stackTraceDetector:      stacktrace.New(httpClient),
+		mfaBypassDetector:       mfabypass.New(httpClient),
+		paddingOracleDetector:   paddingoracle.New(httpClient),
+		config:                  config,
 		confirmed:             newConfirmedFindings(),
 	}
 

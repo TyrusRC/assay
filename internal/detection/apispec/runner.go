@@ -175,7 +175,7 @@ func buildUndocVerbFinding(url string, ep Endpoint, verb string, status int) *co
 	finding.Remediation = "Reject undeclared verbs at the router. Either add the verb to the spec and apply the same auth/validation it should have, or return 405 Method Not Allowed."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-06"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-749"},
 	)
 	finding.APITop10 = []string{"API5:2023", "API9:2023"}

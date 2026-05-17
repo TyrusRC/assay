@@ -205,7 +205,7 @@ func buildFinding(probedURL, path, note string, severity core.Severity, resp *sk
 	finding.Remediation = "Require authentication on this path, restrict by IP / VPC, or remove the route from production builds. Debug and observability endpoints should never be reachable from the public internet."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-04"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-749"},
 	)
 	finding.APITop10 = []string{"API5:2023", "API8:2023"}

@@ -94,6 +94,15 @@ type InternalScanConfig struct {
 	SSRFParam        string // Parameter name carrying the SSRF target URL
 	DNSRebindingHost string // Optional attacker-controlled rebinding host
 
+	// Wave-H — gap closures from OWASP API/Top10/WSTG mapping audit.
+	EnableSessionFixation bool   // WSTG-SESS-03 pre-auth cookie + query-string session
+	EnableStackTrace      bool   // WSTG-ERRH-02 framework stack trace disclosure
+	EnableMFABypass       bool   // WSTG-ATHN-11 MFA step-skip, null-OTP, brute force, status tamper
+	EnablePaddingOracle   bool   // WSTG-CRYP-02 CBC padding oracle on encrypted tokens
+	MFASubmitURL          string // OTP submission endpoint
+	PaddingOracleToken    string // sample encrypted token to probe (e.g. extracted cookie value)
+	PaddingOracleParam    string // param name carrying the token (e.g. "auth")
+
 	EnableCacheDeception  bool // Web cache deception (extension/path strip + unauth replay)
 	EnableCachePoisoning  bool // Unkeyed-header reflection cache poisoning
 	EnableCSSInj          bool // CSS injection probe (param-level)
@@ -230,7 +239,12 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableDNSRebinding:     true,
 		EnableHTTP2Advanced:    false, // off — H/2 frame manipulation can be destructive
 		EnableOpenAPISemantic:  true,
-		EnableDiscovery:        true,
+		// Wave-H default-on flags but no-op without URLs / tokens; safe everywhere.
+		EnableSessionFixation: true,
+		EnableStackTrace:      true,
+		EnableMFABypass:       true,
+		EnablePaddingOracle:   true,
+		EnableDiscovery:       true,
 		EnableStorageInj:       false, // Requires Chrome
 		EnableDOMXSS:           true,  // Requires Chrome (no-op when unavailable)
 		EnableProtoPoll:        true,  // Requires Chrome (no-op when unavailable)

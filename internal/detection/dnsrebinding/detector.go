@@ -280,7 +280,7 @@ func (d *Detector) toctouProbe(ctx context.Context, targetURL, ssrfParam, host s
 		"from the validated one."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A10:2025"},
+		[]string{"A01:2025"},
 		[]string{"CWE-918", "CWE-350"},
 	)
 	return f
@@ -298,7 +298,7 @@ func (d *Detector) toctouInformationalFinding(targetURL, ssrfParam string) *core
 		"and reuse the resolved IP for the actual outbound request (DNS pinning)."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A10:2025"},
+		[]string{"A01:2025"},
 		[]string{"CWE-918", "CWE-350"},
 	)
 	return f
@@ -329,7 +329,7 @@ func (d *Detector) buildShortTTLFinding(targetURL, host string, r1, r2 []net.IPA
 		"contains private or loopback addresses."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A10:2025"},
+		[]string{"A01:2025"},
 		[]string{"CWE-918", "CWE-350"},
 	)
 	return f
@@ -356,7 +356,7 @@ func (d *Detector) buildAllowlistBypassFinding(targetURL, ssrfParam, hostname st
 		"Pin the resolved IP for the actual fetch to prevent rebinding."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"},
-		[]string{"A10:2025"},
+		[]string{"A01:2025"},
 		[]string{"CWE-918", "CWE-350"},
 	)
 	return f

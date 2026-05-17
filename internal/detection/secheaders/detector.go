@@ -244,7 +244,7 @@ func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck, targ
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-05"}, // Test HTTP Methods
-		[]string{"A05:2025"},     // Security Misconfiguration
+		[]string{"A02:2025"},     // Security Misconfiguration
 		check.CWE,
 	)
 
@@ -268,7 +268,7 @@ func (d *Detector) createInsecureHeaderFinding(check secheaders.HeaderCheck, val
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-05"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		check.CWE,
 	)
 
@@ -292,7 +292,7 @@ func (d *Detector) createInfoDisclosureFinding(ih secheaders.InsecureHeader, val
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INFO-02"}, // Fingerprint Web Server
-		[]string{"A05:2025"},     // Security Misconfiguration
+		[]string{"A02:2025"},     // Security Misconfiguration
 		ih.CWE,
 	)
 

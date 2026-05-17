@@ -201,7 +201,7 @@ func (d *Detector) buildAuthStateFinding(opts AuthStateDiffOptions, fieldName st
 	finding.Remediation = "Use an explicit allowlist of writable fields when binding request bodies to model objects (the 'safe parameters' pattern in Rails, FluentValidation in .NET, Pydantic field-level constraints in FastAPI, GraphQL InputType allowlists). Never use blanket binders like ActiveRecord's update_attributes without strong_parameters, Mongoose Model.create({...req.body}) without filtering, or Spring @ModelAttribute on JPA entities. Treat any unknown field in a write request as a hard error — never as 'silently ignored'."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-20"},
-		[]string{"A04:2025", "A08:2025"},
+		[]string{"A06:2025", "A08:2025"},
 		[]string{"CWE-915"},
 	)
 	finding.APITop10 = []string{"API3:2023", "API6:2023"}

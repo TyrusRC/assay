@@ -53,6 +53,14 @@ func (s *InternalScanner) launchURLAuthFlow(ctx context.Context, wg *sync.WaitGr
 		func() { emit(ctx, findingsChan, s.testOpenAPISemantic(ctx)) })
 	s.launchIf(wg, c.EnableHTTP2Advanced,
 		func() { emit(ctx, findingsChan, s.testHTTP2Advanced(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableSessionFixation && c.LoginURL != "" && c.ProtectedURL != "",
+		func() { emit(ctx, findingsChan, s.testSessionFixation(ctx)) })
+	s.launchIf(wg, c.EnableStackTrace,
+		func() { emit(ctx, findingsChan, s.testStackTrace(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableMFABypass && c.MFASubmitURL != "" && c.ProtectedURL != "",
+		func() { emit(ctx, findingsChan, s.testMFABypass(ctx)) })
+	s.launchIf(wg, c.EnablePaddingOracle && c.PaddingOracleToken != "" && c.PaddingOracleParam != "",
+		func() { emit(ctx, findingsChan, s.testPaddingOracle(ctx, targetURL)) })
 }
 
 // launchURLClassic dispatches the classic OWASP-Top-10 URL-level probes:

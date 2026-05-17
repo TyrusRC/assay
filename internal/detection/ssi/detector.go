@@ -162,7 +162,7 @@ func (d *Detector) createFinding(target, param string, payload ssi.Payload, resp
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-08"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-97"},
 	)
 

@@ -376,7 +376,7 @@ func newFinding(sev core.Severity, target, field, description, evidence string) 
 	f.Description = description
 	f.Evidence = evidence
 	f.Tool = detectorTool
-	f.Top10 = []string{"A04:2025"}
+	f.Top10 = []string{"A06:2025"}
 	f.APITop10 = []string{"API3:2023", "API6:2023"}
 	f.CWE = []string{"CWE-20", "CWE-915"}
 	f.Remediation = "Validate request bodies against the declared OpenAPI schema at runtime " +

@@ -544,7 +544,7 @@ func buildSettingsFloodFinding(target, host string, accepted int, elapsed time.D
 	f.Remediation = "Apply per-connection rate-limiting on inbound SETTINGS frames; reject SETTINGS frames whose parameter count exceeds a small bound (e.g. 8) with PROTOCOL_ERROR; ensure runtime is patched (Go 1.21.3+, nginx 1.25.3+, Envoy 1.28+). Configure SETTINGS_MAX_HEADER_LIST_SIZE and back the SETTINGS parser with a frame-frequency limiter."
 	f.WithOWASPMapping(
 		[]string{"WSTG-BUSL-04"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-400", "CWE-770"},
 	)
 	f.APITop10 = []string{"API4:2023"}
@@ -567,7 +567,7 @@ func buildHPACKPollutionFinding(target, host, marker string, leaked hpack.Header
 	f.Remediation = "Upgrade the HTTP/2 stack to a version that maintains per-stream HPACK decoder state (or, more precisely, applies the dynamic-table mutations from each HEADERS block atomically against a single connection-shared table without re-emitting prior entries on new streams). Audit the request pipeline for any code path that caches decoded HeaderFields between streams."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-12"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-400", "CWE-770"},
 	)
 	f.APITop10 = []string{"API8:2023"}
@@ -590,7 +590,7 @@ func buildFlowControlFinding(target, host string, opened int) *core.Finding {
 	f.Remediation = "Enforce a per-connection idle-stream timer that resets stalled streams with FLOW_CONTROL_ERROR; cap SETTINGS_MAX_CONCURRENT_STREAMS; refuse SETTINGS frames that drop INITIAL_WINDOW_SIZE below a reasonable floor (1KB+); apply runtime patches for known H/2 flow-control DoS bugs (CVE-2023-44487 family fixes typically address related vectors)."
 	f.WithOWASPMapping(
 		[]string{"WSTG-BUSL-04"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-400", "CWE-770"},
 	)
 	f.APITop10 = []string{"API4:2023"}

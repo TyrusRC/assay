@@ -161,7 +161,7 @@ func (d *Detector) createFinding(target, param string, payload htmlinj.Payload, 
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-03"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-79"},
 	)
 

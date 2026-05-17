@@ -101,7 +101,7 @@ func TestDetectRecursiveFragments_Vulnerable(t *testing.T) {
 	if f.Tool != "graphql-recursive-detector" {
 		t.Errorf("tool = %s, want graphql-recursive-detector", f.Tool)
 	}
-	if !containsAny(f.Top10, "A05:2025") {
+	if !containsAny(f.Top10, "A02:2025") {
 		t.Errorf("Top10 missing A05:2025: %v", f.Top10)
 	}
 	if !containsAny(f.APITop10, "API4:2023") {

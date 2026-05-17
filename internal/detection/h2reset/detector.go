@@ -269,7 +269,7 @@ func buildFinding(targetURL, host string, saw pushbackKind) *core.Finding {
 	finding.Remediation = "Upgrade to a runtime patched for CVE-2023-44487 (Go 1.21.3+, nginx 1.25.3+, Apache 2.4.58+, Envoy 1.28+, etc.) and configure SETTINGS_MAX_CONCURRENT_STREAMS to a small value. Many runtimes also need an explicit per-connection RST_STREAM rate limit."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-BUSL-04"},
-		[]string{"A04:2025"},
+		[]string{"A06:2025"},
 		[]string{"CWE-770"},
 	)
 	finding.APITop10 = []string{"API4:2023"}

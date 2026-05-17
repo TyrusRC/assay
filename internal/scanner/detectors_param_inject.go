@@ -81,7 +81,7 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 
 			finding.WithOWASPMapping(
 				[]string{"WSTG-INPV-05"},
-				[]string{"A03:2025"},
+				[]string{"A05:2025"},
 				[]string{"CWE-89"},
 			)
 
@@ -113,7 +113,7 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 			finding.Remediation = "Use parameterized queries or prepared statements. Never concatenate user input into SQL queries."
 			finding.WithOWASPMapping(
 				[]string{"WSTG-INPV-05"},
-				[]string{"A03:2025"},
+				[]string{"A05:2025"},
 				[]string{"CWE-89"},
 			)
 			findings = append(findings, finding)

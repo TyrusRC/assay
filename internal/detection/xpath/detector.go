@@ -181,7 +181,7 @@ func (d *Detector) createFinding(target, param string, payload xpath.Payload, re
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-09"}, // Testing for XPath Injection
-		[]string{"A03:2025"},     // Injection
+		[]string{"A05:2025"},     // Injection
 		[]string{"CWE-643"},      // Improper Neutralization of Data within XPath Expressions
 	)
 

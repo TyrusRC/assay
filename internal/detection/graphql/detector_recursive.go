@@ -151,7 +151,7 @@ func newRecursiveFinding(findingType, target, description, evidence string) *cor
 	f.Confidence = core.ConfidenceHigh
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-12"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-400", "CWE-770"},
 	)
 	f.APITop10 = []string{"API4:2023"}

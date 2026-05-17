@@ -308,25 +308,25 @@ func applyOWASPMapping(finding *core.Finding, strategyName string) {
 	case StrategyBlindXSS:
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-02"},
-			[]string{"A03:2025"},
+			[]string{"A05:2025"},
 			[]string{"CWE-79"},
 		)
 	case StrategySecondOrderSQLi:
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-05"},
-			[]string{"A03:2025"},
+			[]string{"A05:2025"},
 			[]string{"CWE-89"},
 		)
 	case StrategyLogInjection:
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-07"},
-			[]string{"A03:2025"},
+			[]string{"A05:2025"},
 			[]string{"CWE-117"},
 		)
 	case StrategyJNDIHeaders:
 		finding.WithOWASPMapping(
 			[]string{"WSTG-INPV-11"},
-			[]string{"A06:2025"},
+			[]string{"A03:2025"},
 			[]string{"CWE-917"},
 		)
 	}

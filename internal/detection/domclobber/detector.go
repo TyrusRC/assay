@@ -216,7 +216,7 @@ func (d *Detector) createFinding(target, param string, payload domclobber.Payloa
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CLNT-06"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-79"},
 	)
 

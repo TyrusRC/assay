@@ -417,9 +417,10 @@ func (d *Detector) createFinding(target, param string, payload ssrf.Payload, res
 	// OWASP mappings
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-19"}, // SSRF testing
-		[]string{"A10:2025"},     // Server-Side Request Forgery
+		[]string{"A01:2025"},     // Broken Access Control (SSRF folded into A01 in 2025)
 		[]string{"CWE-918"},      // SSRF
 	)
+	finding.APITop10 = []string{"API7:2023"} // Server Side Request Forgery
 
 	return finding
 }

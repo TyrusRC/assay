@@ -179,7 +179,7 @@ func buildFinding(originalURL, probedURL, sibling string, resp *skwshttp.Respons
 	finding.Remediation = "Decommission deprecated API versions. If older versions must remain reachable for backwards compatibility, ensure they receive the same security patches as the current version, or front them with a gateway that proxies into the current handlers."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-04"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-1059"},
 	)
 	finding.APITop10 = []string{"API9:2023"}

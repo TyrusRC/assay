@@ -204,7 +204,7 @@ func (d *Detector) checkCSWSH(ctx context.Context, base dialOpts, ep string) *co
 		"Treat WS handshakes like CSRF-protected endpoints (require a CSRF token or SameSite=Strict session cookie)."
 	f.WithOWASPMapping(
 		[]string{"WSTG-CLNT-10"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-1385"},
 	)
 	return f
@@ -290,7 +290,7 @@ func (d *Detector) checkReflection(ctx context.Context, base dialOpts, ep string
 	f.Remediation = "Treat WebSocket messages as untrusted; encode for the receiving sink (textContent, not innerHTML)."
 	f.WithOWASPMapping(
 		[]string{"WSTG-INPV-01"},
-		[]string{"A03:2025"},
+		[]string{"A05:2025"},
 		[]string{"CWE-79"},
 	)
 	return f

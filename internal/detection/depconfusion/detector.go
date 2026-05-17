@@ -214,7 +214,7 @@ func buildFinding(target, path, ecosystem string, vulnerable []string, severity 
 	finding.Remediation = "Do not deploy raw build manifests with the application. Block /package.json / composer.json / pom.xml / requirements.txt at the edge or build them out of the production artefact. Pin every internal package to a private scope (`@yourorg/...`) and configure your registry resolver with `--registry` lock-files so unscoped names cannot resolve to the public registry."
 	finding.WithOWASPMapping(
 		[]string{"WSTG-CONF-09"},
-		[]string{"A06:2025"},
+		[]string{"A03:2025"},
 		[]string{"CWE-1357"},
 	)
 	finding.APITop10 = []string{"API8:2023", "API9:2023"}

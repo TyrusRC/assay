@@ -234,7 +234,7 @@ func (d *Detector) createFinding(target string, payload cachepoisoning.Payload, 
 
 	finding.WithOWASPMapping(
 		[]string{"WSTG-INPV-17"},
-		[]string{"A05:2025"},
+		[]string{"A02:2025"},
 		[]string{"CWE-444"},
 	)
 
