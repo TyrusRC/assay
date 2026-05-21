@@ -45,6 +45,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/jndi"
 	"github.com/TyrusRC/assay/internal/detection/jsdep"
 	"github.com/TyrusRC/assay/internal/detection/jwt"
+	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/ldap"
 	"github.com/TyrusRC/assay/internal/detection/lfi"
 	"github.com/TyrusRC/assay/internal/detection/loginj"
@@ -198,6 +199,7 @@ type InternalScanner struct {
 	mfaBypassDetector       *mfabypass.Detector
 	paddingOracleDetector   *paddingoracle.Detector
 	xsleaksDetector         *xsleaks.Detector
+	jwtAdvancedDetector     *jwtadvanced.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -311,6 +313,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		mfaBypassDetector:       mfabypass.New(httpClient),
 		paddingOracleDetector:   paddingoracle.New(httpClient),
 		xsleaksDetector:         xsleaks.New(httpClient),
+		jwtAdvancedDetector:     jwtadvanced.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

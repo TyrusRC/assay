@@ -103,21 +103,24 @@ type InternalScanConfig struct {
 	PaddingOracleToken    string // sample encrypted token to probe (e.g. extracted cookie value)
 	PaddingOracleParam    string // param name carrying the token (e.g. "auth")
 
-	EnableCacheDeception  bool // Web cache deception (extension/path strip + unauth replay)
-	EnableCachePoisoning  bool // Unkeyed-header reflection cache poisoning
-	EnableCSSInj          bool // CSS injection probe (param-level)
-	EnableDeser           bool // Insecure deserialization probe (param-level, Java/PHP/Python/.NET)
-	EnableDOMClobber      bool // DOM clobbering via named-element injection (param-level)
-	EnableEmailInj        bool // Email header injection (CRLF in mail headers, param-level)
-	EnableHPP             bool // HTTP Parameter Pollution (param-level)
-	EnableHTMLInj         bool // HTML injection (non-XSS tag injection, param-level)
-	EnableMassAssign      bool // Mass-assignment with re-fetch verification (param-level)
-	EnableProtoPollServer bool // Server-side prototype pollution (param-level)
-	EnableSecondOrder     bool // Second-order injection (inject-then-verify)
-	EnableSSI             bool // Server-Side Includes injection (param-level)
-	EnableStorage         bool // Cookie / session management (Secure, HttpOnly, SameSite, entropy)
-	EnablePostMsg         bool // postMessage origin-validation probe (requires Chrome)
-	EnableXSLeaks         bool // Cross-site leak primitive audit (COOP/COEP/CORP + framing + SameSite correlation)
+	EnableCacheDeception  bool   // Web cache deception (extension/path strip + unauth replay)
+	EnableCachePoisoning  bool   // Unkeyed-header reflection cache poisoning
+	EnableCSSInj          bool   // CSS injection probe (param-level)
+	EnableDeser           bool   // Insecure deserialization probe (param-level, Java/PHP/Python/.NET)
+	EnableDOMClobber      bool   // DOM clobbering via named-element injection (param-level)
+	EnableEmailInj        bool   // Email header injection (CRLF in mail headers, param-level)
+	EnableHPP             bool   // HTTP Parameter Pollution (param-level)
+	EnableHTMLInj         bool   // HTML injection (non-XSS tag injection, param-level)
+	EnableMassAssign      bool   // Mass-assignment with re-fetch verification (param-level)
+	EnableProtoPollServer bool   // Server-side prototype pollution (param-level)
+	EnableSecondOrder     bool   // Second-order injection (inject-then-verify)
+	EnableSSI             bool   // Server-Side Includes injection (param-level)
+	EnableStorage         bool   // Cookie / session management (Secure, HttpOnly, SameSite, entropy)
+	EnablePostMsg         bool   // postMessage origin-validation probe (requires Chrome)
+	EnableXSLeaks         bool   // Cross-site leak primitive audit (COOP/COEP/CORP + framing + SameSite correlation)
+	EnableJWTAdvanced     bool   // Active JWT forgery replay against authenticated endpoints (requires JWTAdvancedToken)
+	JWTAdvancedToken      string // Known-valid JWT to forge from. Empty disables the active probe.
+	JWTAdvancedParam      string // Optional query-param name to carry the JWT. When empty, Authorization: Bearer is used.
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -233,6 +236,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableStorage:         true,
 		EnablePostMsg:         true, // requires Chrome — no-op when unavailable
 		EnableXSLeaks:         true,
+		EnableJWTAdvanced:     true, // no-op without JWTAdvancedToken — safe everywhere
 		// Wave-G default-on flags but no-op without URLs; safe everywhere.
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

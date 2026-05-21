@@ -7,6 +7,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
+	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
 	"github.com/TyrusRC/assay/internal/detection/storage"
@@ -62,6 +63,29 @@ func (s *InternalScanner) testPostMsg(ctx context.Context, targetURL string) []*
 	opts := postmsg.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.postMsgDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testJWTAdvanced actively replays forged JWTs (alg=none, empty
+// signature, kid traversal, duplicate alg, truncated sig) against the
+// target URL and reports any forgery the server accepts as authentic.
+// Requires a known-good token in s.config.JWTAdvancedToken; otherwise
+// the probe is skipped — there's no diff signal without a baseline.
+func (s *InternalScanner) testJWTAdvanced(ctx context.Context, targetURL string) []*core.Finding {
+	if s.jwtAdvancedDetector == nil || s.config.JWTAdvancedToken == "" {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing JWT forgery acceptance on '%s'...\n", targetURL)
+	}
+	opts := jwtadvanced.DefaultOptions()
+	opts.Token = s.config.JWTAdvancedToken
+	opts.TokenParam = s.config.JWTAdvancedParam
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.jwtAdvancedDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

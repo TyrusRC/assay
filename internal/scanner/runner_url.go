@@ -163,4 +163,6 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 	s.launchIf(wg, c.EnableSecondOrder, func() { emit(ctx, findingsChan, s.testSecondOrder(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableStorage, func() { emit(ctx, findingsChan, s.testStorageMgmt(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableXSLeaks, func() { emit(ctx, findingsChan, s.testXSLeaks(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableJWTAdvanced && c.JWTAdvancedToken != "",
+		func() { emit(ctx, findingsChan, s.testJWTAdvanced(ctx, targetURL)) })
 }
