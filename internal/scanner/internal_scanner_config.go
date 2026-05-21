@@ -122,6 +122,7 @@ type InternalScanConfig struct {
 	JWTAdvancedToken      string // Known-valid JWT to forge from. Empty disables the active probe.
 	JWTAdvancedParam      string // Optional query-param name to carry the JWT. When empty, Authorization: Bearer is used.
 	EnableGraphQLAdvanced bool   // Field-suggestion recovery, APQ bypass, mutation-over-GET CSRF (probes GraphQL-shaped endpoints only)
+	EnableHTTP2Desync     bool   // CL.0 desync timing probe + h2c upgrade acceptance (raw TCP; off by default — sends desync payloads)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -239,6 +240,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableXSLeaks:         true,
 		EnableJWTAdvanced:     true, // no-op without JWTAdvancedToken — safe everywhere
 		EnableGraphQLAdvanced: true, // no-op when the response is not GraphQL-shaped — safe everywhere
+		EnableHTTP2Desync:     false, // off by default — sends raw TCP desync payloads
 		// Wave-G default-on flags but no-op without URLs; safe everywhere.
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

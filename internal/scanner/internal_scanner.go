@@ -41,6 +41,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/hpp"
 	"github.com/TyrusRC/assay/internal/detection/htmlinj"
 	"github.com/TyrusRC/assay/internal/detection/http2advanced"
+	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/idor"
 	"github.com/TyrusRC/assay/internal/detection/injection"
 	"github.com/TyrusRC/assay/internal/detection/jndi"
@@ -202,6 +203,7 @@ type InternalScanner struct {
 	xsleaksDetector         *xsleaks.Detector
 	jwtAdvancedDetector     *jwtadvanced.Detector
 	graphqlAdvancedDetector *graphqladvanced.Detector
+	http2DesyncDetector     *http2desync.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -317,6 +319,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		xsleaksDetector:         xsleaks.New(httpClient),
 		jwtAdvancedDetector:     jwtadvanced.New(httpClient),
 		graphqlAdvancedDetector: graphqladvanced.New(httpClient),
+		http2DesyncDetector:     http2desync.New(),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

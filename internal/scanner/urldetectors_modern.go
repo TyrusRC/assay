@@ -8,6 +8,7 @@ import (
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
+	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -64,6 +65,25 @@ func (s *InternalScanner) testPostMsg(ctx context.Context, targetURL string) []*
 	opts := postmsg.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.postMsgDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testHTTP2Desync probes for CL.0 desync (Content-Length: 0 with body)
+// and h2c upgrade acceptance over raw TCP. Off by default because it
+// sends malformed-on-purpose desync payloads.
+func (s *InternalScanner) testHTTP2Desync(ctx context.Context, targetURL string) []*core.Finding {
+	if s.http2DesyncDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing HTTP/2 desync (CL.0, h2c upgrade) on '%s'...\n", targetURL)
+	}
+	opts := http2desync.DefaultOptions()
+	opts.ProbeTimeout = s.config.RequestTimeout
+	res, err := s.http2DesyncDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
