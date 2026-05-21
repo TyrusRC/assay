@@ -169,4 +169,6 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 		func() { emit(ctx, findingsChan, s.testGraphQLAdvanced(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableHTTP2Desync,
 		func() { emit(ctx, findingsChan, s.testHTTP2Desync(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableCacheKey,
+		func() { emit(ctx, findingsChan, s.testCacheKey(ctx, targetURL)) })
 }

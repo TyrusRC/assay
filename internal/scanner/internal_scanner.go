@@ -14,6 +14,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/auth"
 	"github.com/TyrusRC/assay/internal/detection/behavior"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
+	"github.com/TyrusRC/assay/internal/detection/cachekey"
 	"github.com/TyrusRC/assay/internal/detection/cachepoisoning"
 	"github.com/TyrusRC/assay/internal/detection/cloud"
 	"github.com/TyrusRC/assay/internal/detection/cmdi"
@@ -204,6 +205,7 @@ type InternalScanner struct {
 	jwtAdvancedDetector     *jwtadvanced.Detector
 	graphqlAdvancedDetector *graphqladvanced.Detector
 	http2DesyncDetector     *http2desync.Detector
+	cachekeyDetector        *cachekey.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -320,6 +322,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		jwtAdvancedDetector:     jwtadvanced.New(httpClient),
 		graphqlAdvancedDetector: graphqladvanced.New(httpClient),
 		http2DesyncDetector:     http2desync.New(),
+		cachekeyDetector:        cachekey.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

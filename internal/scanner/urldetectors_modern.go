@@ -7,6 +7,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
+	"github.com/TyrusRC/assay/internal/detection/cachekey"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
@@ -65,6 +66,26 @@ func (s *InternalScanner) testPostMsg(ctx context.Context, targetURL string) []*
 	opts := postmsg.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.postMsgDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testCacheKey probes for cache-key parser-divergence quirks
+// (semicolon param cloaking, duplicate-param pollution, encoded-slash
+// normalization). Paired-request differential — no destructive side
+// effects, safe to leave on by default.
+func (s *InternalScanner) testCacheKey(ctx context.Context, targetURL string) []*core.Finding {
+	if s.cachekeyDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing cache-key parser divergence on '%s'...\n", targetURL)
+	}
+	opts := cachekey.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.cachekeyDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
