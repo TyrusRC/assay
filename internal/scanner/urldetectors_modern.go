@@ -7,6 +7,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
+	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -63,6 +64,26 @@ func (s *InternalScanner) testPostMsg(ctx context.Context, targetURL string) []*
 	opts := postmsg.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.postMsgDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testGraphQLAdvanced probes a GraphQL endpoint for field-suggestion
+// schema recovery, APQ bypass, and mutation-over-GET CSRF. The probe
+// self-gates on a GraphQL-shaped response, so running against non-
+// GraphQL URLs is a single-request no-op.
+func (s *InternalScanner) testGraphQLAdvanced(ctx context.Context, targetURL string) []*core.Finding {
+	if s.graphqlAdvancedDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing GraphQL advanced probes on '%s'...\n", targetURL)
+	}
+	opts := graphqladvanced.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.graphqlAdvancedDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

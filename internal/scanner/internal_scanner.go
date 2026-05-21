@@ -33,6 +33,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/exposure"
 	"github.com/TyrusRC/assay/internal/detection/fileupload"
 	"github.com/TyrusRC/assay/internal/detection/graphql"
+	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
 	"github.com/TyrusRC/assay/internal/detection/grpcreflect"
 	"github.com/TyrusRC/assay/internal/detection/h2reset"
 	"github.com/TyrusRC/assay/internal/detection/headerinj"
@@ -200,6 +201,7 @@ type InternalScanner struct {
 	paddingOracleDetector   *paddingoracle.Detector
 	xsleaksDetector         *xsleaks.Detector
 	jwtAdvancedDetector     *jwtadvanced.Detector
+	graphqlAdvancedDetector *graphqladvanced.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -314,6 +316,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		paddingOracleDetector:   paddingoracle.New(httpClient),
 		xsleaksDetector:         xsleaks.New(httpClient),
 		jwtAdvancedDetector:     jwtadvanced.New(httpClient),
+		graphqlAdvancedDetector: graphqladvanced.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}
