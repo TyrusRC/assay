@@ -56,8 +56,8 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/oob"
 	"github.com/TyrusRC/assay/internal/detection/openapisemantic"
 	"github.com/TyrusRC/assay/internal/detection/ormleak"
-	"github.com/TyrusRC/assay/internal/detection/passwordreset"
 	"github.com/TyrusRC/assay/internal/detection/paddingoracle"
+	"github.com/TyrusRC/assay/internal/detection/passwordreset"
 	"github.com/TyrusRC/assay/internal/detection/pathnorm"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/promptinjection"
@@ -89,6 +89,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/verbtamper"
 	"github.com/TyrusRC/assay/internal/detection/ws"
 	"github.com/TyrusRC/assay/internal/detection/xpath"
+	"github.com/TyrusRC/assay/internal/detection/xsleaks"
 	"github.com/TyrusRC/assay/internal/detection/xslt"
 	"github.com/TyrusRC/assay/internal/detection/xss"
 	"github.com/TyrusRC/assay/internal/detection/xxe"
@@ -196,15 +197,16 @@ type InternalScanner struct {
 	stackTraceDetector      *stacktrace.Detector
 	mfaBypassDetector       *mfabypass.Detector
 	paddingOracleDetector   *paddingoracle.Detector
+	xsleaksDetector         *xsleaks.Detector
 	discoveryPipeline       *discovery.Pipeline
-	headlessPool             *headless.Pool
-	oobClient                *oob.Client
-	oobReady                 chan struct{} // signals when OOB client is ready
-	oobInitErr               error         // error from OOB initialization
-	techHint                 *TechHint
-	config                   *InternalScanConfig
-	confirmed                *confirmedFindings
-	mu                       sync.Mutex
+	headlessPool            *headless.Pool
+	oobClient               *oob.Client
+	oobReady                chan struct{} // signals when OOB client is ready
+	oobInitErr              error         // error from OOB initialization
+	techHint                *TechHint
+	config                  *InternalScanConfig
+	confirmed               *confirmedFindings
+	mu                      sync.Mutex
 }
 
 // NewInternalScanner creates a new internal scanner.
@@ -308,8 +310,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		stackTraceDetector:      stacktrace.New(httpClient),
 		mfaBypassDetector:       mfabypass.New(httpClient),
 		paddingOracleDetector:   paddingoracle.New(httpClient),
+		xsleaksDetector:         xsleaks.New(httpClient),
 		config:                  config,
-		confirmed:             newConfirmedFindings(),
+		confirmed:               newConfirmedFindings(),
 	}
 
 	// Initialize discovery pipeline with all discoverers

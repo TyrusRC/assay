@@ -369,4 +369,3 @@ func (s *InternalScanner) testCSVInj(ctx context.Context, targetURL string, para
 	}
 	return result.Findings
 }
-

@@ -117,6 +117,7 @@ type InternalScanConfig struct {
 	EnableSSI             bool // Server-Side Includes injection (param-level)
 	EnableStorage         bool // Cookie / session management (Secure, HttpOnly, SameSite, entropy)
 	EnablePostMsg         bool // postMessage origin-validation probe (requires Chrome)
+	EnableXSLeaks         bool // Cross-site leak primitive audit (COOP/COEP/CORP + framing + SameSite correlation)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -231,6 +232,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSSI:             true,
 		EnableStorage:         true,
 		EnablePostMsg:         true, // requires Chrome — no-op when unavailable
+		EnableXSLeaks:         true,
 		// Wave-G default-on flags but no-op without URLs; safe everywhere.
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,
@@ -245,15 +247,15 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableMFABypass:       true,
 		EnablePaddingOracle:   true,
 		EnableDiscovery:       true,
-		EnableStorageInj:       false, // Requires Chrome
-		EnableDOMXSS:           true,  // Requires Chrome (no-op when unavailable)
-		EnableProtoPoll:        true,  // Requires Chrome (no-op when unavailable)
-		EnableDOMRedirect:      true,  // Requires Chrome (no-op when unavailable)
-		HeadlessMaxBrowsers:    3,
-		MaxPayloadsPerParam:    30,
-		IncludeWAFBypass:       true,
-		RequestTimeout:         10 * time.Second,
-		OOBPollTimeout:         10 * time.Second,
-		Verbose:                false,
+		EnableStorageInj:      false, // Requires Chrome
+		EnableDOMXSS:          true,  // Requires Chrome (no-op when unavailable)
+		EnableProtoPoll:       true,  // Requires Chrome (no-op when unavailable)
+		EnableDOMRedirect:     true,  // Requires Chrome (no-op when unavailable)
+		HeadlessMaxBrowsers:   3,
+		MaxPayloadsPerParam:   30,
+		IncludeWAFBypass:      true,
+		RequestTimeout:        10 * time.Second,
+		OOBPollTimeout:        10 * time.Second,
+		Verbose:               false,
 	}
 }

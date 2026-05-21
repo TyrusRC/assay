@@ -10,6 +10,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
 	"github.com/TyrusRC/assay/internal/detection/storage"
+	"github.com/TyrusRC/assay/internal/detection/xsleaks"
 )
 
 // testCacheDeception probes for web cache deception (Omer Gil, 2017): a
@@ -61,6 +62,27 @@ func (s *InternalScanner) testPostMsg(ctx context.Context, targetURL string) []*
 	opts := postmsg.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.postMsgDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testXSLeaks audits the response for combinations of isolation-policy
+// gaps (COOP/COEP/CORP, X-Frame-Options, CSP frame-ancestors) and
+// SameSite cookie behavior that expose cross-site leak primitives.
+// Only emits findings when primitives correlate into an exploitable
+// combination — single missing headers are left to secheaders/.
+func (s *InternalScanner) testXSLeaks(ctx context.Context, targetURL string) []*core.Finding {
+	if s.xsleaksDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing cross-site leak primitives on '%s'...\n", targetURL)
+	}
+	opts := xsleaks.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.xsleaksDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

@@ -11,13 +11,13 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/assay/internal/detection/http2advanced"
 	"github.com/TyrusRC/assay/internal/detection/mfabypass"
-	"github.com/TyrusRC/assay/internal/detection/paddingoracle"
-	"github.com/TyrusRC/assay/internal/detection/sessionfixation"
-	"github.com/TyrusRC/assay/internal/detection/stacktrace"
 	"github.com/TyrusRC/assay/internal/detection/oauthflow"
 	"github.com/TyrusRC/assay/internal/detection/openapisemantic"
+	"github.com/TyrusRC/assay/internal/detection/paddingoracle"
 	"github.com/TyrusRC/assay/internal/detection/passwordreset"
+	"github.com/TyrusRC/assay/internal/detection/sessionfixation"
 	"github.com/TyrusRC/assay/internal/detection/sessionlifecycle"
+	"github.com/TyrusRC/assay/internal/detection/stacktrace"
 )
 
 // testTimingEnum runs the statistical paired-arm timing oracle on the

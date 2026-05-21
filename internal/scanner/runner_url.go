@@ -162,4 +162,5 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 	s.launchIf(wg, c.EnableCacheDeception, func() { emit(ctx, findingsChan, s.testCacheDeception(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableSecondOrder, func() { emit(ctx, findingsChan, s.testSecondOrder(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableStorage, func() { emit(ctx, findingsChan, s.testStorageMgmt(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableXSLeaks, func() { emit(ctx, findingsChan, s.testXSLeaks(ctx, targetURL)) })
 }
