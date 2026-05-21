@@ -1,11 +1,10 @@
 # assay — context-aware web vulnerability assay
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TyrusRC/assay)](go.mod)
-[![Go Report Card](https://goreportcard.com/badge/github.com/TyrusRC/assay)](https://goreportcard.com/report/github.com/TyrusRC/assay)
-[![CI](https://img.shields.io/badge/build-passing-brightgreen)](Makefile)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/TyrusRC/swiss-knife-for-web-security)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/TyrusRC/swiss-knife-for-web-security)](https://goreportcard.com/report/github.com/TyrusRC/swiss-knife-for-web-security)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![GitHub last commit](https://img.shields.io/github/last-commit/TyrusRC/assay)](https://github.com/TyrusRC/assay/commits/main)
-[![Issues](https://img.shields.io/github/issues/TyrusRC/assay)](https://github.com/TyrusRC/assay/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/TyrusRC/swiss-knife-for-web-security)](https://github.com/TyrusRC/swiss-knife-for-web-security/commits/main)
+[![Issues](https://img.shields.io/github/issues/TyrusRC/swiss-knife-for-web-security)](https://github.com/TyrusRC/swiss-knife-for-web-security/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 A Go-native, CLI web-application security scanner that combines **80+
