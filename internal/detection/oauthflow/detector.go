@@ -174,7 +174,7 @@ func (d *Detector) DetectRedirectURIMatching(ctx context.Context, authzURL strin
 		return result, fmt.Errorf("parse authzURL: %w", err)
 	}
 
-	variants := redirectURIVariants(opts.RegisteredRedirectURI)
+	variants := extendedRedirectURIVariants(opts.RegisteredRedirectURI)
 	for _, variant := range variants {
 		select {
 		case <-ctx.Done():
@@ -352,6 +352,9 @@ func (d *Detector) DetectAll(ctx context.Context, opts DetectOptions) (*Detectio
 			if r, err := d.DetectRedirectURIMatching(ctx, opts.AuthzURL, opts); err == nil && r != nil {
 				combined.Findings = append(combined.Findings, r.Findings...)
 			}
+		}
+		if r, err := d.DetectResponseModeConfusion(ctx, opts.AuthzURL, opts); err == nil && r != nil {
+			combined.Findings = append(combined.Findings, r.Findings...)
 		}
 		if opts.TokenURL != "" {
 			if r, err := d.DetectPKCEDowngrade(ctx, opts.AuthzURL, opts.TokenURL, opts); err == nil && r != nil {
