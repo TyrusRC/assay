@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cors"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/idor"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/xxe"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/cors"
+	"github.com/TyrusRC/assay/internal/detection/idor"
+	"github.com/TyrusRC/assay/internal/detection/xxe"
 )
 
 // testTypeJuggling probes login-shaped paths for PHP loose-equality

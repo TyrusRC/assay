@@ -108,12 +108,12 @@ func appendExtension(base *url.URL, exts []string) []probeURL {
 }
 
 func appendPathSegment(base *url.URL, exts []string) []probeURL {
-	// /account → /account/skws.css, /account/index.css
+	// /account → /account/assay.css, /account/index.css
 	out := make([]probeURL, 0, len(exts)*2)
 	path := strings.TrimSuffix(base.Path, "/")
 	for _, e := range exts {
 		out = append(out,
-			probeURL{URL: withPath(base, path+"/skws"+e), Strategy: StrategyPathSegment},
+			probeURL{URL: withPath(base, path+"/assay"+e), Strategy: StrategyPathSegment},
 			probeURL{URL: withPath(base, path+"/index"+e), Strategy: StrategyPathSegment},
 		)
 	}
@@ -121,7 +121,7 @@ func appendPathSegment(base *url.URL, exts []string) []probeURL {
 }
 
 func semicolonDelimiter(base *url.URL, exts []string) []probeURL {
-	// /account → /account;.css, /account;skws.css
+	// /account → /account;.css, /account;assay.css
 	// We use withRawPath because url.URL would otherwise percent-encode the
 	// semicolon when it appears in Path, defeating the bypass against
 	// servers that strip path parameters before routing.
@@ -130,7 +130,7 @@ func semicolonDelimiter(base *url.URL, exts []string) []probeURL {
 	for _, e := range exts {
 		out = append(out,
 			probeURL{URL: withRawPath(base, path+";"+e), Strategy: StrategySemicolonDelimiter},
-			probeURL{URL: withRawPath(base, path+";skws"+e), Strategy: StrategySemicolonDelimiter},
+			probeURL{URL: withRawPath(base, path+";assay"+e), Strategy: StrategySemicolonDelimiter},
 		)
 	}
 	return out

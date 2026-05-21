@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TyrusRC/assay/internal/reporting"
+	"github.com/TyrusRC/assay/internal/scanner"
 	"github.com/spf13/cobra"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/reporting"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
 )
 
 // scanCmd represents the scan command.
@@ -26,22 +26,22 @@ the results. Findings are mapped to OWASP frameworks for easy classification.
 
 Examples:
   # Basic scan
-  skws scan https://example.com/page?id=1
+  assay scan https://example.com/page?id=1
 
   # Scan with custom headers
-  skws scan -H "Authorization: Bearer token" https://example.com
+  assay scan -H "Authorization: Bearer token" https://example.com
 
   # Scan POST endpoint
-  skws scan -X POST -d "username=admin" https://example.com/login
+  assay scan -X POST -d "username=admin" https://example.com/login
 
   # Aggressive scan (level 5, risk 3)
-  skws scan --level 5 --risk 3 https://example.com/page?id=1
+  assay scan --level 5 --risk 3 https://example.com/page?id=1
 
   # Scan from a target list file
-  skws scan -l targets.txt
+  assay scan -l targets.txt
 
   # Scan from stdin
-  cat targets.txt | skws scan
+  cat targets.txt | assay scan
 
 `,
 	Args: cobra.MaximumNArgs(1),

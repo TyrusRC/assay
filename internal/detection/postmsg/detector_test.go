@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/headless"
 )
 
 // skipIfPoolUnavailable skips a test when no headless browser can be

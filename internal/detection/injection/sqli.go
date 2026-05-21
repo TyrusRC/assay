@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // blindSQLiSimilarityThreshold is the Jaccard cutoff for considering two
@@ -199,7 +199,7 @@ var genericSQLPatterns = []*regexp.Regexp{
 // closes the gap.
 func (d *SQLiDetector) DetectBoolean(
 	ctx context.Context,
-	client *skwshttp.Client,
+	client *assayhttp.Client,
 	targetURL, param, method string,
 ) (*BooleanResult, error) {
 	res := &BooleanResult{}

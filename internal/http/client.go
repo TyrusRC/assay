@@ -61,7 +61,7 @@ func NewClient() *Client {
 		headers:         make(map[string]string),
 		timeout:         DefaultTimeout,
 		followRedirects: true,
-		userAgent:       "SKWS/1.0",
+		userAgent:       "assay/1.0",
 	}
 	c.buildHTTPClient()
 	return c

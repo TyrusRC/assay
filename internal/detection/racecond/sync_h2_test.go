@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/net/http2"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // startH2Server creates an httptest server with h2 ALPN configured. Go's
@@ -141,18 +141,18 @@ func TestBuildStreamIDs(t *testing.T) {
 // trip a server's h2-strict mode (RFC 7540 §8.1.2.2).
 func TestShouldDropHeader(t *testing.T) {
 	cases := map[string]bool{
-		":method":          true,
-		":authority":       true,
-		"host":             true,
-		"connection":       true,
+		":method":           true,
+		":authority":        true,
+		"host":              true,
+		"connection":        true,
 		"transfer-encoding": true,
-		"upgrade":          true,
-		"keep-alive":       true,
-		"proxy-connection": true,
-		"te":               true,
-		"content-type":     false,
-		"x-custom":         false,
-		"authorization":    false,
+		"upgrade":           true,
+		"keep-alive":        true,
+		"proxy-connection":  true,
+		"te":                true,
+		"content-type":      false,
+		"x-custom":          false,
+		"authorization":     false,
 	}
 	for h, want := range cases {
 		if got := shouldDropHeader(h); got != want {

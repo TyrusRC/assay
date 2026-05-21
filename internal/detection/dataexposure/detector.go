@@ -17,8 +17,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // SensitivePattern is one named regex bound to a severity. The first
@@ -68,11 +68,11 @@ var sensitivePatterns = []SensitivePattern{
 // Detector runs the field-name analyzer over JSON responses fetched from
 // the target endpoint.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector backed by the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 

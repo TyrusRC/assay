@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/ssti"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/ssti"
 )
 
 // analysisStripEchoFn is an indirection over analysis.StripEcho so this

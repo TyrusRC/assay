@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	hpppayloads "github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/hpp"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
+	hpppayloads "github.com/TyrusRC/assay/internal/payloads/hpp"
 )
 
 // Detector performs HTTP Parameter Pollution vulnerability detection.

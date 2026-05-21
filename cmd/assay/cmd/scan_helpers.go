@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/nuclei"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
+	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/tools/nuclei"
+	"github.com/TyrusRC/assay/internal/tools/sqlmap"
 )
 
 // collectTargets gathers target URLs from CLI args, a file, or stdin.
@@ -121,7 +121,7 @@ func splitCSV(s string) []string {
 
 func printScanHeader(target string) {
 	fmt.Println("╔════════════════════════════════════════════════════════╗")
-	fmt.Println("║    SKWS - Swiss Knife for Web Security Scanner        ║")
+	fmt.Println("║    assay - Context-aware web vulnerability assay        ║")
 	fmt.Println("╚════════════════════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Printf("Target: %s\n", target)

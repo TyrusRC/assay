@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	skhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // TestNewDetector tests the constructor.

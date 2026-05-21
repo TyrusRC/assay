@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // vulnerableLLM responds to every chat-shaped payload by echoing
@@ -67,7 +67,7 @@ func TestDetect_FlagsCompliantModelOnSentinelEcho(t *testing.T) {
 	srv := vulnerableLLM()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/chat")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -81,7 +81,7 @@ func TestDetect_NoFindingOnHardenedModel(t *testing.T) {
 	srv := hardenedLLM()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/chat")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -97,7 +97,7 @@ func TestDetect_SkipsNon2xxNon404(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/api/chat")
 	if len(res.Findings) != 0 {
 		t.Errorf("expected 0 findings when LLM returns 401, got %d", len(res.Findings))
@@ -106,11 +106,11 @@ func TestDetect_SkipsNon2xxNon404(t *testing.T) {
 
 func TestPathLooksLLM(t *testing.T) {
 	cases := map[string]bool{
-		"/api/v1/chat":    true,
-		"/completion":     true,
-		"/agent/run":      true,
-		"/api/v1/users":   false,
-		"/static/foo.js":  false,
+		"/api/v1/chat":   true,
+		"/completion":    true,
+		"/agent/run":     true,
+		"/api/v1/users":  false,
+		"/static/foo.js": false,
 	}
 	for path, want := range cases {
 		if got := pathLooksLLM(path); got != want {

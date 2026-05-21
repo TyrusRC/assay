@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachepoisoning"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cssinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/deser"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/domclobber"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/emailinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hpp"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/htmlinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/massassign"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/protopollution"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ssi"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/cachepoisoning"
+	"github.com/TyrusRC/assay/internal/detection/cssinj"
+	"github.com/TyrusRC/assay/internal/detection/deser"
+	"github.com/TyrusRC/assay/internal/detection/domclobber"
+	"github.com/TyrusRC/assay/internal/detection/emailinj"
+	"github.com/TyrusRC/assay/internal/detection/hpp"
+	"github.com/TyrusRC/assay/internal/detection/htmlinj"
+	"github.com/TyrusRC/assay/internal/detection/massassign"
+	"github.com/TyrusRC/assay/internal/detection/protopollution"
+	"github.com/TyrusRC/assay/internal/detection/ssi"
 )
 
 // testCachePoisoning probes a parameter for unkeyed-input cache poisoning.

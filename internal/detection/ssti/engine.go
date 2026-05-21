@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/ssti"
+	"github.com/TyrusRC/assay/internal/payloads/ssti"
 )
 
 // detectMathExpression tests for SSTI using mathematical expressions.

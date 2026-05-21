@@ -221,7 +221,7 @@ func buildRawRequest(u *url.URL, method, body string, headers map[string]string)
 		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
 	}
 	if !hasUA {
-		fmt.Fprint(&b, "User-Agent: skws-racecond/1.0\r\n")
+		fmt.Fprint(&b, "User-Agent: assay-racecond/1.0\r\n")
 	}
 	if body != "" && !hasCL {
 		fmt.Fprintf(&b, "Content-Length: %d\r\n", len(body))

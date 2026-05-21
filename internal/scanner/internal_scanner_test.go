@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/techstack"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/techstack"
 )
 
 // TestInternalScanner_OOBReady_ConcurrentAccess exercises the internal
@@ -1028,9 +1028,9 @@ func TestConfirmedFindings_ConcurrentAccess(t *testing.T) {
 // configured custom header, and arrive via the proxy path (absolute URL).
 func TestInternalScanner_GlobalProxyHeadersUserAgent(t *testing.T) {
 	const (
-		wantUA     = "SKWS-test/9.9"
+		wantUA     = "assay-test/9.9"
 		wantHdr    = "global-marker"
-		wantCookie = "skws-session=abc"
+		wantCookie = "assay-session=abc"
 	)
 
 	var (

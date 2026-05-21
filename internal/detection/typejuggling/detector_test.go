@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // vulnerableLogin simulates a PHP server that uses `==` to compare a
@@ -65,7 +65,7 @@ func TestDetect_FlagsArrayCoercedPassword(t *testing.T) {
 	srv := vulnerableLogin()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/login", "admin")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -79,7 +79,7 @@ func TestDetect_NoFindingOnStrictLogin(t *testing.T) {
 	srv := strictLogin()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/login", "admin")
 	if len(res.Findings) != 0 {
 		t.Errorf("expected 0 findings on strict login, got %d", len(res.Findings))
@@ -90,7 +90,7 @@ func TestDetect_SkipsNonLoginPath(t *testing.T) {
 	srv := vulnerableLogin()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/api/users", "admin")
 	if len(res.Findings) != 0 {
 		t.Errorf("expected 0 findings on non-login path, got %d", len(res.Findings))

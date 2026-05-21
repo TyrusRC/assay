@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // attackerHost is the canary host injected into the Host /
 // X-Forwarded-Host headers. It uses a reserved label (.example) so it
 // cannot accidentally collide with a real production host.
-const attackerHost = "skws-passwordreset-poison.example"
+const attackerHost = "assay-passwordreset-poison.example"
 
 // toolName is the value emitted in Finding.Tool for all findings in
 // this package.

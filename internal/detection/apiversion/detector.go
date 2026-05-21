@@ -17,9 +17,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // versionSegmentRe matches the "/vN" path segment that announces a
@@ -33,11 +33,11 @@ var extraVersionTokens = []string{"v0", "legacy", "beta", "preview", "alpha", "i
 
 // Detector probes for sibling versions of the path prefix in targetURL.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -150,7 +150,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 	return res, nil
 }
 
-func buildFinding(originalURL, probedURL, sibling string, resp *skwshttp.Response) *core.Finding {
+func buildFinding(originalURL, probedURL, sibling string, resp *assayhttp.Response) *core.Finding {
 	severity := core.SeverityMedium
 	// Older numeric versions and "internal"/"legacy" rate higher.
 	switch {

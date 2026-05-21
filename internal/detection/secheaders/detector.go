@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/secheaders"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/secheaders"
 )
 
 // Detector performs HTTP security header misconfiguration detection.

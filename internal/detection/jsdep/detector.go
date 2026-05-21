@@ -7,21 +7,21 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector finds JS libraries on a target page (via <script src=...>) and
 // queries NVD for CVEs affecting their declared versions.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 	nvd    *NVDClient
 }
 
 // New creates a Detector wired to the project's shared HTTP client and a
 // fresh NVD client. apiKey may be empty; callers usually pass
 // os.Getenv("NVD_API_KEY") at construction time.
-func New(client *skwshttp.Client, apiKey string) *Detector {
+func New(client *assayhttp.Client, apiKey string) *Detector {
 	return &Detector{
 		client: client,
 		nvd:    NewNVDClient(apiKey),

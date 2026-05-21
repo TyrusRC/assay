@@ -30,8 +30,8 @@ func GetAllPayloads() []Payload {
 // Source: OWASP WSTG-CLNT-03, PayloadsAllTheThings
 var standardPayloads = []Payload{
 	{
-		Value:       "<b>skws</b>",
-		Marker:      "<b>skws</b>",
+		Value:       "<b>assay</b>",
+		Marker:      "<b>assay</b>",
 		Description: "Bold tag injection",
 	},
 	{
@@ -40,8 +40,8 @@ var standardPayloads = []Payload{
 		Description: "Image tag injection",
 	},
 	{
-		Value:       "<div id=skws>",
-		Marker:      "<div id=skws>",
+		Value:       "<div id=assay>",
+		Marker:      "<div id=assay>",
 		Description: "Div tag injection with id attribute",
 	},
 	{
@@ -50,8 +50,8 @@ var standardPayloads = []Payload{
 		Description: "Anchor tag injection",
 	},
 	{
-		Value:       "<h1>skws</h1>",
-		Marker:      "<h1>skws</h1>",
+		Value:       "<h1>assay</h1>",
+		Marker:      "<h1>assay</h1>",
 		Description: "Heading tag injection",
 	},
 	{
@@ -60,18 +60,18 @@ var standardPayloads = []Payload{
 		Description: "Iframe tag injection",
 	},
 	{
-		Value:       "<marquee>skws</marquee>",
-		Marker:      "<marquee>skws</marquee>",
+		Value:       "<marquee>assay</marquee>",
+		Marker:      "<marquee>assay</marquee>",
 		Description: "Marquee tag injection",
 	},
 	{
-		Value:       `<input type="text" value="skws">`,
-		Marker:      `<input type="text" value="skws">`,
+		Value:       `<input type="text" value="assay">`,
+		Marker:      `<input type="text" value="assay">`,
 		Description: "Input tag injection",
 	},
 	{
-		Value:       "<table><tr><td>skws</td></tr></table>",
-		Marker:      "<table><tr><td>skws</td></tr></table>",
+		Value:       "<table><tr><td>assay</td></tr></table>",
+		Marker:      "<table><tr><td>assay</td></tr></table>",
 		Description: "Table tag injection",
 	},
 	{
@@ -85,8 +85,8 @@ var standardPayloads = []Payload{
 // Source: PayloadsAllTheThings, HackTricks
 var wafBypassPayloads = []Payload{
 	{
-		Value:       "<B>skws</B>",
-		Marker:      "<B>skws</B>",
+		Value:       "<B>assay</B>",
+		Marker:      "<B>assay</B>",
 		Description: "Uppercase bold tag bypass",
 		WAFBypass:   true,
 	},
@@ -97,20 +97,20 @@ var wafBypassPayloads = []Payload{
 		WAFBypass:   true,
 	},
 	{
-		Value:       "<d\tiv id=skws>",
-		Marker:      "id=skws>",
+		Value:       "<d\tiv id=assay>",
+		Marker:      "id=assay>",
 		Description: "Tab character in tag name bypass",
 		WAFBypass:   true,
 	},
 	{
-		Value:       "<b/skws>test</b>",
+		Value:       "<b/assay>test</b>",
 		Marker:      "test</b>",
 		Description: "Slash separator bypass",
 		WAFBypass:   true,
 	},
 	{
-		Value:       "<%00b>skws</b>",
-		Marker:      "skws</b>",
+		Value:       "<%00b>assay</b>",
+		Marker:      "assay</b>",
 		Description: "Null byte in tag name bypass",
 		WAFBypass:   true,
 	},

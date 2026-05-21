@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector probes a target for web cache deception (Omer Gil, 2017).

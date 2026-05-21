@@ -18,8 +18,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // reflectionPaths covers both the v1 and v1alpha service identifiers.
@@ -31,11 +31,11 @@ var reflectionPaths = []string{
 
 // Detector probes targetURL's host for the gRPC reflection service.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -51,9 +51,9 @@ type Result struct {
 //   - protobuf: ListServicesRequest is { string list_services = 3; }
 //     encoded here as a single empty-string field-3 (key 0x1a, length 0).
 var listServicesRequest = []byte{
-	0x00,             // uncompressed flag
+	0x00,                   // uncompressed flag
 	0x00, 0x00, 0x00, 0x02, // big-endian length = 2 bytes of payload
-	0x1a, 0x00,       // field 3 (list_services), wire-type 2 (length-delimited), length 0
+	0x1a, 0x00, // field 3 (list_services), wire-type 2 (length-delimited), length 0
 }
 
 // Detect POSTs the list_services reflection payload to each candidate
@@ -138,7 +138,7 @@ func extractServiceNames(body string) []string {
 	return out
 }
 
-func buildFinding(probedURL, path string, resp *skwshttp.Response, services []string) *core.Finding {
+func buildFinding(probedURL, path string, resp *assayhttp.Response, services []string) *core.Finding {
 	finding := core.NewFinding("gRPC Server Reflection Exposed", core.SeverityMedium)
 	finding.URL = probedURL
 	finding.Parameter = path

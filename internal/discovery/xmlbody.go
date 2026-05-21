@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // xmlElementRe matches XML element opening tags and extracts the element name.

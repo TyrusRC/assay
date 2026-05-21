@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/parser"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates/parser"
 )
 
-// TestFairComparison runs a fair comparison between SKWS and nuclei
+// TestFairComparison runs a fair comparison between assay and nuclei
 func TestFairComparison(t *testing.T) {
 	nucleiPath := os.Getenv("HOME") + "/go/bin/nuclei"
 	if _, err := os.Stat(nucleiPath); os.IsNotExist(err) {
@@ -71,7 +71,7 @@ http:
 	tmplPath := filepath.Join(tmpDir, "fair-test.yaml")
 	os.WriteFile(tmplPath, []byte(tmplContent), 0644)
 
-	// Parse template for SKWS
+	// Parse template for assay
 	p := parser.New()
 	tmpl, err := p.ParseFile(tmplPath)
 	if err != nil {
@@ -81,10 +81,10 @@ http:
 	iterations := 20
 
 	// ========================================
-	// SKWS Benchmark
+	// assay Benchmark
 	// ========================================
 	t.Log("\n╔══════════════════════════════════════════╗")
-	t.Log("║        SKWS Template Scanner             ║")
+	t.Log("║        assay Template Scanner             ║")
 	t.Log("╚══════════════════════════════════════════╝")
 
 	s, _ := scanner.NewTemplateScanner(&scanner.TemplateScanConfig{
@@ -95,25 +95,25 @@ http:
 	target, _ := core.NewTarget(server.URL)
 	s.Scan(context.Background(), target, []*templates.Template{tmpl})
 
-	skwsTimes := make([]time.Duration, iterations)
-	var skwsMatches int
+	assayTimes := make([]time.Duration, iterations)
+	var assayMatches int
 
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		target, _ := core.NewTarget(server.URL)
 		result, _ := s.Scan(context.Background(), target, []*templates.Template{tmpl})
-		skwsTimes[i] = time.Since(start)
+		assayTimes[i] = time.Since(start)
 		if len(result.Findings) > 0 {
-			skwsMatches++
+			assayMatches++
 		}
 	}
 
-	avgSKWS := averageDuration(skwsTimes)
+	avgAssay := averageDuration(assayTimes)
 	t.Logf("  Iterations: %d", iterations)
-	t.Logf("  Matches: %d/%d", skwsMatches, iterations)
-	t.Logf("  Average: %v", avgSKWS)
-	t.Logf("  Min: %v", minDuration(skwsTimes))
-	t.Logf("  Max: %v", maxDuration(skwsTimes))
+	t.Logf("  Matches: %d/%d", assayMatches, iterations)
+	t.Logf("  Average: %v", avgAssay)
+	t.Logf("  Min: %v", minDuration(assayTimes))
+	t.Logf("  Max: %v", maxDuration(assayTimes))
 
 	// ========================================
 	// Nuclei Benchmark
@@ -153,19 +153,19 @@ http:
 	t.Log("║           Performance Summary            ║")
 	t.Log("╚══════════════════════════════════════════╝")
 
-	t.Logf("  SKWS avg:   %v", avgSKWS)
+	t.Logf("  assay avg:   %v", avgAssay)
 	t.Logf("  Nuclei avg: %v", avgNuclei)
 
-	if avgSKWS < avgNuclei {
-		speedup := float64(avgNuclei) / float64(avgSKWS)
-		t.Logf("\n  ✓ SKWS is %.1fx faster than Nuclei", speedup)
+	if avgAssay < avgNuclei {
+		speedup := float64(avgNuclei) / float64(avgAssay)
+		t.Logf("\n  ✓ assay is %.1fx faster than Nuclei", speedup)
 	} else {
-		speedup := float64(avgSKWS) / float64(avgNuclei)
-		t.Logf("\n  ✗ Nuclei is %.1fx faster than SKWS", speedup)
+		speedup := float64(avgAssay) / float64(avgNuclei)
+		t.Logf("\n  ✗ Nuclei is %.1fx faster than assay", speedup)
 	}
 
 	// Memory comparison (rough)
-	t.Log("\n  Note: SKWS runs as a library (in-process),")
+	t.Log("\n  Note: assay runs as a library (in-process),")
 	t.Log("        Nuclei runs as external process (higher overhead)")
 }
 
@@ -218,27 +218,27 @@ func TestMultiTemplateFairComparison(t *testing.T) {
 
 	iterations := 5
 
-	// SKWS
-	t.Log("\n=== SKWS ===")
+	// assay
+	t.Log("\n=== assay ===")
 	s, _ := scanner.NewTemplateScanner(&scanner.TemplateScanConfig{Concurrency: 10})
 
 	// Warmup
 	target, _ := core.NewTarget(server.URL)
 	s.Scan(context.Background(), target, tmpls)
 
-	var skwsTotalTime time.Duration
-	var skwsFindings int
+	var assayTotalTime time.Duration
+	var assayFindings int
 
 	for i := 0; i < iterations; i++ {
 		start := time.Now()
 		target, _ := core.NewTarget(server.URL)
 		result, _ := s.Scan(context.Background(), target, tmpls)
-		skwsTotalTime += time.Since(start)
-		skwsFindings = len(result.Findings)
+		assayTotalTime += time.Since(start)
+		assayFindings = len(result.Findings)
 	}
 
-	avgSKWS := skwsTotalTime / time.Duration(iterations)
-	t.Logf("  Average: %v (%d findings)", avgSKWS, skwsFindings)
+	avgAssay := assayTotalTime / time.Duration(iterations)
+	t.Logf("  Average: %v (%d findings)", avgAssay, assayFindings)
 
 	// Nuclei
 	t.Log("\n=== Nuclei ===")
@@ -266,11 +266,11 @@ func TestMultiTemplateFairComparison(t *testing.T) {
 
 	// Summary
 	t.Log("\n=== Summary ===")
-	if avgSKWS < avgNuclei {
-		speedup := float64(avgNuclei) / float64(avgSKWS)
-		t.Logf("  SKWS is %.1fx faster with %d templates", speedup, numTemplates)
+	if avgAssay < avgNuclei {
+		speedup := float64(avgNuclei) / float64(avgAssay)
+		t.Logf("  assay is %.1fx faster with %d templates", speedup, numTemplates)
 	} else {
-		speedup := float64(avgSKWS) / float64(avgNuclei)
+		speedup := float64(avgAssay) / float64(avgNuclei)
 		t.Logf("  Nuclei is %.1fx faster with %d templates", speedup, numTemplates)
 	}
 }

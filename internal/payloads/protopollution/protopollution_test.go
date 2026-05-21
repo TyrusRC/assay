@@ -58,9 +58,9 @@ func TestRequiredPayloadsPresent(t *testing.T) {
 	payloads := GetPayloads()
 
 	required := []string{
-		"__proto__[skws]=1",
-		"constructor.prototype.skws=1",
-		"__proto__.skws=1",
+		"__proto__[assay]=1",
+		"constructor.prototype.assay=1",
+		"__proto__.assay=1",
 	}
 
 	for _, req := range required {

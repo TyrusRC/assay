@@ -26,8 +26,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // manifestPaths are the canonical "I leaked my internal package
@@ -54,11 +54,11 @@ const publicNPMRegistry = "https://registry.npmjs.org/"
 
 // Detector probes the host for manifest leaks.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 

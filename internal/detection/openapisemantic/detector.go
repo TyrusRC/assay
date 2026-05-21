@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // detectorTool is the canonical Finding.Tool value emitted by this package.
@@ -18,11 +18,11 @@ const detectorTool = "openapisemantic-detector"
 // Detector probes an OpenAPI-described service for semantic mismatches
 // between the published schema and what the server actually enforces.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector bound to the supplied HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -356,7 +356,7 @@ func (d *Detector) load(ctx context.Context, opts DetectOptions) (*Spec, string,
 // sendJSON marshals body and POSTs / PUTs it as application/json. Any
 // failure to marshal bubbles up as an error — encoding failures are bugs
 // in the detector, not the target.
-func (d *Detector) sendJSON(ctx context.Context, target, method string, body map[string]interface{}) (*skwshttp.Response, error) {
+func (d *Detector) sendJSON(ctx context.Context, target, method string, body map[string]interface{}) (*assayhttp.Response, error) {
 	if d.client == nil {
 		return nil, fmt.Errorf("openapisemantic: nil client")
 	}
@@ -405,7 +405,7 @@ func is2xx(status int) bool { return status >= 200 && status < 300 }
 // different. We compare status code and (when statuses match) the trimmed
 // body — that's the cheapest heuristic that still flags reflected SQL-y
 // payloads in echo servers while ignoring incidental whitespace.
-func responsesDiffer(a, b *skwshttp.Response) bool {
+func responsesDiffer(a, b *assayhttp.Response) bool {
 	if a == nil || b == nil {
 		return false
 	}

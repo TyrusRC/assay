@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetector_Name(t *testing.T) {
@@ -413,11 +413,11 @@ func TestDetector_POSTMethod(t *testing.T) {
 
 func TestDetector_ResponseDifferentialAnalysis(t *testing.T) {
 	tests := []struct {
-		name       string
-		handler    http.HandlerFunc
-		wantVuln   bool
-		targetURL  string
-		param      string
+		name      string
+		handler   http.HandlerFunc
+		wantVuln  bool
+		targetURL string
+		param     string
 	}{
 		{
 			name: "Different status code on duplicate params",

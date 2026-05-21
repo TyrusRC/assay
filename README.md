@@ -1,11 +1,11 @@
-# skws — Swiss Knife for Web Security
+# assay — context-aware web vulnerability assay
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/TyrusRC/swiss-knife-for-web-security)](go.mod)
-[![Go Report Card](https://goreportcard.com/badge/github.com/TyrusRC/swiss-knife-for-web-security)](https://goreportcard.com/report/github.com/TyrusRC/swiss-knife-for-web-security)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/TyrusRC/assay)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/TyrusRC/assay)](https://goreportcard.com/report/github.com/TyrusRC/assay)
 [![CI](https://img.shields.io/badge/build-passing-brightgreen)](Makefile)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![GitHub last commit](https://img.shields.io/github/last-commit/TyrusRC/swiss-knife-for-web-security)](https://github.com/TyrusRC/swiss-knife-for-web-security/commits/main)
-[![Issues](https://img.shields.io/github/issues/TyrusRC/swiss-knife-for-web-security)](https://github.com/TyrusRC/swiss-knife-for-web-security/issues)
+[![GitHub last commit](https://img.shields.io/github/last-commit/TyrusRC/assay)](https://github.com/TyrusRC/assay/commits/main)
+[![Issues](https://img.shields.io/github/issues/TyrusRC/assay)](https://github.com/TyrusRC/assay/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
 A Go-native, CLI web-application security scanner that combines **80+
@@ -15,7 +15,7 @@ SQLMap), and a **headless-browser pool** for DOM- and origin-aware
 checks. Findings are mapped to OWASP **WSTG**, **Top 10 (2025)**, and
 **API Security Top 10**.
 
-skws focuses on the categories Nuclei templates structurally cannot
+assay focuses on the categories Nuclei templates structurally cannot
 reach — stateful business-logic bugs, two-identity IDOR/BOLA, race
 conditions over raw HTTP/2 frames, postMessage origin validation,
 authenticated cache deception, and more — while reusing the upstream
@@ -30,7 +30,7 @@ well.
 
 ## Table of contents
 
-- [Why skws](#why-skws)
+- [Why assay](#why-assay)
 - [Quickstart](#quickstart)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -46,12 +46,12 @@ well.
 
 ---
 
-## Why skws
+## Why assay
 
 A scanner is only as good as the categories it can express. Nuclei is
 excellent at fingerprint / CVE / regex-on-response checks, but it has
 no JavaScript runtime, no session model, and no way to compare
-behavior across two authenticated identities. skws fills exactly that
+behavior across two authenticated identities. assay fills exactly that
 gap:
 
 - **Two-identity IDOR / BOLA.** Probe the same URL with two different
@@ -71,7 +71,7 @@ gap:
   discovered by the auto-discovery pipeline are tested in the right
   transport, not silently shoved into the query string.
 
-skws **runs Nuclei alongside** itself when the binary is on `PATH` —
+assay **runs Nuclei alongside** itself when the binary is on `PATH` —
 you do not have to choose between the two.
 
 ---
@@ -80,28 +80,28 @@ you do not have to choose between the two.
 
 ```sh
 # install Go 1.24+ then:
-git clone https://github.com/TyrusRC/swiss-knife-for-web-security.git
-cd swiss-knife-for-web-security
+git clone https://github.com/TyrusRC/assay.git
+cd assay
 make build
 
 # scan a single URL
-./bin/skws scan https://example.com/page?id=1
+./bin/assay scan https://example.com/page?id=1
 
 # stream multiple targets via stdin
-cat targets.txt | ./bin/skws scan --json > findings.json
+cat targets.txt | ./bin/assay scan --json > findings.json
 
 # two-identity IDOR / BOLA probe
-./bin/skws scan https://app.example.com/account/123 \
+./bin/assay scan https://app.example.com/account/123 \
   --auth-a-header "Authorization: Bearer alice-token" \
   --auth-b-header "Authorization: Bearer bob-token"
 
 # proxy through Burp Suite, scan POST endpoint
-./bin/skws scan -X POST -d "user=admin&pass=test" \
+./bin/assay scan -X POST -d "user=admin&pass=test" \
   --proxy http://127.0.0.1:8080 -k https://example.com/login
 
 # inspect tool integrations
-./bin/skws tools list
-./bin/skws tools check
+./bin/assay tools list
+./bin/assay tools check
 ```
 
 ---
@@ -115,22 +115,22 @@ cat targets.txt | ./bin/skws scan --json > findings.json
   the postMessage probe — `go-rod` auto-downloads one on first use,
   or pass `--chrome-path` to use a system binary.
 - *(optional)* `nuclei` and/or `sqlmap` on `PATH` to enable the
-  external-tool wrappers. skws degrades gracefully when they are
+  external-tool wrappers. assay degrades gracefully when they are
   missing.
 
 ### From source
 
 ```sh
-git clone https://github.com/TyrusRC/swiss-knife-for-web-security.git
-cd swiss-knife-for-web-security
-make build       # produces ./bin/skws
+git clone https://github.com/TyrusRC/assay.git
+cd assay
+make build       # produces ./bin/assay
 make install     # optional: install into $GOBIN
 ```
 
 ### `go install`
 
 ```sh
-go install github.com/TyrusRC/swiss-knife-for-web-security/cmd/skws@latest
+go install github.com/TyrusRC/assay/cmd/assay@latest
 ```
 
 ---
@@ -138,14 +138,14 @@ go install github.com/TyrusRC/swiss-knife-for-web-security/cmd/skws@latest
 ## Usage
 
 ```text
-skws scan [target URL] [flags]
+assay scan [target URL] [flags]
 ```
 
 ### Targets
 
-- positional argument: `skws scan https://example.com`
-- target list file: `skws scan -l targets.txt`
-- piped from stdin: `cat targets.txt | skws scan`
+- positional argument: `assay scan https://example.com`
+- target list file: `assay scan -l targets.txt`
+- piped from stdin: `cat targets.txt | assay scan`
 
 ### Authentication & transport
 
@@ -317,7 +317,7 @@ sinks. Listeners that mutated `innerHTML` / `location` / `localStorage`
 was reached.
 
 ```sh
-skws scan --no-postmessage=false https://app.example.com/
+assay scan --no-postmessage=false https://app.example.com/
 ```
 
 ### Two-identity IDOR / BOLA
@@ -329,7 +329,7 @@ High when the unauthorised access is confirmed, Medium when only the
 application precondition is observed.
 
 ```sh
-skws scan https://api.example.com/v1/users/42 \
+assay scan https://api.example.com/v1/users/42 \
   --auth-a-cookie "session=alice" \
   --auth-b-cookie "session=bob"
 ```
@@ -338,7 +338,7 @@ skws scan https://api.example.com/v1/users/42 \
 
 ## External tool integrations
 
-skws ships in-process implementations for everything in
+assay ships in-process implementations for everything in
 [Detection coverage](#detection-coverage); the external wrappers are
 opt-in additions for breadth.
 
@@ -349,7 +349,7 @@ opt-in additions for breadth.
 | ffuf | TODO | Path / parameter brute-force |
 | nikto | TODO | Legacy fingerprint scan |
 
-`skws tools list` shows availability and version of each. `skws tools
+`assay tools list` shows availability and version of each. `assay tools
 check` runs a health check and prints a green/red status. Missing
 binaries are not fatal — the scan proceeds without them.
 
@@ -396,7 +396,7 @@ asynchronously after the synchronous phases.
 ## Project layout
 
 ```
-cmd/skws/                        CLI entry point (Cobra)
+cmd/assay/                        CLI entry point (Cobra)
 internal/
   core/                          Finding, Target, Severity, Parameter
   detection/<module>/            Per-detector packages (one per category)
@@ -422,7 +422,7 @@ file grows past it.
 ## Development
 
 ```sh
-make build              # produce bin/skws
+make build              # produce bin/assay
 make test               # unit tests
 make test-short         # skip integration / network-bound tests
 make test-race          # tests with -race
@@ -477,11 +477,11 @@ Run `make check` locally before opening a PR.
 
 ## Security policy
 
-skws is a defensive security tool. **Use it only against systems you
+assay is a defensive security tool. **Use it only against systems you
 own or have explicit written authorisation to test.** Unauthorised
 scanning is illegal in most jurisdictions.
 
-If you find a security issue *in skws itself* (not in a target), open
+If you find a security issue *in assay itself* (not in a target), open
 a private GitHub Security Advisory rather than a public issue.
 
 ---

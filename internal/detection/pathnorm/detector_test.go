@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestNew(t *testing.T) {
@@ -485,13 +485,13 @@ func TestBodyShapeDiverged(t *testing.T) {
 
 func TestHasAdminMarkers(t *testing.T) {
 	cases := map[string]bool{
-		"<h1>Admin Panel</h1><a href=/logout>Logout</a>":          true,
-		"<h1>Dashboard</h1><a>Settings</a>":                       true,
-		"You are signed in as alice. Logout?":                     true,
-		"Admin":                                                   false, // single weak hit
-		"Welcome to our marketing site":                           false,
-		"<title>404 not found</title><body>nothing here</body>":   false,
-		"audit log shows: action=delete user, role: admin":        true,
+		"<h1>Admin Panel</h1><a href=/logout>Logout</a>":        true,
+		"<h1>Dashboard</h1><a>Settings</a>":                     true,
+		"You are signed in as alice. Logout?":                   true,
+		"Admin":                                                 false, // single weak hit
+		"Welcome to our marketing site":                         false,
+		"<title>404 not found</title><body>nothing here</body>": false,
+		"audit log shows: action=delete user, role: admin":      true,
 	}
 	for body, want := range cases {
 		t.Run(body[:min(len(body), 30)], func(t *testing.T) {

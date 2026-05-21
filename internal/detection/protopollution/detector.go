@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/protopollution"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/protopollution"
 )
 
 // errorPatterns matches response content that indicates prototype pollution
@@ -154,9 +154,9 @@ func (d *Detector) analyzeResponse(baseline, injected, payload string) bool {
 		}
 	}
 
-	// Check if the marker value "skws" appeared in response when it was not in baseline
-	if strings.Contains(payload, "skws") {
-		if strings.Contains(injected, "skws") && !strings.Contains(baseline, "skws") {
+	// Check if the marker value "assay" appeared in response when it was not in baseline
+	if strings.Contains(payload, "assay") {
+		if strings.Contains(injected, "assay") && !strings.Contains(baseline, "assay") {
 			return true
 		}
 	}

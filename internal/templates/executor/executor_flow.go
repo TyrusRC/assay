@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 // executeWithFlow executes a template using the flow field for multi-protocol orchestration.

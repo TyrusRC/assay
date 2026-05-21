@@ -24,18 +24,18 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector probes targetURL for content-type confusion.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -85,7 +85,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 		return res, nil
 	}
 
-	canary := "skws_" + randomToken()
+	canary := "assay_" + randomToken()
 	jsonBody := `{"probe": "` + canary + `"}`
 
 	jsonResp, err := d.client.SendRawBody(ctx, targetURL, "POST", jsonBody, "application/json")
@@ -138,7 +138,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 	return res, nil
 }
 
-func buildFinding(target string, alt alternativeParser, resp *skwshttp.Response) *core.Finding {
+func buildFinding(target string, alt alternativeParser, resp *assayhttp.Response) *core.Finding {
 	finding := core.NewFinding("Content-Type Confusion", core.SeverityMedium)
 	finding.URL = target
 	finding.Parameter = alt.contentType

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetector_Name(t *testing.T) {
@@ -275,7 +275,7 @@ func TestDetector_ErrorPatterns(t *testing.T) {
 func TestDetector_OWASPMapping(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.Header.Get("User-Agent")
-		if ua != "" && ua != "SKWS/1.0" {
+		if ua != "" && ua != "assay/1.0" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(fmt.Sprintf(`{"logged": "%s"}`, ua)))
 			return
@@ -314,7 +314,7 @@ func TestDetector_OWASPMapping(t *testing.T) {
 func TestDetector_FindingCreation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.Header.Get("User-Agent")
-		if ua != "" && ua != "SKWS/1.0" {
+		if ua != "" && ua != "assay/1.0" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(fmt.Sprintf(`{"logged": "%s"}`, ua)))
 			return

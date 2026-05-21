@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // maxProbeCap is the hard upper bound on probes per detection call.
@@ -72,13 +72,13 @@ type DetectionResult struct {
 
 // Detector probes endpoints for CBC padding-oracle behavior.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
 // A nil client is permitted; DetectFromToken returns an empty result
 // in that case rather than panicking.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 

@@ -24,8 +24,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // candidatePaths is the curated wordlist of LLM-style endpoints.
@@ -49,11 +49,11 @@ var pathHints = []string{
 
 // Detector probes for prompt-injection in LLM-backed endpoints.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -178,7 +178,7 @@ type payload struct {
 // sentinel is randomized so a server's prior cache cannot frame a
 // false positive.
 func buildPayloads() []payload {
-	canary := "skws_pi_" + randomToken()
+	canary := "assay_pi_" + randomToken()
 	out := []payload{
 		{
 			desc:   "ignore-previous-instructions sentinel echo",

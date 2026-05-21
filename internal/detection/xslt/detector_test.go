@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetect_FlagsVendorDisclosure(t *testing.T) {
@@ -19,15 +19,15 @@ func TestDetect_FlagsVendorDisclosure(t *testing.T) {
 		// emits the vendor name.
 		if strings.Contains(string(raw), "system-property") {
 			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte(`SKWS_XSLT_VENDOR=Saxonica
-SKWS_XSLT_VERSION=2.0`))
+			_, _ = w.Write([]byte(`ASSAY_XSLT_VENDOR=Saxonica
+ASSAY_XSLT_VERSION=2.0`))
 			return
 		}
 		_, _ = w.Write([]byte("<doc>baseline</doc>"))
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/transform")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -56,7 +56,7 @@ daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin`))
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/transform")
 	hit := false
 	for _, f := range res.Findings {
@@ -76,7 +76,7 @@ func TestDetect_NoFindingOnInertEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/transform")
 	if len(res.Findings) != 0 {
 		t.Errorf("expected 0 findings on inert endpoint, got %d", len(res.Findings))

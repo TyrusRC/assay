@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector audits an OAuth/OIDC surface reachable from a target URL.
@@ -46,7 +46,7 @@ type DetectOptions struct {
 func DefaultOptions() DetectOptions {
 	return DetectOptions{
 		Timeout:      8 * time.Second,
-		AttackerHost: "skws-oauth-redir.example",
+		AttackerHost: "assay-oauth-redir.example",
 	}
 }
 
@@ -78,7 +78,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		opts.Timeout = 8 * time.Second
 	}
 	if opts.AttackerHost == "" {
-		opts.AttackerHost = "skws-oauth-redir.example"
+		opts.AttackerHost = "assay-oauth-redir.example"
 	}
 
 	result := &DetectionResult{Findings: make([]*core.Finding, 0)}
@@ -203,10 +203,10 @@ func (d *Detector) checkRedirectURIBypass(ctx context.Context, m *Metadata, atta
 	}
 	q := authURL.Query()
 	q.Set("response_type", "code")
-	q.Set("client_id", "skws-oauth-probe")
+	q.Set("client_id", "assay-oauth-probe")
 	q.Set("redirect_uri", "https://"+attacker+"/callback")
 	q.Set("scope", "openid")
-	q.Set("state", "skws-state")
+	q.Set("state", "assay-state")
 	authURL.RawQuery = q.Encode()
 
 	// Use a non-redirect-following client clone so we can inspect the

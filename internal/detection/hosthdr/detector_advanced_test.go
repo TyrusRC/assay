@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // TestAdvanced_ForwardedHostConfusion_Reflected verifies that a server which

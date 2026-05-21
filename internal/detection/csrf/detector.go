@@ -17,9 +17,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // evilOrigin is the attacker-controlled value we inject into the Origin
@@ -41,11 +41,11 @@ var stateChangePathHints = []string{
 
 // Detector probes targetURL for missing CSRF defenses.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -55,12 +55,12 @@ type Result struct {
 }
 
 // Detect probes targetURL with three matched POSTs:
-//   1. Same-origin baseline (no Origin header) to capture "what success
-//      looks like" — a 2xx body shape we can compare against.
-//   2. Cross-origin POST (Origin: evil.example) — vulnerable servers
-//      still process the request and return the same shape.
-//   3. Anti-CSRF probe with bogus token — confirms the server is
-//      ignoring tokens entirely (or we never had one).
+//  1. Same-origin baseline (no Origin header) to capture "what success
+//     looks like" — a 2xx body shape we can compare against.
+//  2. Cross-origin POST (Origin: evil.example) — vulnerable servers
+//     still process the request and return the same shape.
+//  3. Anti-CSRF probe with bogus token — confirms the server is
+//     ignoring tokens entirely (or we never had one).
 //
 // Findings emit only when (1) and (2) are similar AND the server
 // returns 2xx for (2). If the server differentiates Origin (returns
@@ -91,7 +91,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL, method, body string) (
 		return res, nil
 	}
 	if body == "" {
-		body = "{\"probe\":\"skws-csrf\"}"
+		body = "{\"probe\":\"assay-csrf\"}"
 	}
 
 	contentType := "application/json"

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetectTimingEnumeration_VulnerableServer(t *testing.T) {
@@ -29,7 +29,7 @@ func TestDetectTimingEnumeration_VulnerableServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(15 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(15 * time.Second)
 	det := New(client)
 
 	opts := TimingEnumOptions{
@@ -71,7 +71,7 @@ func TestDetectTimingEnumeration_SafeServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(15 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(15 * time.Second)
 	det := New(client)
 
 	opts := TimingEnumOptions{
@@ -104,7 +104,7 @@ func TestDetectTimingEnumeration_DefaultSamples(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	det := New(client)
 
 	opts := TimingEnumOptions{ValidUser: "u1", InvalidUser: "u2"} // Samples=0 → default

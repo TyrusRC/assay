@@ -3,7 +3,7 @@ package analysis
 import (
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestResponseSimilarity(t *testing.T) {
@@ -243,18 +243,18 @@ func TestStripDynamicContent_SimilarBodies(t *testing.T) {
 func TestIsSameResponse(t *testing.T) {
 	tests := []struct {
 		name      string
-		a         *skwshttp.Response
-		b         *skwshttp.Response
+		a         *assayhttp.Response
+		b         *assayhttp.Response
 		threshold float64
 		want      bool
 	}{
 		{
 			name: "identical responses are same",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "the quick brown fox jumps over the lazy dog",
 			},
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "the quick brown fox jumps over the lazy dog",
 			},
@@ -263,11 +263,11 @@ func TestIsSameResponse(t *testing.T) {
 		},
 		{
 			name: "different status codes are not same",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "the quick brown fox jumps over the lazy dog",
 			},
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 500,
 				Body:       "the quick brown fox jumps over the lazy dog",
 			},
@@ -276,11 +276,11 @@ func TestIsSameResponse(t *testing.T) {
 		},
 		{
 			name: "completely different bodies are not same",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "alpha beta gamma delta",
 			},
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "one two three four five six",
 			},
@@ -289,11 +289,11 @@ func TestIsSameResponse(t *testing.T) {
 		},
 		{
 			name: "bodies differing only in dynamic content are same",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       `<p>Hello</p><input name="csrf" value="550e8400-e29b-41d4-a716-446655440000">`,
 			},
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       `<p>Hello</p><input name="csrf" value="660e8400-e29b-41d4-a716-557766550000">`,
 			},
@@ -303,7 +303,7 @@ func TestIsSameResponse(t *testing.T) {
 		{
 			name: "nil response a returns false",
 			a:    nil,
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "content",
 			},
@@ -312,7 +312,7 @@ func TestIsSameResponse(t *testing.T) {
 		},
 		{
 			name: "nil response b returns false",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "content",
 			},
@@ -329,11 +329,11 @@ func TestIsSameResponse(t *testing.T) {
 		},
 		{
 			name: "low threshold makes different bodies match",
-			a: &skwshttp.Response{
+			a: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "hello world foo bar",
 			},
-			b: &skwshttp.Response{
+			b: &assayhttp.Response{
 				StatusCode: 200,
 				Body:       "hello world baz qux",
 			},

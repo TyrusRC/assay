@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetector_Name(t *testing.T) {
@@ -34,9 +34,9 @@ func TestDetector_DetectVulnerable(t *testing.T) {
 		input := r.URL.Query().Get("q")
 		// Simulate SSI processing: when the exec directive is received,
 		// the server executes it and returns the output
-		if strings.Contains(input, `echo skws_ssi_test`) {
+		if strings.Contains(input, `echo assay_ssi_test`) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Result: skws_ssi_test"))
+			w.Write([]byte("Result: assay_ssi_test"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -194,9 +194,9 @@ func TestDetector_MaxPayloads(t *testing.T) {
 func TestDetector_OWASPMapping(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("q")
-		if strings.Contains(input, "echo skws_ssi_test") {
+		if strings.Contains(input, "echo assay_ssi_test") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("skws_ssi_test"))
+			w.Write([]byte("assay_ssi_test"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -237,9 +237,9 @@ func TestDetector_OWASPMapping(t *testing.T) {
 func TestDetector_FindingFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		input := r.URL.Query().Get("q")
-		if strings.Contains(input, "echo skws_ssi_test") {
+		if strings.Contains(input, "echo assay_ssi_test") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("skws_ssi_test"))
+			w.Write([]byte("assay_ssi_test"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -384,9 +384,9 @@ func TestDetector_WithWAFBypass(t *testing.T) {
 			w.Write([]byte("blocked"))
 			return
 		}
-		if strings.Contains(input, "EXEC") && strings.Contains(input, "skws_ssi_upper") {
+		if strings.Contains(input, "EXEC") && strings.Contains(input, "assay_ssi_upper") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("skws_ssi_upper"))
+			w.Write([]byte("assay_ssi_upper"))
 			return
 		}
 		w.WriteHeader(http.StatusOK)

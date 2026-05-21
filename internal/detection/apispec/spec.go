@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Endpoint is the canonical record we extract from an OpenAPI document.
@@ -24,13 +24,13 @@ import (
 // independently — verb tampering depends on knowing what verbs are
 // documented vs what the server actually accepts.
 type Endpoint struct {
-	Method      string         // e.g. "GET", "POST"
-	Path        string         // path template, e.g. "/users/{id}"
-	OperationID string         // when present in the spec
-	Parameters  []SpecParameter
-	HasBody     bool
+	Method         string // e.g. "GET", "POST"
+	Path           string // path template, e.g. "/users/{id}"
+	OperationID    string // when present in the spec
+	Parameters     []SpecParameter
+	HasBody        bool
 	BodyMediaTypes []string
-	RequiresAuth bool          // any non-empty security entry on op or root
+	RequiresAuth   bool // any non-empty security entry on op or root
 }
 
 // SpecParameter mirrors the OpenAPI parameter object, narrowed to the
@@ -56,7 +56,7 @@ var pathVarRe = regexp.MustCompile(`\{([^}]+)\}`)
 // LoadFromURL fetches a spec at specURL and parses it. When the URL hosts
 // a Swagger UI it usually exposes the JSON at /openapi.json or /v3/api-docs;
 // this loader doesn't probe — callers pass the JSON URL directly.
-func LoadFromURL(ctx context.Context, client *skwshttp.Client, specURL string) (*Spec, error) {
+func LoadFromURL(ctx context.Context, client *assayhttp.Client, specURL string) (*Spec, error) {
 	if client == nil {
 		return nil, fmt.Errorf("apispec: nil client")
 	}

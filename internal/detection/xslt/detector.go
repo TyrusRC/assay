@@ -17,8 +17,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // vendorMarkers identify XSLT engines the payload should disclose.
@@ -35,9 +35,9 @@ var fileMarkers = []string{"root:x:0:0", "127.0.0.1\tlocalhost", "127.0.0.1 loca
 const vendorPayload = `<?xml version="1.0"?>
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
 <xsl:template match="/">
-SKWS_XSLT_VENDOR=<xsl:value-of select="system-property('xsl:vendor')"/>
-SKWS_XSLT_VERSION=<xsl:value-of select="system-property('xsl:version')"/>
-SKWS_XSLT_LANG=<xsl:value-of select="system-property('xsl:vendor-url')"/>
+ASSAY_XSLT_VENDOR=<xsl:value-of select="system-property('xsl:vendor')"/>
+ASSAY_XSLT_VERSION=<xsl:value-of select="system-property('xsl:version')"/>
+ASSAY_XSLT_LANG=<xsl:value-of select="system-property('xsl:vendor-url')"/>
 </xsl:template>
 </xsl:stylesheet>`
 
@@ -55,11 +55,11 @@ const baselineBody = `<?xml version="1.0"?><doc><probe>baseline</probe></doc>`
 
 // Detector probes targetURL for XSLT injection.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 

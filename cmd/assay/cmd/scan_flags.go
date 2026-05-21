@@ -5,75 +5,75 @@ import (
 	"os"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
+	"github.com/TyrusRC/assay/internal/scanner"
 )
 
 // All scan-command flag variables. Declared at package scope so init()
 // can bind them to cobra and runScan can read them. Grouped roughly by
 // concern: transport / proxy, output, then per-detector toggles.
 var (
-	timeout     time.Duration
-	concurrency int
-	headers     []string
-	cookies     string
-	userAgent   string
-	insecure    bool
-	data        string
-	method      string
-	level       int
-	risk        int
-	jsonOutput  bool
-	htmlOutput  bool
-	disableOOB  bool
-	noDiscovery bool
-	storageInj  bool
-	chromePath  string
-	targetList  string
-	templateDir string
-	profile     string
-	noJSDep     bool
-	nvdAPIKey   string
-	rateLimit   bool
-	noDataExp   bool
-	noAdminPath bool
-	noAPIVer    bool
-	apiSpecURL  string
-	noCtypeConf bool
-	noSSE       bool
-	noGRPCRefl  bool
-	h2ResetOpt  bool
-	noCSRF      bool
-	noTabnab    bool
-	redosOpt    bool
-	noPromptInj bool
-	noXSLT      bool
-	noSAMLInj   bool
-	noORMLeak   bool
-	noTypeJug   bool
-	noDepConf   bool
-	noTokenEnt  bool
-	noCacheDec  bool
-	noCachePois bool
-	noCSSInj    bool
-	noDeser     bool
-	noDOMClob   bool
-	noEmailInj  bool
-	noHPP       bool
-	noHTMLInj   bool
-	massAssign  bool
+	timeout      time.Duration
+	concurrency  int
+	headers      []string
+	cookies      string
+	userAgent    string
+	insecure     bool
+	data         string
+	method       string
+	level        int
+	risk         int
+	jsonOutput   bool
+	htmlOutput   bool
+	disableOOB   bool
+	noDiscovery  bool
+	storageInj   bool
+	chromePath   string
+	targetList   string
+	templateDir  string
+	profile      string
+	noJSDep      bool
+	nvdAPIKey    string
+	rateLimit    bool
+	noDataExp    bool
+	noAdminPath  bool
+	noAPIVer     bool
+	apiSpecURL   string
+	noCtypeConf  bool
+	noSSE        bool
+	noGRPCRefl   bool
+	h2ResetOpt   bool
+	noCSRF       bool
+	noTabnab     bool
+	redosOpt     bool
+	noPromptInj  bool
+	noXSLT       bool
+	noSAMLInj    bool
+	noORMLeak    bool
+	noTypeJug    bool
+	noDepConf    bool
+	noTokenEnt   bool
+	noCacheDec   bool
+	noCachePois  bool
+	noCSSInj     bool
+	noDeser      bool
+	noDOMClob    bool
+	noEmailInj   bool
+	noHPP        bool
+	noHTMLInj    bool
+	massAssign   bool
 	protoPollSrv bool
-	noSecondOrd bool
-	noSSIInj    bool
-	noStorage   bool
-	noNuclei    bool
-	nucleiTags  string
-	nucleiSev   string
-	authACookie string
-	authBCookie string
-	authAHdr    []string
-	authBHdr    []string
-	idorURL     string
-	noPostMsg   bool
+	noSecondOrd  bool
+	noSSIInj     bool
+	noStorage    bool
+	noNuclei     bool
+	nucleiTags   string
+	nucleiSev    string
+	authACookie  string
+	authBCookie  string
+	authAHdr     []string
+	authBHdr     []string
+	idorURL      string
+	noPostMsg    bool
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // legitHost is the placeholder host used for baseline requests in the
@@ -244,7 +244,7 @@ func withDefaults(opts DetectOptions) DetectOptions {
 		opts.Timeout = 8 * time.Second
 	}
 	if opts.AttackerHost == "" {
-		opts.AttackerHost = "skws-host-poison.example"
+		opts.AttackerHost = "assay-host-poison.example"
 	}
 	return opts
 }

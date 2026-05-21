@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // twoUserApp simulates a multi-user resource server. Each user has a
@@ -18,10 +18,10 @@ import (
 // any user's record to anyone holding ANY valid session — the canonical
 // IDOR. The safe variant scopes the response to the session's own user.
 type twoUserApp struct {
-	mu       sync.Mutex
-	users    map[string]string // sessionCookie -> userID
-	records  map[string]string // userID -> private body
-	scoping  bool              // true = safe (responds with session user's data); false = vulnerable (responds with whatever ID is in URL)
+	mu      sync.Mutex
+	users   map[string]string // sessionCookie -> userID
+	records map[string]string // userID -> private body
+	scoping bool              // true = safe (responds with session user's data); false = vulnerable (responds with whatever ID is in URL)
 }
 
 func newTwoUserApp(scoping bool) *twoUserApp {

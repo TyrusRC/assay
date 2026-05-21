@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // SendRawBody sends a request with raw body content.

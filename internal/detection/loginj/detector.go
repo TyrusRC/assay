@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/loginj"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/loginj"
 )
 
 // Detector performs log injection vulnerability detection.
@@ -119,7 +119,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	}
 
 	// Get baseline response
-	baselineResp, err := d.client.SendPayloadInHeader(ctx, target, "User-Agent", "SKWS/1.0", method)
+	baselineResp, err := d.client.SendPayloadInHeader(ctx, target, "User-Agent", "assay/1.0", method)
 	if err != nil {
 		return result, fmt.Errorf("failed to get baseline: %w", err)
 	}

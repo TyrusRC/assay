@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 // matchWord checks for word matches in the response.

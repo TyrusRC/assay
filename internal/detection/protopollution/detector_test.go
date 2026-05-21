@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetector_Name(t *testing.T) {
@@ -70,7 +70,7 @@ func TestDetector_DetectQueryParamPollution(t *testing.T) {
 		param := r.URL.Query().Get("input")
 		if strings.Contains(param, "__proto__") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"skws":"1","status":"ok"}`))
+			w.Write([]byte(`{"assay":"1","status":"ok"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -105,7 +105,7 @@ func TestDetector_DetectJSONBodyPollution(t *testing.T) {
 		param := r.URL.Query().Get("data")
 		if strings.Contains(param, "__proto__") || strings.Contains(param, "constructor") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"skws":"1","merged":true}`))
+			w.Write([]byte(`{"assay":"1","merged":true}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -226,7 +226,7 @@ func TestDetector_ErrorMessageDetection(t *testing.T) {
 		param := r.URL.Query().Get("input")
 		if strings.Contains(param, "__proto__") {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"Cannot set property 'skws' of undefined"}`))
+			w.Write([]byte(`{"error":"Cannot set property 'assay' of undefined"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -265,36 +265,36 @@ func TestDetector_AnalyzeResponse(t *testing.T) {
 		{
 			name:       "Marker appears in response",
 			baseline:   `{"status":"ok"}`,
-			injected:   `{"status":"ok","skws":"1"}`,
-			payload:    "__proto__[skws]=1",
+			injected:   `{"status":"ok","assay":"1"}`,
+			payload:    "__proto__[assay]=1",
 			vulnerable: true,
 		},
 		{
 			name:       "Error message about prototype",
 			baseline:   `{"status":"ok"}`,
-			injected:   `{"error":"Cannot set property 'skws' of undefined"}`,
-			payload:    "__proto__[skws]=1",
+			injected:   `{"error":"Cannot set property 'assay' of undefined"}`,
+			payload:    "__proto__[assay]=1",
 			vulnerable: true,
 		},
 		{
 			name:       "Pollution confirmed message",
 			baseline:   `{"status":"ok"}`,
-			injected:   `{"__proto__":{"skws":"1"},"status":"ok"}`,
-			payload:    `{"__proto__":{"skws":"1"}}`,
+			injected:   `{"__proto__":{"assay":"1"},"status":"ok"}`,
+			payload:    `{"__proto__":{"assay":"1"}}`,
 			vulnerable: true,
 		},
 		{
 			name:       "No change safe response",
 			baseline:   `{"status":"ok"}`,
 			injected:   `{"status":"ok"}`,
-			payload:    "__proto__[skws]=1",
+			payload:    "__proto__[assay]=1",
 			vulnerable: false,
 		},
 		{
 			name:       "Empty responses",
 			baseline:   "",
 			injected:   "",
-			payload:    "__proto__[skws]=1",
+			payload:    "__proto__[assay]=1",
 			vulnerable: false,
 		},
 	}
@@ -314,7 +314,7 @@ func TestDetector_OWASPMapping(t *testing.T) {
 		param := r.URL.Query().Get("input")
 		if strings.Contains(param, "__proto__") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"skws":"1","status":"ok"}`))
+			w.Write([]byte(`{"assay":"1","status":"ok"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -358,7 +358,7 @@ func TestDetector_FindingCreation(t *testing.T) {
 		param := r.URL.Query().Get("test")
 		if strings.Contains(param, "__proto__") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"skws":"1","status":"ok"}`))
+			w.Write([]byte(`{"assay":"1","status":"ok"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)

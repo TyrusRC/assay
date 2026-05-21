@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 func TestJSRouteDiscoverer_Name(t *testing.T) {

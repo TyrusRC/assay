@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
+	"github.com/TyrusRC/assay/internal/headless"
+	"github.com/TyrusRC/assay/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates/matchers"
 )
 
 // HeadlessExecutor executes headless browser-based template steps.

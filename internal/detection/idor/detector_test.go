@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // TestNew verifies that New creates a valid Detector instance.

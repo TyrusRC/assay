@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 // Response represents an HTTP response for matching.

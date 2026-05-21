@@ -564,8 +564,8 @@ func TestClient_DefaultConstants(t *testing.T) {
 func TestClient_DefaultUserAgent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.Header.Get("User-Agent")
-		if ua != "SKWS/1.0" {
-			t.Errorf("Default User-Agent = %q, want %q", ua, "SKWS/1.0")
+		if ua != "assay/1.0" {
+			t.Errorf("Default User-Agent = %q, want %q", ua, "assay/1.0")
 		}
 		w.WriteHeader(http.StatusOK)
 	}))

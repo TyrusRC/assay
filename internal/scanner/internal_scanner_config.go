@@ -3,7 +3,7 @@ package scanner
 import (
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/subtakeover"
+	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 )
 
 // InternalScanConfig configures the internal scanner behavior.

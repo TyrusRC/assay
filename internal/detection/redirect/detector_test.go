@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/redirect"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/redirect"
 )
 
 func TestNew(t *testing.T) {

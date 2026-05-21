@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // CreateFinding creates a Finding from a GraphQL vulnerability.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetect_FlagsUnauthenticatedEventsStream(t *testing.T) {
@@ -23,7 +23,7 @@ func TestDetect_FlagsUnauthenticatedEventsStream(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -46,7 +46,7 @@ func TestDetect_NoFindingWhen401(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -65,7 +65,7 @@ func TestDetect_NoFindingOnNonSSE200(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -87,7 +87,7 @@ func TestDetect_FallsBackToBodyShape(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)

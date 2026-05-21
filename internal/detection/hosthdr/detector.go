@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector audits the Host header surface of a target URL.
@@ -47,7 +47,7 @@ type DetectOptions struct {
 func DefaultOptions() DetectOptions {
 	return DetectOptions{
 		Timeout:      8 * time.Second,
-		AttackerHost: "skws-host-poison.example",
+		AttackerHost: "assay-host-poison.example",
 	}
 }
 
@@ -83,7 +83,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		opts.Timeout = 8 * time.Second
 	}
 	if opts.AttackerHost == "" {
-		opts.AttackerHost = "skws-host-poison.example"
+		opts.AttackerHost = "assay-host-poison.example"
 	}
 
 	result := &DetectionResult{Findings: make([]*core.Finding, 0)}
@@ -196,9 +196,9 @@ func (d *Detector) createFinding(target, header, desc, attacker string, resp *ht
 		"X-Forwarded-Host, X-Host, or X-Forwarded-Server when constructing links used in emails or cache keys. " +
 		"Configure reverse proxies to drop or normalize these headers before they reach the application."
 	f.WithOWASPMapping(
-		[]string{"WSTG-CONF-09"},   // Test for Subdomain Takeover / proxy misconfig family
-		[]string{"A02:2025"},       // Security Misconfiguration
-		[]string{"CWE-644"},        // Improper Neutralization of HTTP Headers for Scripting Syntax
+		[]string{"WSTG-CONF-09"}, // Test for Subdomain Takeover / proxy misconfig family
+		[]string{"A02:2025"},     // Security Misconfiguration
+		[]string{"CWE-644"},      // Improper Neutralization of HTTP Headers for Scripting Syntax
 	)
 	return f
 }

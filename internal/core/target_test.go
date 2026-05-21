@@ -253,8 +253,8 @@ func TestParamClassificationConstants(t *testing.T) {
 
 func TestParameter_Classify(t *testing.T) {
 	tests := []struct {
-		name               string
-		paramName          string
+		name                   string
+		paramName              string
 		expectedClassification string
 	}{
 		{"id param", "id", ParamClassID},

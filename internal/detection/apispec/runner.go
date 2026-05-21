@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Runner exercises every endpoint in a Spec against a base URL and
@@ -16,11 +16,11 @@ import (
 // nonetheless return a 2xx (API5/API9, verb tampering at the function
 // level).
 type Runner struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // NewRunner returns a Runner backed by the project's shared HTTP client.
-func NewRunner(client *skwshttp.Client) *Runner {
+func NewRunner(client *assayhttp.Client) *Runner {
 	return &Runner{client: client}
 }
 
@@ -34,15 +34,15 @@ type Result struct {
 //
 // Two probes per endpoint:
 //
-//   1. Spec vs reality: when the operation is marked as requiring auth
-//      we send an unauthenticated request and flag any 2xx response.
-//      That is API2 / API5 territory: the spec advertises a security
-//      requirement that the server does not enforce.
-//   2. Verb survey: send OPTIONS, then PUT/PATCH/DELETE for endpoints
-//      whose spec doesn't document them. Servers that handle a verb the
-//      spec doesn't acknowledge are typically routing to the same
-//      handler anyway — and that handler often skips the auth check it
-//      relies on the documented verb performing.
+//  1. Spec vs reality: when the operation is marked as requiring auth
+//     we send an unauthenticated request and flag any 2xx response.
+//     That is API2 / API5 territory: the spec advertises a security
+//     requirement that the server does not enforce.
+//  2. Verb survey: send OPTIONS, then PUT/PATCH/DELETE for endpoints
+//     whose spec doesn't document them. Servers that handle a verb the
+//     spec doesn't acknowledge are typically routing to the same
+//     handler anyway — and that handler often skips the auth check it
+//     relies on the documented verb performing.
 //
 // The runner is intentionally read-mostly: it never sends a request body
 // for unsafe verbs because mutating data on a real target would be
@@ -139,7 +139,7 @@ func isSafeForUndocProbe(v string) bool {
 	return false
 }
 
-func buildAuthBypassFinding(url string, ep Endpoint, resp *skwshttp.Response) *core.Finding {
+func buildAuthBypassFinding(url string, ep Endpoint, resp *assayhttp.Response) *core.Finding {
 	finding := core.NewFinding("Spec-Documented Auth Not Enforced", core.SeverityCritical)
 	finding.URL = url
 	finding.Parameter = ep.Path

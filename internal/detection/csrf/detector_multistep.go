@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // MultiStepOptions configures the three multi-step CSRF probes.
@@ -291,7 +291,7 @@ func withMultiStepTimeout(ctx context.Context, t time.Duration) (context.Context
 
 // issueToken fetches issueURL with the given client and parses out a CSRF
 // token from the response (HTML or JSON). Returns "" when nothing matches.
-func issueToken(ctx context.Context, c *skwshttp.Client, issueURL string) (string, error) {
+func issueToken(ctx context.Context, c *assayhttp.Client, issueURL string) (string, error) {
 	resp, err := c.Get(ctx, issueURL)
 	if err != nil || resp == nil {
 		return "", err
@@ -303,7 +303,7 @@ func issueToken(ctx context.Context, c *skwshttp.Client, issueURL string) (strin
 // the server responded 2xx. Form-encoded to match the way most real
 // frameworks accept CSRF tokens; servers that read JSON for the same field
 // will still see the form body and respond consistently.
-func submitToken(ctx context.Context, c *skwshttp.Client, actionURL, token string) (bool, error) {
+func submitToken(ctx context.Context, c *assayhttp.Client, actionURL, token string) (bool, error) {
 	body := "csrf_token=" + token
 	resp, err := c.SendRawBody(ctx, actionURL, http.MethodPost, body, "application/x-www-form-urlencoded")
 	if err != nil || resp == nil {

@@ -3,7 +3,7 @@ package matchers
 import (
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 func TestMatchXPath_HTML(t *testing.T) {

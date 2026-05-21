@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetect_FlagsCredentials(t *testing.T) {
@@ -26,7 +26,7 @@ func TestDetect_FlagsCredentials(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/users/1")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -51,7 +51,7 @@ func TestDetect_NoFlagsOnSafeJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/products/1")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -69,7 +69,7 @@ func TestDetect_NonJSONIgnored(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/login")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -89,7 +89,7 @@ func TestDetect_FlagsArrayOfRecords(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -113,7 +113,7 @@ func TestDetect_ValueSnippetIsTruncated(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/config")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)

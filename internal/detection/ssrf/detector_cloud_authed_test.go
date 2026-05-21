@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // imdsv2Server simulates an SSRF-vulnerable endpoint that, when given a URL,

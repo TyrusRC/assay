@@ -30,7 +30,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )
@@ -168,8 +168,8 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 type pushbackKind int
 
 const (
-	pushbackNone     pushbackKind = iota // no signal observed
-	pushbackProtected                    // GOAWAY / ENHANCE_YOUR_CALM / connection close
+	pushbackNone      pushbackKind = iota // no signal observed
+	pushbackProtected                     // GOAWAY / ENHANCE_YOUR_CALM / connection close
 )
 
 func pollForPushback(framer *http2.Framer, deadline time.Duration) pushbackKind {
@@ -227,7 +227,7 @@ func encodeHeaders(u *url.URL) []byte {
 	} else {
 		hpackBuf.writeHeader(":path", u.Path)
 	}
-	hpackBuf.writeHeader("user-agent", "skws-h2reset/1")
+	hpackBuf.writeHeader("user-agent", "assay-h2reset/1")
 	return hpackBuf.bytes()
 }
 

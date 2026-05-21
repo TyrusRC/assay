@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // tokenize splits a string into a set of unique lowercase word tokens.
@@ -96,13 +96,13 @@ var dynamicPatterns = []*regexp.Regexp{
 // dynamicPatterns entry. Patterns with capture groups use $1$2 to preserve the
 // surrounding structure while blanking the dynamic value.
 var dynamicReplacements = []string{
-	"",       // UUIDs
-	"",       // ISO 8601
-	"",       // Unix timestamps
+	"",         // UUIDs
+	"",         // ISO 8601
+	"",         // Unix timestamps
 	"${1}${2}", // CSRF tokens (keep input tag structure)
 	"${1}${2}", // Nonce attributes
-	"",       // Cache-busting query strings
-	"",       // Hex session IDs
+	"",         // Cache-busting query strings
+	"",         // Hex session IDs
 }
 
 // StripDynamicContent removes known dynamic tokens from a response body before
@@ -124,7 +124,7 @@ func StripDynamicContent(body string) string {
 // dynamic content from both response bodies, compares status codes, and then
 // checks whether the body similarity meets the threshold. Returns false if
 // either response is nil.
-func IsSameResponse(a, b *skwshttp.Response, threshold float64) bool {
+func IsSameResponse(a, b *assayhttp.Response, threshold float64) bool {
 	if a == nil || b == nil {
 		return false
 	}

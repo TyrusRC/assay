@@ -1,5 +1,5 @@
 // Package core provides the fundamental types and interfaces for the
-// Swiss Knife Web Security Scanner (skws).
+// assay — context-aware web vulnerability assay.
 //
 // This package defines:
 //   - Finding: represents a discovered vulnerability

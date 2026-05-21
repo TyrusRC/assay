@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cachedeception"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/postmsg"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secondorder"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storage"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/cachedeception"
+	"github.com/TyrusRC/assay/internal/detection/postmsg"
+	"github.com/TyrusRC/assay/internal/detection/secondorder"
+	"github.com/TyrusRC/assay/internal/detection/storage"
 )
 
 // testCacheDeception probes for web cache deception (Omer Gil, 2017): a

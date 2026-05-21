@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 func TestNewDNSExecutor(t *testing.T) {

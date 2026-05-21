@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/redirect"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/redirect"
 )
 
 // Detector performs Open Redirect vulnerability detection.
@@ -111,7 +111,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	// already containing the same evil-domain reference. Without this,
 	// a page that benignly mentions or links to evil.com would FP.
 	baselineBody := ""
-	if br, berr := nonRedirectClient.SendPayload(ctx, target, param, "skws_redirect_baseline", method); berr == nil && br != nil {
+	if br, berr := nonRedirectClient.SendPayload(ctx, target, param, "assay_redirect_baseline", method); berr == nil && br != nil {
 		baselineBody = br.Body
 	}
 

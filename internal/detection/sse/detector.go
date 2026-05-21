@@ -18,8 +18,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // candidatePaths is the wordlist of common SSE endpoints. Entries are
@@ -44,11 +44,11 @@ var candidatePaths = []string{
 
 // Detector probes the host for unauthenticated SSE endpoints.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -119,7 +119,7 @@ func isSSEResponse(contentType, body string) bool {
 		strings.HasPrefix(t, ":")
 }
 
-func buildFinding(probedURL, path string, resp *skwshttp.Response) *core.Finding {
+func buildFinding(probedURL, path string, resp *assayhttp.Response) *core.Finding {
 	finding := core.NewFinding("Unauthenticated Server-Sent Events Stream", core.SeverityHigh)
 	finding.URL = probedURL
 	finding.Parameter = path

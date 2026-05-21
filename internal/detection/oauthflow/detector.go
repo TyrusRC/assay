@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // toolName is stamped on every Finding produced by this package so that
@@ -43,7 +43,7 @@ func (d *Detector) WithVerbose(v bool) *Detector {
 // DetectOptions tunes the active OAuth-flow probes.
 type DetectOptions struct {
 	// ClientID is the public client identifier sent to the authorize
-	// endpoint. Defaults to "skws-oauthflow-probe" when empty.
+	// endpoint. Defaults to "assay-oauthflow-probe" when empty.
 	ClientID string
 	// RegisteredRedirectURI is the URI that has been pre-registered with
 	// the IdP for the ClientID. The redirect_uri partial-match probe
@@ -67,7 +67,7 @@ type DetectOptions struct {
 // DefaultOptions returns sensible defaults for an OAuth-flow audit.
 func DefaultOptions() DetectOptions {
 	return DetectOptions{
-		ClientID: "skws-oauthflow-probe",
+		ClientID: "assay-oauthflow-probe",
 		Timeout:  8 * time.Second,
 	}
 }
@@ -94,7 +94,7 @@ func withTimeout(parent context.Context, opts DetectOptions) (context.Context, c
 // clientID returns the configured client_id or a stable default.
 func (o DetectOptions) clientID() string {
 	if o.ClientID == "" {
-		return "skws-oauthflow-probe"
+		return "assay-oauthflow-probe"
 	}
 	return o.ClientID
 }
@@ -139,7 +139,7 @@ func (d *Detector) DetectStateBinding(ctx context.Context, authzURL string, opts
 	// that binds state to client+session would either reject the second
 	// request or rotate it; a vulnerable IdP returns the same accepting
 	// behavior twice.
-	const replayState = "skws-replayable-state-0001"
+	const replayState = "assay-replayable-state-0001"
 	first := d.buildAuthzURL(base, opts, map[string]string{"state": replayState}, true)
 	resp1, err1 := d.probe(ctx, first)
 	resp2, err2 := d.probe(ctx, first)
@@ -184,7 +184,7 @@ func (d *Detector) DetectRedirectURIMatching(ctx context.Context, authzURL strin
 
 		probeURL := d.buildAuthzURL(base, opts, map[string]string{
 			"redirect_uri": variant,
-			"state":        "skws-redir-probe",
+			"state":        "assay-redir-probe",
 		}, true)
 
 		resp, err := d.probe(ctx, probeURL)
@@ -240,7 +240,7 @@ func (d *Detector) DetectPKCEDowngrade(ctx context.Context, authzURL, tokenURL s
 	authReq := d.buildAuthzURL(base, opts, map[string]string{
 		"code_challenge":        "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
 		"code_challenge_method": "S256",
-		"state":                 "skws-pkce-probe",
+		"state":                 "assay-pkce-probe",
 	}, true)
 
 	authResp, err := d.probe(ctx, authReq)
@@ -392,7 +392,7 @@ func (d *Detector) buildAuthzURL(base *url.URL, opts DetectOptions, overrides ma
 		q.Set("redirect_uri", opts.RegisteredRedirectURI)
 	}
 	q.Set("scope", "openid")
-	q.Set("state", "skws-state-default")
+	q.Set("state", "assay-state-default")
 	for k, v := range overrides {
 		q.Set(k, v)
 	}

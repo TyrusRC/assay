@@ -24,9 +24,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/analysis"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // adminWordlist is the curated probe set. Entries are root-relative
@@ -104,11 +104,11 @@ var adminWordlist = []struct {
 
 // Detector probes the target for admin/debug/internal paths.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -186,7 +186,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 	return res, nil
 }
 
-func buildFinding(probedURL, path, note string, severity core.Severity, resp *skwshttp.Response) *core.Finding {
+func buildFinding(probedURL, path, note string, severity core.Severity, resp *assayhttp.Response) *core.Finding {
 	finding := core.NewFinding("Reachable Admin / Debug Endpoint", severity)
 	finding.URL = probedURL
 	finding.Parameter = path
@@ -212,7 +212,7 @@ func buildFinding(probedURL, path, note string, severity core.Severity, resp *sk
 	return finding
 }
 
-func statusOf(r *skwshttp.Response) int {
+func statusOf(r *assayhttp.Response) int {
 	if r == nil {
 		return 0
 	}
@@ -222,5 +222,5 @@ func statusOf(r *skwshttp.Response) int {
 func randomPath() string {
 	var b [8]byte
 	_, _ = rand.Read(b[:])
-	return "skws-noexist-" + hex.EncodeToString(b[:])
+	return "assay-noexist-" + hex.EncodeToString(b[:])
 }

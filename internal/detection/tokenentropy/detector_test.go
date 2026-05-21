@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetect_FlagsLowEntropyCookie(t *testing.T) {
@@ -19,7 +19,7 @@ func TestDetect_FlagsLowEntropyCookie(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -39,7 +39,7 @@ func TestDetect_FlagsSequentialIDCookie(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/")
 	if len(res.Findings) == 0 {
 		t.Fatal("expected sequential-id finding")
@@ -55,7 +55,7 @@ func TestDetect_NoFindingOnHighEntropyCookie(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/")
 	if len(res.Findings) != 0 {
 		t.Errorf("expected 0 findings on high-entropy cookie, got %d", len(res.Findings))
@@ -69,7 +69,7 @@ func TestDetect_FlagsLowEntropyEmbeddedCSRF(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, _ := det.Detect(context.Background(), srv.URL+"/")
 	if len(res.Findings) == 0 {
 		t.Fatal("expected finding on low-entropy embedded csrf_token")

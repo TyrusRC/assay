@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestNewBooleanDifferential(t *testing.T) {
@@ -34,7 +34,7 @@ func TestBooleanDifferential_Analyze_TrueDifferential(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	bd := NewBooleanDifferential()
 
 	result := bd.Analyze(
@@ -75,7 +75,7 @@ func TestBooleanDifferential_Analyze_NoDifferential(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	bd := NewBooleanDifferential()
 
 	result := bd.Analyze(
@@ -120,7 +120,7 @@ func TestBooleanDifferential_Analyze_FalseDifferential(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	bd := NewBooleanDifferential()
 
 	result := bd.Analyze(
@@ -148,7 +148,7 @@ func TestBooleanDifferential_Analyze_ContextCancelled(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	bd := NewBooleanDifferential()
 
 	ctx, cancel := context.WithCancel(context.Background())

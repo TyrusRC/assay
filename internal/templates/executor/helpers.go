@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
+	"github.com/TyrusRC/assay/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates/matchers"
 )
 
 // runExtractors runs extractors against a response.

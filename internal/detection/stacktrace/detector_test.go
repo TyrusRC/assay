@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // javaStack is a representative Java/Spring trace fragment.
@@ -64,7 +64,7 @@ func TestDetectFromBaseline_FlagsJavaStack(t *testing.T) {
 	srv := httptest.NewServer(vulnHandler(javaStack))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -117,7 +117,7 @@ func TestDetectFromBaseline_FlagsPythonStack(t *testing.T) {
 	srv := httptest.NewServer(vulnHandler(pythonStack))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -140,7 +140,7 @@ func TestDetectFromBaseline_FlagsPHPStack(t *testing.T) {
 	srv := httptest.NewServer(vulnHandler(phpStack))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -163,7 +163,7 @@ func TestDetectFromBaseline_FlagsNodeStack(t *testing.T) {
 	srv := httptest.NewServer(vulnHandler(nodeStack))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -177,7 +177,7 @@ func TestDetectFromBaseline_FlagsGoStack(t *testing.T) {
 	srv := httptest.NewServer(vulnHandler(goStack))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -198,7 +198,7 @@ func TestDetectFromBaseline_SafeServerReturnsGeneric500(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -221,7 +221,7 @@ func TestDetectFromBaseline_PatternInBaselineIsNotFlagged(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline: %v", err)
@@ -246,7 +246,7 @@ func TestDetectFromBaseline_NilClientIsSafe(t *testing.T) {
 }
 
 func TestDetectFromBaseline_InvalidURL(t *testing.T) {
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), "://bad-url", DetectOptions{})
 	if err != nil {
 		t.Fatalf("DetectFromBaseline returned error for bad URL: %v", err)
@@ -270,7 +270,7 @@ func TestDetectFromBaseline_CustomProbeTriggersFinding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectFromBaseline(context.Background(), srv.URL+"/", DetectOptions{
 		CustomProbes: []string{"?custom=boom"},
 	})

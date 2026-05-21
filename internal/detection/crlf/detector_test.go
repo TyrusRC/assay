@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/crlf"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/crlf"
 )
 
 // TestIsVulnerable_RotatingSessionCookie_NoFP reproduces the real-world

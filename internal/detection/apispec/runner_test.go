@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // authBypassSpec declares /admin/users requires bearer auth.
@@ -48,7 +48,7 @@ func TestRun_FlagsUnauthenticatedAccessOnSpecAuthEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	r := NewRunner(skwshttp.NewClient())
+	r := NewRunner(assayhttp.NewClient())
 	res, err := r.Run(context.Background(), spec, srv.URL)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -84,7 +84,7 @@ func TestRun_FlagsUndocumentedVerb(t *testing.T) {
 	defer srv.Close()
 
 	spec, _ := Parse([]byte(undocVerbSpec))
-	r := NewRunner(skwshttp.NewClient())
+	r := NewRunner(assayhttp.NewClient())
 	res, _ := r.Run(context.Background(), spec, srv.URL)
 
 	verbs := map[string]bool{}
@@ -107,7 +107,7 @@ func TestRun_NoFindingsWhen401Returned(t *testing.T) {
 	defer srv.Close()
 
 	spec, _ := Parse([]byte(authBypassSpec))
-	r := NewRunner(skwshttp.NewClient())
+	r := NewRunner(assayhttp.NewClient())
 	res, _ := r.Run(context.Background(), spec, srv.URL)
 	for _, f := range res.Findings {
 		if strings.Contains(f.Type, "Spec-Documented Auth Not Enforced") {

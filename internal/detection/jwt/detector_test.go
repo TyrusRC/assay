@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // Helper function to create a valid JWT for testing.

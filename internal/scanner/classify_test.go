@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestClassifyParameter_ReflectedCanary(t *testing.T) {
@@ -22,7 +22,7 @@ func TestClassifyParameter_ReflectedCanary(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	param := core.Parameter{
 		Name:     "name",
 		Location: core.ParamLocationQuery,
@@ -52,7 +52,7 @@ func TestClassifyParameter_NotReflected(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	param := core.Parameter{
 		Name:     "id",
 		Location: core.ParamLocationQuery,
@@ -78,7 +78,7 @@ func TestClassifyParameter_SetsClassification(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestClassifyParameter_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	param := core.Parameter{
 		Name:     "id",
 		Location: core.ParamLocationQuery,
@@ -146,7 +146,7 @@ func TestClassifyParameters_Batch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient().WithTimeout(5 * time.Second)
+	client := assayhttp.NewClient().WithTimeout(5 * time.Second)
 	params := []core.Parameter{
 		{Name: "q", Location: core.ParamLocationQuery, Value: "test"},
 		{Name: "page", Location: core.ParamLocationQuery, Value: "1"},

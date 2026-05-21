@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // fastDetector returns a ratelimit detector with tight timings so tests
 // don't sleep for seconds.
-func fastDetector(client *skwshttp.Client) *Detector {
+func fastDetector(client *assayhttp.Client) *Detector {
 	d := New(client)
 	d.burstSize = 6
 	d.burstWindow = 60 * time.Millisecond
@@ -28,7 +28,7 @@ func TestDetect_FlagsUnlimitedEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := fastDetector(skwshttp.NewClient())
+	det := fastDetector(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/login")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -54,7 +54,7 @@ func TestDetect_Respects429(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := fastDetector(skwshttp.NewClient())
+	det := fastDetector(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/login")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -72,7 +72,7 @@ func TestDetect_RespectsRetryAfterHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := fastDetector(skwshttp.NewClient())
+	det := fastDetector(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -88,7 +88,7 @@ func TestDetect_NonSensitivePathIsMedium(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := fastDetector(skwshttp.NewClient())
+	det := fastDetector(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/products")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -115,7 +115,7 @@ func TestDetect_SkipsOnPartialFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := fastDetector(skwshttp.NewClient())
+	det := fastDetector(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)

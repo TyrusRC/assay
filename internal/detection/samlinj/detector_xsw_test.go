@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // baseAssertionFixture returns a minimal signed-looking <Assertion> the
@@ -96,7 +96,7 @@ func base64OracleSP(t *testing.T) *httptest.Server {
 }
 
 func newXSWDetector() *Detector {
-	c := skwshttp.NewClient().WithTimeout(2 * time.Second)
+	c := assayhttp.NewClient().WithTimeout(2 * time.Second)
 	return New(c)
 }
 

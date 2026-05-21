@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/cssinj"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/cssinj"
 )
 
 // Detector performs CSS Injection vulnerability detection.
@@ -84,7 +84,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	}
 
 	// Get baseline response for false positive elimination
-	baselineResp, err := d.client.SendPayload(ctx, target, param, "skws_css_baseline_safe", method)
+	baselineResp, err := d.client.SendPayload(ctx, target, param, "assay_css_baseline_safe", method)
 	if err != nil {
 		return result, fmt.Errorf("failed to get baseline: %w", err)
 	}

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector probes a target for race-condition / TOCTOU vulnerabilities.
@@ -131,7 +131,7 @@ func (d *Detector) collectBaseline(ctx context.Context, target, param, method st
 		if err := ctx.Err(); err != nil {
 			return out, err
 		}
-		resp, err := d.client.SendPayload(ctx, target, param, "skws_race_baseline", method)
+		resp, err := d.client.SendPayload(ctx, target, param, "assay_race_baseline", method)
 		if err != nil {
 			out = append(out, recordedResponse{Err: err})
 			continue
@@ -150,7 +150,7 @@ func (d *Detector) collectBaseline(ctx context.Context, target, param, method st
 // doesn't negotiate h2 via ALPN — this keeps the detector usable against
 // h1-only targets without requiring the caller to pre-probe.
 func (d *Detector) collectBurst(ctx context.Context, target, param, method string, opts DetectOptions) ([]recordedResponse, error) {
-	body := fmt.Sprintf("%s=skws_race_burst", param)
+	body := fmt.Sprintf("%s=assay_race_burst", param)
 	headers := d.client.Snapshot().Headers
 	switch opts.SyncMode {
 	case SyncH1LastByte:
@@ -176,7 +176,7 @@ func (d *Detector) parallelBurst(ctx context.Context, target, param, method stri
 	for i := 0; i < n; i++ {
 		go func(idx int) {
 			defer func() { done <- struct{}{} }()
-			resp, err := d.client.SendPayload(ctx, target, param, "skws_race_burst", method)
+			resp, err := d.client.SendPayload(ctx, target, param, "assay_race_burst", method)
 			if err != nil {
 				out[idx] = recordedResponse{Err: err}
 				return
@@ -278,4 +278,3 @@ func (d *Detector) buildFinding(target, param, method string, baseline, burst []
 	)
 	return finding
 }
-

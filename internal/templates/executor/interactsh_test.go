@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
+	"github.com/TyrusRC/assay/internal/detection/oob"
 )
 
 func TestNewInteractshHelper_NilClient(t *testing.T) {

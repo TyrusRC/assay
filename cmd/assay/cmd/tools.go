@@ -3,23 +3,23 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/TyrusRC/assay/internal/tools/nuclei"
+	"github.com/TyrusRC/assay/internal/tools/sqlmap"
 	"github.com/spf13/cobra"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/nuclei"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/tools/sqlmap"
 )
 
 // toolsCmd represents the tools command.
 var toolsCmd = &cobra.Command{
 	Use:   "tools",
 	Short: "Manage security tools",
-	Long:  `Manage and inspect security tools integrated with SKWS.`,
+	Long:  `Manage and inspect security tools integrated with assay.`,
 }
 
 // toolsListCmd lists all available tools.
 var toolsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available security tools",
-	Long:  `List all security tools integrated with SKWS and their availability status.`,
+	Long:  `List all security tools integrated with assay and their availability status.`,
 	Run:   runToolsList,
 }
 

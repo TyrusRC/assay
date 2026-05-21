@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/assay/internal/headless"
 )
 
 // skipIfNoBrowser skips the test if Chrome is not available.

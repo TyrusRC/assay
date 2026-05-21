@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // GraphQLIntrospectionDiscoverer extracts field and argument names from GraphQL introspection responses.

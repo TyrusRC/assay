@@ -6,15 +6,15 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/auth"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/cloud"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/exposure"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/graphql"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/jndi"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/secheaders"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/subtakeover"
-	tlsdetect "github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/tls"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/auth"
+	"github.com/TyrusRC/assay/internal/detection/cloud"
+	"github.com/TyrusRC/assay/internal/detection/exposure"
+	"github.com/TyrusRC/assay/internal/detection/graphql"
+	"github.com/TyrusRC/assay/internal/detection/jndi"
+	"github.com/TyrusRC/assay/internal/detection/secheaders"
+	"github.com/TyrusRC/assay/internal/detection/subtakeover"
+	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
 )
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.

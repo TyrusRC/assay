@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // XSSResult is what DetectXSS returns. Findings is empty when nothing was

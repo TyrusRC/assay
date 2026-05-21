@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalctx "github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/context"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/xss"
+	"github.com/TyrusRC/assay/internal/core"
+	internalctx "github.com/TyrusRC/assay/internal/detection/context"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/xss"
 )
 
 // Pre-compiled regexes for context analysis to avoid per-call compilation.

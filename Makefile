@@ -1,10 +1,10 @@
-# Makefile for Swiss Knife Web Security Scanner
+# Makefile for assay — context-aware web vulnerability assay
 # Usage: make <target>
 
 # Variables
-BINARY_NAME=skws
+BINARY_NAME=assay
 BINARY_DIR=bin
-CMD_DIR=cmd/skws
+CMD_DIR=cmd/assay
 COVERAGE_DIR=coverage
 
 # Go parameters
@@ -238,7 +238,7 @@ docs:
 
 ## help: Show this help message
 help:
-	@echo "Swiss Knife Web Security Scanner - Makefile"
+	@echo "assay - Makefile"
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""

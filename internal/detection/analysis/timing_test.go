@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestNewTimingAnalyzer(t *testing.T) {
@@ -43,7 +43,7 @@ func TestTimingAnalyzer_Analyze_DelayDetected(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	ta := NewTimingAnalyzer()
 
 	result := ta.Analyze(
@@ -85,7 +85,7 @@ func TestTimingAnalyzer_Analyze_NoDelay(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	ta := NewTimingAnalyzer()
 
 	result := ta.Analyze(
@@ -116,7 +116,7 @@ func TestTimingAnalyzer_Analyze_ContextCancelled(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	ta := NewTimingAnalyzer()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -251,7 +251,7 @@ func TestTimingAnalyzer_Analyze_ShortDelay(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	ta := NewTimingAnalyzer()
 
 	result := ta.Analyze(
@@ -310,7 +310,7 @@ func TestTimingAnalyzer_Analyze_ContextTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := skwshttp.NewClient()
+	client := assayhttp.NewClient()
 	ta := NewTimingAnalyzer()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // testCtx returns a context bound to the test deadline so a hanging request
@@ -118,7 +118,7 @@ func TestDetector_NameDescription(t *testing.T) {
 }
 
 func TestDetect_RequiresSpecSource(t *testing.T) {
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	if _, err := d.DetectTypeCoercion(testCtx(t), DetectOptions{BaseURL: "http://x"}); err == nil {
 		t.Error("expected error when neither SpecJSON nor SpecURL is set")
 	}
@@ -164,7 +164,7 @@ func TestDetectTypeCoercion_VulnerableServer_High(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectTypeCoercion(testCtx(t), DetectOptions{
 		SpecJSON: typeCoercionSpec(),
 		BaseURL:  srv.URL,
@@ -208,7 +208,7 @@ func TestDetectTypeCoercion_StrictServer_NoFinding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectTypeCoercion(testCtx(t), DetectOptions{
 		SpecJSON: typeCoercionSpec(),
 		BaseURL:  srv.URL,
@@ -273,7 +273,7 @@ func TestDetectDiscriminatorConfusion_Vulnerable_Critical(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectDiscriminatorConfusion(testCtx(t), DetectOptions{
 		SpecJSON: discriminatorSpec(),
 		BaseURL:  srv.URL,
@@ -305,7 +305,7 @@ func TestDetectDiscriminatorConfusion_Strict_NoFinding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectDiscriminatorConfusion(testCtx(t), DetectOptions{
 		SpecJSON: discriminatorSpec(),
 		BaseURL:  srv.URL,
@@ -354,7 +354,7 @@ func TestDetectNullableLeak_Vulnerable_Critical(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectNullableLeak(testCtx(t), DetectOptions{
 		SpecJSON: nullableSpec(),
 		BaseURL:  srv.URL,
@@ -387,7 +387,7 @@ func TestDetectNullableLeak_Strict_NoFinding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectNullableLeak(testCtx(t), DetectOptions{
 		SpecJSON: nullableSpec(),
 		BaseURL:  srv.URL,
@@ -438,7 +438,7 @@ func TestDetectAdditionalPropertiesBypass_Vulnerable_High(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectAdditionalPropertiesBypass(testCtx(t), DetectOptions{
 		SpecJSON: additionalPropsSpec(),
 		BaseURL:  srv.URL,
@@ -473,7 +473,7 @@ func TestDetectAdditionalPropertiesBypass_Strict_NoFinding(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectAdditionalPropertiesBypass(testCtx(t), DetectOptions{
 		SpecJSON: additionalPropsSpec(),
 		BaseURL:  srv.URL,
@@ -568,7 +568,7 @@ func TestDetectAll_MergesFindings(t *testing.T) {
 		}
 	}`)
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectAll(testCtx(t), DetectOptions{SpecJSON: spec, BaseURL: srv.URL})
 	if err != nil {
 		t.Fatalf("DetectAll: %v", err)
@@ -608,7 +608,7 @@ func TestLoad_FromSpecURL(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectTypeCoercion(testCtx(t), DetectOptions{
 		SpecURL: srv.URL + "/spec.json",
 		BaseURL: srv.URL,

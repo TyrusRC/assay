@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // tokenNameRe matches cookie / form-field names that conventionally
@@ -51,11 +51,11 @@ const entropyFloor = 3.0
 
 // Detector probes a target for insecure-token output.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -152,7 +152,7 @@ func isSequential(s string) bool {
 // names look token-shaped. We re-parse Set-Cookie from raw because
 // the project's http.Response collapses headers into a single string
 // per name.
-func extractTokenCookies(resp *skwshttp.Response) map[string]string {
+func extractTokenCookies(resp *assayhttp.Response) map[string]string {
 	out := map[string]string{}
 	if resp == nil {
 		return out

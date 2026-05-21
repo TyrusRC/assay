@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 const (
@@ -54,7 +54,7 @@ func NewTimingAnalyzer() *TimingAnalyzer {
 // of confirmations to declare a positive result.
 func (ta *TimingAnalyzer) Analyze(
 	ctx context.Context,
-	client *skwshttp.Client,
+	client *assayhttp.Client,
 	targetURL, param, method, delayPayload string,
 	expectedDelay time.Duration,
 ) *TimingResult {

@@ -1,4 +1,4 @@
-# golangci-lint configuration for Swiss Knife Web Security Scanner
+# golangci-lint configuration for assay
 # Run: golangci-lint run
 
 run:

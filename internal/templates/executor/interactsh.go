@@ -3,7 +3,7 @@ package executor
 import (
 	"context"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oob"
+	"github.com/TyrusRC/assay/internal/detection/oob"
 )
 
 const interactshPlaceholder = "interact.sh"

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gobwas/ws/wsutil"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // Detector finds WebSocket security issues. It uses the shared internal

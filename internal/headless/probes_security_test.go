@@ -281,7 +281,7 @@ func TestProbeTrustedTypesBypass_EnforcedHeaderBlocks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.Header().Set("Content-Security-Policy",
-			"require-trusted-types-for 'script'; trusted-types skws-policy")
+			"require-trusted-types-for 'script'; trusted-types assay-policy")
 		_, _ = w.Write([]byte(`<!DOCTYPE html><html><body><div id="sink"></div></body></html>`))
 	}))
 	defer srv.Close()

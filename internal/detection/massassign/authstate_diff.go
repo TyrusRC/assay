@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // AuthStateDiffOptions configures the two-phase mass-assignment probe
@@ -43,19 +43,19 @@ func DefaultAuthStateDiffOptions() AuthStateDiffOptions {
 	return AuthStateDiffOptions{
 		WriteMethod: "PATCH",
 		PrivilegedFields: map[string]interface{}{
-			"isAdmin":      true,
-			"is_admin":     true,
-			"admin":        true,
-			"role":         "admin",
-			"roles":        []string{"admin"},
-			"is_staff":     true,
-			"is_superuser": true,
-			"verified":     true,
-			"is_verified":  true,
-			"emailVerified": true,
+			"isAdmin":        true,
+			"is_admin":       true,
+			"admin":          true,
+			"role":           "admin",
+			"roles":          []string{"admin"},
+			"is_staff":       true,
+			"is_superuser":   true,
+			"verified":       true,
+			"is_verified":    true,
+			"emailVerified":  true,
 			"email_verified": true,
-			"premium":      true,
-			"plan":         "enterprise",
+			"premium":        true,
+			"plan":           "enterprise",
 		},
 		MaxFindings: 5,
 	}

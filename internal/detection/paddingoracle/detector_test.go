@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // makeCiphertext returns a 32-byte (two AES-block) deterministic
@@ -71,7 +71,7 @@ func decodeFor(s, encoding string) ([]byte, error) {
 
 func TestNewReturnsDetector(t *testing.T) {
 	t.Parallel()
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	if d == nil {
 		t.Fatal("New returned nil")
 	}
@@ -94,7 +94,7 @@ func TestDetectFromToken_NilClient(t *testing.T) {
 
 func TestDetectFromToken_EmptyToken(t *testing.T) {
 	t.Parallel()
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	res, err := d.DetectFromToken(context.Background(), "http://example.invalid", "session", "", DetectOptions{})
 	if err == nil {
 		t.Fatal("expected error on empty token")
@@ -106,7 +106,7 @@ func TestDetectFromToken_EmptyToken(t *testing.T) {
 
 func TestDetectFromToken_InvalidEncoding(t *testing.T) {
 	t.Parallel()
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	_, err := d.DetectFromToken(context.Background(), "http://example.invalid", "session", "AAAA", DetectOptions{Encoding: "rot13"})
 	if err == nil {
 		t.Fatal("expected error on unsupported encoding")
@@ -115,7 +115,7 @@ func TestDetectFromToken_InvalidEncoding(t *testing.T) {
 
 func TestDetectFromToken_BadBase64(t *testing.T) {
 	t.Parallel()
-	d := New(skwshttp.NewClient())
+	d := New(assayhttp.NewClient())
 	_, err := d.DetectFromToken(context.Background(), "http://example.invalid", "session", "!!!not-base64!!!", DetectOptions{Encoding: "base64"})
 	if err == nil {
 		t.Fatal("expected error decoding invalid base64")
@@ -130,7 +130,7 @@ func TestDetectFromToken_SafeServer_QuickProbe(t *testing.T) {
 	ct := makeCiphertext()
 	tok := base64.StdEncoding.EncodeToString(ct)
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	res, err := d.DetectFromToken(context.Background(), srv.URL+"/?session=ORIG", "session", tok, DetectOptions{
 		Encoding:  "base64",
 		MaxProbes: 16,
@@ -160,7 +160,7 @@ func TestDetectFromToken_VulnerableServer_QuickProbe(t *testing.T) {
 
 	tok := base64.StdEncoding.EncodeToString(ct)
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	// MaxProbes=32 is enough — we choose probe values that span at
 	// least one "good padding" byte (the original) and many "bad
 	// padding" bytes.
@@ -218,7 +218,7 @@ func TestDetectFromToken_HexEncoding(t *testing.T) {
 	defer srv.Close()
 
 	tok := hex.EncodeToString(ct)
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	res, err := d.DetectFromToken(context.Background(), srv.URL+"/?session=ORIG", "session", tok, DetectOptions{
 		Encoding:  "hex",
 		MaxProbes: 32,
@@ -240,7 +240,7 @@ func TestDetectFromToken_MaxProbesCappedAt256(t *testing.T) {
 	defer srv.Close()
 	tok := base64.StdEncoding.EncodeToString(ct)
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	// Request 5000 probes; implementation must cap at 256.
 	res, err := d.DetectFromToken(context.Background(), srv.URL+"/?session=ORIG", "session", tok, DetectOptions{
 		Encoding:  "base64",
@@ -272,7 +272,7 @@ func TestDetectFromToken_FullProbe_Vulnerable(t *testing.T) {
 	defer srv.Close()
 	tok := base64.StdEncoding.EncodeToString(ct)
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	res, err := d.DetectFromToken(context.Background(), srv.URL+"/?session=ORIG", "session", tok, DetectOptions{
 		Encoding:  "base64",
 		MaxProbes: 256,
@@ -295,7 +295,7 @@ func TestDetectFromToken_FullProbe_Safe(t *testing.T) {
 	defer srv.Close()
 	tok := base64.StdEncoding.EncodeToString(makeCiphertext())
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	res, err := d.DetectFromToken(context.Background(), srv.URL+"/?session=ORIG", "session", tok, DetectOptions{
 		Encoding:  "base64",
 		MaxProbes: 256,
@@ -315,7 +315,7 @@ func TestDetectFromToken_ContextCancel(t *testing.T) {
 	defer srv.Close()
 	tok := base64.StdEncoding.EncodeToString(makeCiphertext())
 
-	d := New(skwshttp.NewClient().WithFollowRedirects(false))
+	d := New(assayhttp.NewClient().WithFollowRedirects(false))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // pre-cancelled
 

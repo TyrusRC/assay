@@ -298,7 +298,7 @@ func (p *Page) ProbePostMessageOrigin(ctx context.Context, attackerOrigin, paylo
 		attackerOrigin = "https://attacker.example"
 	}
 	if payload == "" {
-		payload = "__skws_postmessage_probe__"
+		payload = "__assay_postmessage_probe__"
 	}
 	// We dispatch the synthetic event and observe four canonical sinks:
 	//   - document.body.innerHTML diff

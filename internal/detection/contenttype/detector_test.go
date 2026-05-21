@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // jsonAndAltAccepting simulates a server that happily accepts JSON, XML,
@@ -57,7 +57,7 @@ func TestDetect_FlagsAlternativesWhenAllAccepted(t *testing.T) {
 	srv := jsonAndAltAccepting()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -82,7 +82,7 @@ func TestDetect_NoFindingsWhenJSONOnly(t *testing.T) {
 	srv := jsonOnly()
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/techstack"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/detection/techstack"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // detectTechnologiesWithClient detects web technologies using the provided client.

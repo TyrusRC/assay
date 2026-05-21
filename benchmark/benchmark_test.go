@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/parser"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates/parser"
 )
 
 // BenchmarkParseTemplates benchmarks template parsing speed
@@ -33,8 +33,8 @@ func BenchmarkParseTemplates(b *testing.B) {
 	}
 }
 
-// BenchmarkSKWSExecution benchmarks SKWS template execution
-func BenchmarkSKWSExecution(b *testing.B) {
+// BenchmarkAssayExecution benchmarks assay template execution
+func BenchmarkAssayExecution(b *testing.B) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", "Apache/2.4.41")
@@ -144,7 +144,7 @@ func createBenchmarkTemplates() []*templates.Template {
 	}
 }
 
-// TestComparePerformance runs a performance comparison between SKWS and nuclei
+// TestComparePerformance runs a performance comparison between assay and nuclei
 func TestComparePerformance(t *testing.T) {
 	nucleiPath, err := exec.LookPath("nuclei")
 	if err != nil {
@@ -195,9 +195,9 @@ http:
 
 	iterations := 10
 
-	// Benchmark SKWS
-	t.Log("=== SKWS Template Scanner ===")
-	skwsTimes := make([]time.Duration, iterations)
+	// Benchmark assay
+	t.Log("=== assay Template Scanner ===")
+	assayTimes := make([]time.Duration, iterations)
 	s, _ := scanner.NewTemplateScanner(nil)
 	p := parser.New()
 	tmpl, _ := p.ParseFile(tmplPath)
@@ -206,15 +206,15 @@ http:
 		start := time.Now()
 		target, _ := core.NewTarget(server.URL)
 		result, _ := s.Scan(context.Background(), target, []*templates.Template{tmpl})
-		skwsTimes[i] = time.Since(start)
+		assayTimes[i] = time.Since(start)
 		if i == 0 {
 			t.Logf("  Findings: %d, Match: %v", len(result.Findings), len(result.Findings) > 0)
 		}
 	}
 
-	avgSKWS := averageDuration(skwsTimes)
-	t.Logf("  Average time: %v", avgSKWS)
-	t.Logf("  Min: %v, Max: %v", minDuration(skwsTimes), maxDuration(skwsTimes))
+	avgAssay := averageDuration(assayTimes)
+	t.Logf("  Average time: %v", avgAssay)
+	t.Logf("  Min: %v, Max: %v", minDuration(assayTimes), maxDuration(assayTimes))
 
 	// Benchmark Nuclei
 	t.Log("\n=== Nuclei ===")
@@ -245,12 +245,12 @@ http:
 
 	// Comparison
 	t.Log("\n=== Performance Comparison ===")
-	if avgSKWS < avgNuclei {
-		speedup := float64(avgNuclei) / float64(avgSKWS)
-		t.Logf("  SKWS is %.2fx faster than Nuclei", speedup)
+	if avgAssay < avgNuclei {
+		speedup := float64(avgNuclei) / float64(avgAssay)
+		t.Logf("  assay is %.2fx faster than Nuclei", speedup)
 	} else {
-		speedup := float64(avgSKWS) / float64(avgNuclei)
-		t.Logf("  Nuclei is %.2fx faster than SKWS", speedup)
+		speedup := float64(avgAssay) / float64(avgNuclei)
+		t.Logf("  Nuclei is %.2fx faster than assay", speedup)
 	}
 }
 
@@ -304,8 +304,8 @@ func TestMultiTemplateComparison(t *testing.T) {
 		}
 	}
 
-	// Test SKWS
-	t.Log("\n=== SKWS with multiple templates ===")
+	// Test assay
+	t.Log("\n=== assay with multiple templates ===")
 	s, _ := scanner.NewTemplateScanner(&scanner.TemplateScanConfig{
 		Concurrency: 10,
 	})
@@ -313,8 +313,8 @@ func TestMultiTemplateComparison(t *testing.T) {
 	start := time.Now()
 	target, _ := core.NewTarget(server.URL)
 	result, _ := s.Scan(context.Background(), target, tmpls)
-	skwsTime := time.Since(start)
-	t.Logf("  Time: %v", skwsTime)
+	assayTime := time.Since(start)
+	t.Logf("  Time: %v", assayTime)
 	t.Logf("  Templates run: %d", result.TemplatesRun)
 	t.Logf("  Findings: %d", len(result.Findings))
 
@@ -336,12 +336,12 @@ func TestMultiTemplateComparison(t *testing.T) {
 
 	// Comparison
 	t.Log("\n=== Multi-Template Performance Comparison ===")
-	if skwsTime < nucleiTime {
-		speedup := float64(nucleiTime) / float64(skwsTime)
-		t.Logf("  SKWS is %.2fx faster than Nuclei", speedup)
+	if assayTime < nucleiTime {
+		speedup := float64(nucleiTime) / float64(assayTime)
+		t.Logf("  assay is %.2fx faster than Nuclei", speedup)
 	} else {
-		speedup := float64(skwsTime) / float64(nucleiTime)
-		t.Logf("  Nuclei is %.2fx faster than SKWS", speedup)
+		speedup := float64(assayTime) / float64(nucleiTime)
+		t.Logf("  Nuclei is %.2fx faster than assay", speedup)
 	}
 }
 

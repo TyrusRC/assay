@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/payloads/nosql"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/nosql"
 )
 
 func TestDetector_Name(t *testing.T) {

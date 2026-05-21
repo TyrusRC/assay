@@ -6,12 +6,12 @@ import (
 	"io"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/scanner"
+	"github.com/TyrusRC/assay/internal/scanner"
 )
 
 const (
 	reportVersion = "1.0.0"
-	toolName      = "skws"
+	toolName      = "assay"
 )
 
 // Report represents a scan report.
@@ -46,7 +46,7 @@ func (r *Report) WriteText(w io.Writer) error {
 	result := r.ScanResult
 
 	fmt.Fprintln(w, "════════════════════════════════════════════════════════════════")
-	fmt.Fprintln(w, "                    SKWS SCAN REPORT                            ")
+	fmt.Fprintln(w, "                    assay SCAN REPORT                            ")
 	fmt.Fprintln(w, "════════════════════════════════════════════════════════════════")
 	fmt.Fprintln(w)
 

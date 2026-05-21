@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // defaultTimeout is applied when DetectOptions.Timeout is zero. Each probe
@@ -296,7 +296,7 @@ func (d *Detector) DetectHPACKPollution(ctx context.Context, opts DetectOptions)
 	}
 	defer sess.close()
 
-	const probeMarker = "skws-hpack-probe-marker-3f9e2c1a"
+	const probeMarker = "assay-hpack-probe-marker-3f9e2c1a"
 
 	// Stream 1: GET with x-test: probeMarker → adds the entry to the
 	// HPACK dynamic table.
@@ -514,7 +514,7 @@ func encodeHeaders(u *url.URL, extra []hpack.HeaderField) []byte {
 	_ = enc.WriteField(hpack.HeaderField{Name: ":scheme", Value: u.Scheme})
 	_ = enc.WriteField(hpack.HeaderField{Name: ":authority", Value: u.Host})
 	_ = enc.WriteField(hpack.HeaderField{Name: ":path", Value: path})
-	_ = enc.WriteField(hpack.HeaderField{Name: "user-agent", Value: "skws-http2advanced/1"})
+	_ = enc.WriteField(hpack.HeaderField{Name: "user-agent", Value: "assay-http2advanced/1"})
 	for _, f := range extra {
 		_ = enc.WriteField(f)
 	}

@@ -3,7 +3,7 @@ package scanner
 import (
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/http"
 )
 
 // AuthState captures a single identity's auth material for the

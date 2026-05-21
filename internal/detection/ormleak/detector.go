@@ -20,8 +20,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // expansionParams is the curated set of expansion-style query
@@ -48,11 +48,11 @@ var sensitiveKeyRe = regexp.MustCompile(`(?i)(password|passwd|api[_-]?key|secret
 
 // Detector probes targetURL for ORM expansion leaks.
 type Detector struct {
-	client *skwshttp.Client
+	client *assayhttp.Client
 }
 
 // New returns a Detector wired to the project's shared HTTP client.
-func New(client *skwshttp.Client) *Detector {
+func New(client *assayhttp.Client) *Detector {
 	return &Detector{client: client}
 }
 
@@ -183,7 +183,7 @@ func looksJSON(contentType, body string) bool {
 	return t[0] == '{' || t[0] == '['
 }
 
-func buildFinding(target, paramName, value string, newKeys []string, resp *skwshttp.Response) *core.Finding {
+func buildFinding(target, paramName, value string, newKeys []string, resp *assayhttp.Response) *core.Finding {
 	finding := core.NewFinding("ORM Over-Fetch via Expansion Parameter", core.SeverityHigh)
 	finding.URL = target
 	finding.Parameter = paramName

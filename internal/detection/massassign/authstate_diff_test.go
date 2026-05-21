@@ -10,16 +10,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // vulnerableProfileApp persists every field it receives at /api/profile
 // (PATCH) including admin/role/verified flags — the canonical mass-
 // assignment bug that re-fetch confirmation is built to catch.
 type vulnerableProfileApp struct {
-	mu      sync.Mutex
-	profile map[string]interface{}
+	mu              sync.Mutex
+	profile         map[string]interface{}
 	stripPrivileged bool
 }
 

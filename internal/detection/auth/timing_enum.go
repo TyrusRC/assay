@@ -7,7 +7,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
+	"github.com/TyrusRC/assay/internal/core"
 )
 
 // TimingEnumOptions configures the statistical timing-enumeration probe.

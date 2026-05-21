@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates/matchers"
+	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates/matchers"
 )
 
 // executeHTTP executes an HTTP request from a template.

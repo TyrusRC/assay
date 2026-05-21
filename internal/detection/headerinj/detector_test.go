@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestNew(t *testing.T) {

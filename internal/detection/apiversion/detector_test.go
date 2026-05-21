@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 func TestDetect_FindsLegacyAndV0Siblings(t *testing.T) {
@@ -26,7 +26,7 @@ func TestDetect_FindsLegacyAndV0Siblings(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -50,7 +50,7 @@ func TestDetect_NoVersionSegmentNoOp(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -69,7 +69,7 @@ func TestDetect_SuppressesIdenticalBodies(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)
@@ -91,7 +91,7 @@ func TestDetect_SuppressesAuthControlled(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), srv.URL+"/api/v1/users")
 	if err != nil {
 		t.Fatalf("Detect error: %v", err)

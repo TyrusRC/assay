@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	internalhttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	"github.com/TyrusRC/assay/internal/core"
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 const privateBody = `<!doctype html><html><body>
@@ -310,16 +310,16 @@ func TestGenerateProbeURLs_BadInput(t *testing.T) {
 
 func TestHasPositiveMaxAge(t *testing.T) {
 	cases := map[string]bool{
-		"max-age=300":            true,
-		"max-age=1":              true,
-		"max-age=0":              false,
-		"max-age=":               false,
-		"public, max-age=600":    true,
-		"public, max-age=600, ":  true,
-		"max-age=abc":            false,
-		"":                       false,
-		"public, no-store":       false,
-		"public":                 false,
+		"max-age=300":           true,
+		"max-age=1":             true,
+		"max-age=0":             false,
+		"max-age=":              false,
+		"public, max-age=600":   true,
+		"public, max-age=600, ": true,
+		"max-age=abc":           false,
+		"":                      false,
+		"public, no-store":      false,
+		"public":                false,
 	}
 	for cc, want := range cases {
 		t.Run(cc, func(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 const samplePackageJSON = `{
@@ -16,7 +16,7 @@ const samplePackageJSON = `{
   "dependencies": {
     "express": "^4.0.0",
     "@yourorg/internal-lib": "^1.0.0",
-    "totally-private-internal-lib-skws": "^0.1.0"
+    "totally-private-internal-lib-assay": "^0.1.0"
   }
 }`
 
@@ -31,7 +31,7 @@ func TestDetect_FlagsUnregisteredNPMDep(t *testing.T) {
 	}))
 	defer target.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), target.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -59,7 +59,7 @@ func TestDetect_NoFindingWhen404(t *testing.T) {
 	}))
 	defer target.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.Detect(context.Background(), target.URL+"/")
 	if err != nil {
 		t.Fatalf("Detect: %v", err)

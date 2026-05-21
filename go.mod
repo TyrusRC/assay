@@ -1,4 +1,4 @@
-module github.com/TyrusRC/swiss-knife-for-web-security
+module github.com/TyrusRC/assay
 
 go 1.24.0
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	skwshttp "github.com/TyrusRC/swiss-knife-for-web-security/internal/http"
+	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // --- Test helpers ----------------------------------------------------------
@@ -95,7 +95,7 @@ func TestDetectStateReuseAcrossSteps_FlagsSharedToken(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectStateReuseAcrossSteps(context.Background(), MultiStepOptions{
 		Step1URL: srv.URL + "/wizard/step1",
 		Step2URL: srv.URL + "/wizard/step2",
@@ -169,7 +169,7 @@ func TestDetectStateReuseAcrossSteps_NoFindingWhenRotated(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectStateReuseAcrossSteps(context.Background(), MultiStepOptions{
 		Step1URL: srv.URL + "/wizard/step1",
 		Step2URL: srv.URL + "/wizard/step2",
@@ -216,7 +216,7 @@ func TestDetectTokenIssuedNRequestsPrior_FlagsNoReplayWindow(t *testing.T) {
 		noops = append(noops, srv.URL+"/noop")
 	}
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectTokenIssuedNRequestsPrior(context.Background(), MultiStepOptions{
 		Step1URL:      srv.URL + "/issue",
 		ActionURL:     srv.URL + "/action",
@@ -291,7 +291,7 @@ func TestDetectTokenIssuedNRequestsPrior_NoFindingWhenRotated(t *testing.T) {
 		noops = append(noops, srv.URL+"/noop")
 	}
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectTokenIssuedNRequestsPrior(context.Background(), MultiStepOptions{
 		Step1URL:      srv.URL + "/issue",
 		ActionURL:     srv.URL + "/action",
@@ -347,7 +347,7 @@ func TestDetectCrossSessionTokenAcceptance_FlagsUnboundToken(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectCrossSessionTokenAcceptance(context.Background(), MultiStepOptions{
 		Step1URL:  srv.URL + "/login",
 		ActionURL: srv.URL + "/action",
@@ -408,7 +408,7 @@ func TestDetectCrossSessionTokenAcceptance_NoFindingWhenBound(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	res, err := det.DetectCrossSessionTokenAcceptance(context.Background(), MultiStepOptions{
 		Step1URL:  srv.URL + "/login",
 		ActionURL: srv.URL + "/action",
@@ -440,7 +440,7 @@ func TestMultiStep_NilClientNoOp(t *testing.T) {
 }
 
 func TestMultiStep_EmptyOptionsNoOp(t *testing.T) {
-	det := New(skwshttp.NewClient())
+	det := New(assayhttp.NewClient())
 	ctx := context.Background()
 	if r, err := det.DetectStateReuseAcrossSteps(ctx, MultiStepOptions{}); err != nil || len(r.Findings) != 0 {
 		t.Errorf("empty opts: reuse should no-op, got %v / %d", err, len(r.Findings))

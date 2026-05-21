@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/headless"
+	"github.com/TyrusRC/assay/internal/headless"
 )
 
 // CrawlOptions tunes crawler behavior. Zero values are safe defaults

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/templates"
+	"github.com/TyrusRC/assay/internal/templates"
 )
 
 // executeDNS executes a DNS query from a template.

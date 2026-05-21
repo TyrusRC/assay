@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/core"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/fileupload"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/hosthdr"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/loginj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/oauth"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/pathnorm"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/racecond"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/storageinj"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/verbtamper"
-	"github.com/TyrusRC/swiss-knife-for-web-security/internal/detection/ws"
+	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/fileupload"
+	"github.com/TyrusRC/assay/internal/detection/hosthdr"
+	"github.com/TyrusRC/assay/internal/detection/loginj"
+	"github.com/TyrusRC/assay/internal/detection/oauth"
+	"github.com/TyrusRC/assay/internal/detection/pathnorm"
+	"github.com/TyrusRC/assay/internal/detection/racecond"
+	"github.com/TyrusRC/assay/internal/detection/storageinj"
+	"github.com/TyrusRC/assay/internal/detection/verbtamper"
+	"github.com/TyrusRC/assay/internal/detection/ws"
 )
 
 // testStorageInj tests for client-side storage injection vulnerabilities.
