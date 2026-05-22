@@ -356,6 +356,12 @@ func (d *Detector) DetectAll(ctx context.Context, opts DetectOptions) (*Detectio
 		if r, err := d.DetectResponseModeConfusion(ctx, opts.AuthzURL, opts); err == nil && r != nil {
 			combined.Findings = append(combined.Findings, r.Findings...)
 		}
+		if r, err := d.DetectImplicitFlow(ctx, opts.AuthzURL, opts); err == nil && r != nil {
+			combined.Findings = append(combined.Findings, r.Findings...)
+		}
+		if r, err := d.DetectNonceMissing(ctx, opts.AuthzURL, opts); err == nil && r != nil {
+			combined.Findings = append(combined.Findings, r.Findings...)
+		}
 		if opts.TokenURL != "" {
 			if r, err := d.DetectPKCEDowngrade(ctx, opts.AuthzURL, opts.TokenURL, opts); err == nil && r != nil {
 				combined.Findings = append(combined.Findings, r.Findings...)

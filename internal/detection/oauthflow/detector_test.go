@@ -491,8 +491,22 @@ func TestDetectAll_NoFindingsOnSafeIdP(t *testing.T) {
 	mux.HandleFunc("/authorize", func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		ru := r.URL.Query().Get("redirect_uri")
 		state := r.URL.Query().Get("state")
+		rt := r.URL.Query().Get("response_type")
+		nonce := r.URL.Query().Get("nonce")
 		if ru != registered || state == "" {
 			w.Header().Set("Location", "https://idp.example.com/error?error=invalid_request")
+			w.WriteHeader(stdhttp.StatusFound)
+			return
+		}
+		// Reject implicit and hybrid flows — code only.
+		if rt != "" && rt != "code" {
+			w.Header().Set("Location", "https://idp.example.com/error?error=unsupported_response_type")
+			w.WriteHeader(stdhttp.StatusFound)
+			return
+		}
+		// Require nonce whenever an id_token is requested.
+		if strings.Contains(rt, "id_token") && nonce == "" {
+			w.Header().Set("Location", "https://idp.example.com/error?error=invalid_request&error_description=nonce+required")
 			w.WriteHeader(stdhttp.StatusFound)
 			return
 		}
