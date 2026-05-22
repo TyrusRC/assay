@@ -44,6 +44,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/htmlinj"
 	"github.com/TyrusRC/assay/internal/detection/http2advanced"
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
+	"github.com/TyrusRC/assay/internal/detection/http2race"
 	"github.com/TyrusRC/assay/internal/detection/idor"
 	"github.com/TyrusRC/assay/internal/detection/injection"
 	"github.com/TyrusRC/assay/internal/detection/jndi"
@@ -208,6 +209,7 @@ type InternalScanner struct {
 	http2DesyncDetector     *http2desync.Detector
 	cachekeyDetector        *cachekey.Detector
 	authBypass403Detector   *authbypass403.Detector
+	http2RaceDetector       *http2race.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -326,6 +328,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		http2DesyncDetector:     http2desync.New(),
 		cachekeyDetector:        cachekey.New(httpClient),
 		authBypass403Detector:   authbypass403.New(httpClient),
+		http2RaceDetector:       http2race.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

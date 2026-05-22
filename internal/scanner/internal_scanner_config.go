@@ -125,6 +125,11 @@ type InternalScanConfig struct {
 	EnableHTTP2Desync     bool   // CL.0 desync timing probe + h2c upgrade acceptance (raw TCP; off by default — sends desync payloads)
 	EnableCacheKey        bool   // Cache-key parser divergence (semicolon cloaking, dup-param HPP, encoded-slash) — paired-request differential, safe to leave on
 	EnableAuthBypass403   bool   // 401/403 access-control bypass via reverse-proxy trust headers and path-encoding tricks — only fires when baseline is 401/403
+	EnableHTTP2Race       bool   // Concurrent-burst race-condition probe on state-change endpoints (off by default — sends real state-changing requests)
+	HTTP2RaceURL          string // Target URL for the race-condition burst. Empty disables the probe.
+	HTTP2RaceMethod       string // Method for the burst requests. Default POST.
+	HTTP2RaceBody         string // Body for each burst request.
+	HTTP2RaceContentType  string // Content-Type for the burst body.
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -245,6 +250,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableHTTP2Desync:     false, // off by default — sends raw TCP desync payloads
 		EnableCacheKey:        true,
 		EnableAuthBypass403:   true, // self-gates on 401/403 baseline; harmless on public URLs
+		EnableHTTP2Race:       false, // off — sends a burst of state-changing requests
+		HTTP2RaceMethod:       "POST",
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

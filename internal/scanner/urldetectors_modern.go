@@ -11,6 +11,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/cachekey"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
+	"github.com/TyrusRC/assay/internal/detection/http2race"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -87,6 +88,32 @@ func (s *InternalScanner) testCacheKey(ctx context.Context, targetURL string) []
 	opts := cachekey.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.cachekeyDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testHTTP2Race fires a concurrent burst at the configured race-test
+// URL and reports when more than one request landed in the
+// pre-state-change window. Skipped when no URL is configured because
+// the probe sends real state-changing requests and must be pointed at
+// a known-safe coupon/redeem/vote endpoint.
+func (s *InternalScanner) testHTTP2Race(ctx context.Context, _ string) []*core.Finding {
+	if s.http2RaceDetector == nil || s.config.HTTP2RaceURL == "" {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing HTTP/2 single-packet race on '%s'...\n", s.config.HTTP2RaceURL)
+	}
+	opts := http2race.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.HTTP2RaceMethod != "" {
+		opts.Method = s.config.HTTP2RaceMethod
+	}
+	opts.Body = s.config.HTTP2RaceBody
+	opts.ContentType = s.config.HTTP2RaceContentType
+	res, err := s.http2RaceDetector.Detect(ctx, s.config.HTTP2RaceURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

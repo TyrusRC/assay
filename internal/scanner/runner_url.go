@@ -173,4 +173,6 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 		func() { emit(ctx, findingsChan, s.testCacheKey(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableAuthBypass403,
 		func() { emit(ctx, findingsChan, s.testAuthBypass403(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableHTTP2Race && c.HTTP2RaceURL != "",
+		func() { emit(ctx, findingsChan, s.testHTTP2Race(ctx, targetURL)) })
 }
