@@ -82,9 +82,17 @@ func TestGetCommonBucketNames(t *testing.T) {
 func TestBucketChecksHaveValidProviders(t *testing.T) {
 	checks := GetBucketChecks()
 	validProviders := map[Provider]bool{
-		ProviderAWS:   true,
-		ProviderGCP:   true,
-		ProviderAzure: true,
+		ProviderAWS:          true,
+		ProviderGCP:          true,
+		ProviderAzure:        true,
+		ProviderAlibaba:      true,
+		ProviderDigitalOcean: true,
+		ProviderWasabi:       true,
+		ProviderBackblaze:    true,
+		ProviderLinode:       true,
+		ProviderTencent:      true,
+		ProviderIBM:          true,
+		ProviderOracle:       true,
 	}
 
 	for _, c := range checks {
