@@ -75,6 +75,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/redirect"
 	"github.com/TyrusRC/assay/internal/detection/redos"
 	"github.com/TyrusRC/assay/internal/detection/rfi"
+	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -214,6 +215,7 @@ type InternalScanner struct {
 	http2RaceDetector       *http2race.Detector
 	graphqlDosDetector      *graphqldos.Detector
 	jkuAbuseDetector        *jkuabuse.Detector
+	sameSiteLaxDetector     *samesitelax.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -335,6 +337,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		http2RaceDetector:       http2race.New(httpClient),
 		graphqlDosDetector:      graphqldos.New(httpClient),
 		jkuAbuseDetector:        jkuabuse.New(httpClient),
+		sameSiteLaxDetector:     samesitelax.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

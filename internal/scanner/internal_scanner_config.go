@@ -132,6 +132,8 @@ type InternalScanConfig struct {
 	HTTP2RaceContentType  string // Content-Type for the burst body.
 	EnableGraphQLDoS      bool   // GraphQL resource-exhaustion probes (alias amplification, depth bomb, batched query) — self-gates on GraphQL response shape
 	EnableJKUAbuse        bool   // JWT jku/x5u URL trust probe — requires JWTAdvancedToken + OOB client
+	EnableSameSiteLax     bool   // Inspects auth-cookie SameSite attributes; flags missing/Lax/None on auth cookies as CSRF surface
+	SameSiteLaxProbeGET   bool   // When true, also probes well-known GET-logout paths to escalate the finding to confirmed CSRF
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -247,15 +249,16 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableStorage:         true,
 		EnablePostMsg:         true, // requires Chrome — no-op when unavailable
 		EnableXSLeaks:         true,
-		EnableJWTAdvanced:     true, // no-op without JWTAdvancedToken — safe everywhere
-		EnableGraphQLAdvanced: true, // no-op when the response is not GraphQL-shaped — safe everywhere
+		EnableJWTAdvanced:     true,  // no-op without JWTAdvancedToken — safe everywhere
+		EnableGraphQLAdvanced: true,  // no-op when the response is not GraphQL-shaped — safe everywhere
 		EnableHTTP2Desync:     false, // off by default — sends raw TCP desync payloads
 		EnableCacheKey:        true,
-		EnableAuthBypass403:   true, // self-gates on 401/403 baseline; harmless on public URLs
+		EnableAuthBypass403:   true,  // self-gates on 401/403 baseline; harmless on public URLs
 		EnableHTTP2Race:       false, // off — sends a burst of state-changing requests
 		HTTP2RaceMethod:       "POST",
 		EnableGraphQLDoS:      true, // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
 		EnableJKUAbuse:        true, // no-op without JWTAdvancedToken and an OOB client — safe everywhere
+		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

@@ -17,6 +17,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
 	"github.com/TyrusRC/assay/internal/detection/oob"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
+	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
 	"github.com/TyrusRC/assay/internal/detection/storage"
 	"github.com/TyrusRC/assay/internal/detection/xsleaks"
@@ -226,6 +227,26 @@ func (s *InternalScanner) testJKUAbuse(ctx context.Context, targetURL string) []
 	opts.Callback = &oobInteractionChecker{client: s.oobClient}
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.jkuAbuseDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testSameSiteLax inspects auth-cookie SameSite attributes and (when
+// SameSiteLaxProbeGET is enabled) confirms exploitable GET-logout
+// behavior against well-known logout paths.
+func (s *InternalScanner) testSameSiteLax(ctx context.Context, targetURL string) []*core.Finding {
+	if s.sameSiteLaxDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Inspecting SameSite cookie attributes on '%s'...\n", targetURL)
+	}
+	opts := samesitelax.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	opts.ProbeLogoutPaths = s.config.SameSiteLaxProbeGET
+	res, err := s.sameSiteLaxDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

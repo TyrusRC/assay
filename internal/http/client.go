@@ -37,6 +37,10 @@ type Response struct {
 	ContentLength int64
 	URL           string
 	Duration      time.Duration
+	// RawHeaders preserves multi-value headers (notably Set-Cookie, where
+	// comma-joining the Headers map loses the per-cookie boundary because
+	// commas legally appear inside Expires= attributes).
+	RawHeaders http.Header
 	// OriginalValue holds the original parameter value before payload injection.
 	// Set by SendPayload for baseline comparison in detectors.
 	OriginalValue string
@@ -325,6 +329,7 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		ContentLength: httpResp.ContentLength,
 		URL:           httpResp.Request.URL.String(),
 		Duration:      time.Since(start),
+		RawHeaders:    httpResp.Header.Clone(),
 	}
 
 	// Copy headers (join multi-value headers with comma per RFC 7230)
