@@ -2,10 +2,8 @@ package scanner
 
 import (
 	"fmt"
-	nethttp "net/http"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/adminpath"
@@ -227,237 +225,35 @@ type InternalScanner struct {
 	mu                      sync.Mutex
 }
 
-// NewInternalScanner creates a new internal scanner.
+// NewInternalScanner creates a new internal scanner. The constructor
+// instantiates every detector eagerly and brings up the discovery
+// pipeline / headless pool when their feature flags request them. OOB
+// initialization is deferred to scan time (startOOBClientAsync) so the
+// constructor never blocks on network.
 func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	if config == nil {
 		config = DefaultInternalConfig()
 	}
 
-	// Create HTTP client
 	httpClient := http.NewClient().WithTimeout(config.RequestTimeout)
 
-	// Create tech detector (may fail if wappalyzer can't initialize)
 	techDetector, techErr := techstack.NewDetector()
 	if techErr != nil && config.Verbose {
 		fmt.Fprintf(os.Stderr, "[!] Tech stack detection unavailable: %v\n", techErr)
 	}
 
-	scanner := &InternalScanner{
-		client:                   httpClient,
-		sqliDetector:             injection.NewSQLiDetector(),
-		xssDetector:              xss.New(httpClient),
-		cmdiDetector:             cmdi.New(httpClient),
-		ssrfDetector:             ssrf.New(httpClient),
-		lfiDetector:              lfi.New(httpClient),
-		xxeDetector:              xxe.New(httpClient),
-		techDetector:             techDetector,
-		nosqlDetector:            nosql.New(httpClient),
-		sstiDetector:             ssti.New(httpClient),
-		idorDetector:             idor.New(httpClient),
-		jwtDetector:              jwt.NewDetector(),
-		redirectDetector:         redirect.New(httpClient),
-		corsDetector:             cors.New(httpClient),
-		crlfDetector:             crlf.New(httpClient),
-		ldapDetector:             ldap.New(httpClient),
-		xpathDetector:            xpath.New(httpClient),
-		headerInjDetector:        headerinj.New(httpClient),
-		cstiDetector:             csti.New(httpClient),
-		rfiDetector:              rfi.New(httpClient),
-		jndiDetector:             jndi.New(httpClient),
-		secHeadersDetector:       secheaders.New(httpClient),
-		exposureDetector:         exposure.New(httpClient),
-		cloudDetector:            cloud.New(httpClient),
-		subTakeoverDetector:      subtakeover.New(httpClient),
-		tlsAnalyzer:              tlsdetect.New(httpClient),
-		authDetector:             auth.New(httpClient),
-		graphqlDetector:          graphql.New(httpClient),
-		smugglingDetector:        smuggling.NewDetector(),
-		behaviorDetector:         behavior.New(httpClient),
-		logInjDetector:           loginj.New(httpClient),
-		fileUploadDetector:       fileupload.New(httpClient),
-		verbTamperDetector:       verbtamper.New(httpClient),
-		pathNormDetector:         pathnorm.New(httpClient),
-		raceCondDetector:         racecond.New(httpClient),
-		csvInjDetector:           csvinj.New(httpClient),
-		wsDetector:               ws.New(httpClient),
-		hostHdrDetector:          hosthdr.New(httpClient),
-		oauthDetector:            oauth.New(httpClient),
-		jsdepDetector:            jsdep.New(httpClient, config.NVDAPIKey),
-		dataExposureDetector:     dataexposure.New(httpClient),
-		adminPathDetector:        adminpath.New(httpClient),
-		apiVersionDetector:       apiversion.New(httpClient),
-		rateLimitDetector:        ratelimit.New(httpClient),
-		apiSpecRunner:            apispec.NewRunner(httpClient),
-		contentTypeDetector:      contenttype.New(httpClient),
-		sseDetector:              sse.New(httpClient),
-		grpcReflectDetector:      grpcreflect.New(httpClient),
-		h2ResetDetector:          h2reset.New(),
-		csrfDetector:             csrf.New(httpClient),
-		tabnabbingDetector:       tabnabbing.New(httpClient),
-		redosDetector:            redos.New(httpClient),
-		promptInjDetector:        promptinjection.New(httpClient),
-		xsltDetector:             xslt.New(httpClient),
-		samlInjDetector:          samlinj.New(httpClient),
-		ormLeakDetector:          ormleak.New(httpClient),
-		typeJugglingDetector:     typejuggling.New(httpClient),
-		depConfusionDetector:     depconfusion.New(httpClient),
-		tokenEntropyDetector:     tokenentropy.New(httpClient),
-		cacheDeceptionDetector:   cachedeception.New(httpClient),
-		cachePoisoningDetector:   cachepoisoning.New(httpClient),
-		cssInjDetector:           cssinj.New(httpClient),
-		deserDetector:            deser.New(httpClient),
-		domClobberDetector:       domclobber.New(httpClient),
-		emailInjDetector:         emailinj.New(httpClient),
-		hppDetector:              hpp.New(httpClient),
-		htmlInjDetector:          htmlinj.New(httpClient),
-		massAssignDetector:       massassign.New(httpClient),
-		protoPollutionDetector:   protopollution.New(httpClient),
-		secondOrderDetector:      secondorder.New(httpClient),
-		ssiDetector:              ssi.New(httpClient),
-		storageDetector:          storage.New(&nethttp.Client{Timeout: config.RequestTimeout}),
-		passwordResetDetector:    passwordreset.New(httpClient),
-		sessionLifecycleDetector: sessionlifecycle.New(httpClient),
-		oauthFlowDetector:        oauthflow.New(httpClient),
-		dnsRebindingDetector:     dnsrebinding.New(httpClient),
-		openAPISemanticDetector:  openapisemantic.New(httpClient),
-		// http2AdvancedDetector is target-scoped; lazily replaced per scan in
-		// testHTTP2Advanced because http2advanced.New takes a target string,
-		// not an *http.Client.
-		http2AdvancedDetector:   http2advanced.New(""),
-		sessionFixationDetector: sessionfixation.New(httpClient),
-		stackTraceDetector:      stacktrace.New(httpClient),
-		mfaBypassDetector:       mfabypass.New(httpClient),
-		paddingOracleDetector:   paddingoracle.New(httpClient),
-		xsleaksDetector:         xsleaks.New(httpClient),
-		jwtAdvancedDetector:     jwtadvanced.New(httpClient),
-		graphqlAdvancedDetector: graphqladvanced.New(httpClient),
-		http2DesyncDetector:     http2desync.New(),
-		cachekeyDetector:        cachekey.New(httpClient),
-		authBypass403Detector:   authbypass403.New(httpClient),
-		http2RaceDetector:       http2race.New(httpClient),
-		graphqlDosDetector:      graphqldos.New(httpClient),
-		jkuAbuseDetector:        jkuabuse.New(httpClient),
-		sameSiteLaxDetector:     samesitelax.New(httpClient),
-		config:                  config,
-		confirmed:               newConfirmedFindings(),
-	}
+	scanner := &InternalScanner{}
+	scanner.initDetectors(httpClient, config, techDetector)
 
-	// Initialize discovery pipeline with all discoverers
 	if config.EnableDiscovery {
-		pipeline := discovery.NewPipeline(httpClient)
-		pipeline.Register(discovery.NewFormDiscoverer())
-		pipeline.Register(discovery.NewCookieDiscoverer())
-		pipeline.Register(discovery.NewHeaderDiscoverer())
-		pipeline.Register(discovery.NewJSONBodyDiscoverer())
-		pipeline.Register(discovery.NewPathSegmentDiscoverer())
-		pipeline.Register(discovery.NewJSStorageDiscoverer())
-		pipeline.Register(discovery.NewXMLBodyDiscoverer())
-		pipeline.Register(discovery.NewRobotsSitemapDiscoverer())
-		pipeline.Register(discovery.NewHTMLCommentDiscoverer())
-		pipeline.Register(discovery.NewJSRouteDiscoverer())
-		pipeline.Register(discovery.NewMultipartDiscoverer())
-		pipeline.Register(discovery.NewOpenAPIDiscoverer())
-		pipeline.Register(discovery.NewGraphQLIntrospectionDiscoverer())
-		scanner.discoveryPipeline = pipeline
+		scanner.initDiscovery(httpClient)
 	}
-
-	// Initialize headless browser pool if any DOM-aware detector is enabled.
-	// Storage injection, DOM XSS, prototype pollution, and DOM-based open
-	// redirect all need a real browser; we share one pool across them.
-	needHeadless := config.EnableStorageInj || config.EnableDOMXSS ||
-		config.EnableProtoPoll || config.EnableDOMRedirect ||
-		config.EnablePostMsg
-	if needHeadless {
-		maxBrowsers := config.HeadlessMaxBrowsers
-		if maxBrowsers <= 0 {
-			maxBrowsers = 3
-		}
-		poolConfig := headless.PoolConfig{
-			MaxBrowsers:     maxBrowsers,
-			NavigateTimeout: config.RequestTimeout,
-			ExecPath:        config.ChromePath,
-			Headless:        true,
-		}
-		pool, poolErr := headless.NewPool(poolConfig)
-		if poolErr != nil {
-			if config.Verbose {
-				fmt.Fprintf(os.Stderr, "[!] Headless browser unavailable: %v (DOM-aware detectors will be skipped)\n", poolErr)
-			}
-		} else {
-			scanner.headlessPool = pool
-			if config.EnableStorageInj {
-				scanner.storageInjDetector = storageinj.New(pool).WithVerbose(config.Verbose)
-			}
-			if config.EnablePostMsg {
-				scanner.postMsgDetector = postmsg.New(pool).WithVerbose(config.Verbose)
-			}
-		}
+	if config.needsHeadless() {
+		scanner.initHeadless(config)
 	}
-
 	// OOB client will be initialized lazily during scan if needed
-	// This prevents blocking scanner creation
-
+	// (startOOBClientAsync); this prevents blocking scanner creation.
 	return scanner, nil
-}
-
-// startOOBClientAsync starts OOB client initialization in the background.
-// It signals completion via the oobReady channel.
-func (s *InternalScanner) startOOBClientAsync() {
-	if !s.config.EnableOOB {
-		return
-	}
-
-	s.mu.Lock()
-	if s.oobReady != nil {
-		s.mu.Unlock()
-		return // Already started
-	}
-	s.oobReady = make(chan struct{})
-	s.mu.Unlock()
-
-	go func() {
-		defer close(s.oobReady)
-
-		oobClient, err := oob.NewClient()
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if err != nil {
-			s.oobInitErr = err
-			if s.config.Verbose {
-				fmt.Fprintf(os.Stderr, "[!] OOB testing unavailable: %v\n", err)
-			}
-		} else {
-			s.oobClient = oobClient
-			if s.config.Verbose {
-				fmt.Fprintf(os.Stderr, "[+] OOB testing enabled with URL: %s\n", oobClient.GetURL())
-			}
-		}
-	}()
-}
-
-// waitForOOBClient waits for OOB client to be ready with a timeout.
-// Returns true if OOB client is available, false otherwise.
-func (s *InternalScanner) waitForOOBClient(timeout time.Duration) bool {
-	s.mu.Lock()
-	oobReady := s.oobReady
-	s.mu.Unlock()
-	if oobReady == nil {
-		return false
-	}
-
-	select {
-	case <-oobReady:
-		s.mu.Lock()
-		available := s.oobClient != nil
-		s.mu.Unlock()
-		return available
-	case <-time.After(timeout):
-		if s.config.Verbose {
-			fmt.Fprintf(os.Stderr, "[!] OOB initialization timeout after %v\n", timeout)
-		}
-		return false
-	}
 }
 
 // Close releases resources. Safe to call multiple times.
