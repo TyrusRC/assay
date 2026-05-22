@@ -10,6 +10,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
 	"github.com/TyrusRC/assay/internal/detection/cachekey"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
+	"github.com/TyrusRC/assay/internal/detection/graphqldos"
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/http2race"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
@@ -154,6 +155,26 @@ func (s *InternalScanner) testHTTP2Desync(ctx context.Context, targetURL string)
 	opts := http2desync.DefaultOptions()
 	opts.ProbeTimeout = s.config.RequestTimeout
 	res, err := s.http2DesyncDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testGraphQLDoS probes for GraphQL resource-exhaustion attack surface
+// — alias amplification, deeply-nested query depth bombs, and batched-
+// query acceptance. Self-gates on a GraphQL response shape so non-
+// GraphQL URLs cost exactly one request.
+func (s *InternalScanner) testGraphQLDoS(ctx context.Context, targetURL string) []*core.Finding {
+	if s.graphqlDosDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing GraphQL DoS probes on '%s'...\n", targetURL)
+	}
+	opts := graphqldos.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.graphqlDosDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

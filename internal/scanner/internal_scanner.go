@@ -36,6 +36,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/fileupload"
 	"github.com/TyrusRC/assay/internal/detection/graphql"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
+	"github.com/TyrusRC/assay/internal/detection/graphqldos"
 	"github.com/TyrusRC/assay/internal/detection/grpcreflect"
 	"github.com/TyrusRC/assay/internal/detection/h2reset"
 	"github.com/TyrusRC/assay/internal/detection/headerinj"
@@ -210,6 +211,7 @@ type InternalScanner struct {
 	cachekeyDetector        *cachekey.Detector
 	authBypass403Detector   *authbypass403.Detector
 	http2RaceDetector       *http2race.Detector
+	graphqlDosDetector      *graphqldos.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -329,6 +331,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		cachekeyDetector:        cachekey.New(httpClient),
 		authBypass403Detector:   authbypass403.New(httpClient),
 		http2RaceDetector:       http2race.New(httpClient),
+		graphqlDosDetector:      graphqldos.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

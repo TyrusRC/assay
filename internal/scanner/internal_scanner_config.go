@@ -130,6 +130,7 @@ type InternalScanConfig struct {
 	HTTP2RaceMethod       string // Method for the burst requests. Default POST.
 	HTTP2RaceBody         string // Body for each burst request.
 	HTTP2RaceContentType  string // Content-Type for the burst body.
+	EnableGraphQLDoS      bool   // GraphQL resource-exhaustion probes (alias amplification, depth bomb, batched query) — self-gates on GraphQL response shape
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -252,6 +253,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableAuthBypass403:   true, // self-gates on 401/403 baseline; harmless on public URLs
 		EnableHTTP2Race:       false, // off — sends a burst of state-changing requests
 		HTTP2RaceMethod:       "POST",
+		EnableGraphQLDoS:      true, // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,
