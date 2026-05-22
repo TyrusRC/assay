@@ -124,6 +124,7 @@ type InternalScanConfig struct {
 	EnableGraphQLAdvanced bool   // Field-suggestion recovery, APQ bypass, mutation-over-GET CSRF (probes GraphQL-shaped endpoints only)
 	EnableHTTP2Desync     bool   // CL.0 desync timing probe + h2c upgrade acceptance (raw TCP; off by default — sends desync payloads)
 	EnableCacheKey        bool   // Cache-key parser divergence (semicolon cloaking, dup-param HPP, encoded-slash) — paired-request differential, safe to leave on
+	EnableAuthBypass403   bool   // 401/403 access-control bypass via reverse-proxy trust headers and path-encoding tricks — only fires when baseline is 401/403
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -243,7 +244,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableGraphQLAdvanced: true, // no-op when the response is not GraphQL-shaped — safe everywhere
 		EnableHTTP2Desync:     false, // off by default — sends raw TCP desync payloads
 		EnableCacheKey:        true,
-		// Wave-G default-on flags but no-op without URLs; safe everywhere.
+		EnableAuthBypass403:   true, // self-gates on 401/403 baseline; harmless on public URLs
+
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,
 		EnableSessionLifecycle: true,

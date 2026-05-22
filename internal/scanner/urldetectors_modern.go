@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/authbypass403"
 	"github.com/TyrusRC/assay/internal/detection/cachedeception"
 	"github.com/TyrusRC/assay/internal/detection/cachekey"
 	"github.com/TyrusRC/assay/internal/detection/graphqladvanced"
@@ -86,6 +87,27 @@ func (s *InternalScanner) testCacheKey(ctx context.Context, targetURL string) []
 	opts := cachekey.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.cachekeyDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testAuthBypass403 probes for 401/403 access-control bypass via
+// reverse-proxy trust headers (X-Original-URL, X-Rewrite-URL,
+// X-Forwarded-For=127.0.0.1, X-Custom-IP-Authorization) and path
+// tricks (;jsessionid=, /..;/, trailing-slash flip). Self-gates on a
+// 401/403 baseline — public URLs are a single-request no-op.
+func (s *InternalScanner) testAuthBypass403(ctx context.Context, targetURL string) []*core.Finding {
+	if s.authBypass403Detector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing 401/403 access-control bypass on '%s'...\n", targetURL)
+	}
+	opts := authbypass403.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.authBypass403Detector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
