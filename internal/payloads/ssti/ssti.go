@@ -31,6 +31,18 @@ const (
 	EngineHandlebars TemplateEngine = "handlebars"
 	// EngineMustache represents Mustache template engine.
 	EngineMustache TemplateEngine = "mustache"
+	// EngineLiquid represents Ruby/Shopify Liquid template engine.
+	EngineLiquid TemplateEngine = "liquid"
+	// EngineDot represents the doT.js JavaScript template engine.
+	EngineDot TemplateEngine = "dot"
+	// EnginePug represents Pug/Jade Node.js template engine.
+	EnginePug TemplateEngine = "pug"
+	// EngineRazor represents the ASP.NET Razor template engine.
+	EngineRazor TemplateEngine = "razor"
+	// EngineTornado represents Python Tornado template engine.
+	EngineTornado TemplateEngine = "tornado"
+	// EngineJSPEL represents Java JSP / EL (Expression Language).
+	EngineJSPEL TemplateEngine = "jsp_el"
 	// EngineUnknown represents an unknown template engine.
 	EngineUnknown TemplateEngine = "unknown"
 )
@@ -102,6 +114,18 @@ func GetPayloads(engine TemplateEngine) []Payload {
 		return handlebarsPayloads
 	case EngineMustache:
 		return mustachePayloads
+	case EngineLiquid:
+		return liquidPayloads
+	case EngineDot:
+		return dotPayloads
+	case EnginePug:
+		return pugPayloads
+	case EngineRazor:
+		return razorPayloads
+	case EngineTornado:
+		return tornadoPayloads
+	case EngineJSPEL:
+		return jspELPayloads
 	default:
 		return GetAllPayloads()
 	}
@@ -176,6 +200,12 @@ func GetAllPayloads() []Payload {
 	all = append(all, pebblePayloads...)
 	all = append(all, handlebarsPayloads...)
 	all = append(all, mustachePayloads...)
+	all = append(all, liquidPayloads...)
+	all = append(all, dotPayloads...)
+	all = append(all, pugPayloads...)
+	all = append(all, razorPayloads...)
+	all = append(all, tornadoPayloads...)
+	all = append(all, jspELPayloads...)
 	all = append(all, polyglotPayloads...)
 	return all
 }
