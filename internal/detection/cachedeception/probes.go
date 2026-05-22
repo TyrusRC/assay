@@ -71,6 +71,10 @@ func mutate(base *url.URL, strategy ProbeStrategy, extensions []string) []probeU
 		return encodedNull(base, extensions)
 	case StrategyTrailingSlash:
 		return trailingSlash(base, extensions)
+	case StrategyCDNSessionSemicolon:
+		return cdnSessionSemicolon(base)
+	case StrategyCDNQueryStrip:
+		return cdnQueryStrip(base)
 	}
 	return nil
 }

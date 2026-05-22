@@ -58,6 +58,19 @@ const (
 	// Catches frameworks that normalize trailing slashes during routing
 	// but not before the cache layer reads the key.
 	StrategyTrailingSlash ProbeStrategy = "trailing-slash"
+	// StrategyCDNSessionSemicolon produces /target;jsessionid=...,
+	// /target;PHPSESSID=..., /target;cfid=.... CDNs (Akamai, Fastly,
+	// Varnish in default vcl_recv) strip path-parameters before the
+	// cache key is computed but most backend frameworks route to
+	// /target regardless. Distinct from StrategySemicolonDelimiter
+	// which only mutates with file extensions.
+	StrategyCDNSessionSemicolon ProbeStrategy = "cdn-session-semicolon"
+	// StrategyCDNQueryStrip produces /target?fbclid=...,
+	// /target?__cf_chl_managed_tk__=..., /target?utm_source=....
+	// CDNs strip these "tracking" parameters from the cache key but
+	// the backend may render different content based on them. The
+	// stripped parameter must not contain anything cache-busting.
+	StrategyCDNQueryStrip ProbeStrategy = "cdn-query-strip"
 )
 
 // defaultStrategies returns every supported strategy. Used when DetectOptions
@@ -69,6 +82,13 @@ func defaultStrategies() []ProbeStrategy {
 		StrategySemicolonDelimiter,
 		StrategyEncodedNull,
 		StrategyTrailingSlash,
+		StrategyCDNSessionSemicolon,
+		// StrategyCDNQueryStrip is intentionally off by default. It mutates
+		// only the query string, leaving the path untouched, so any auth-
+		// matching response is indistinguishable from a normal authenticated
+		// fetch — the strategy needs a Cache-Control: public guardrail
+		// before it can avoid false-positives. Opt in via DetectOptions.
+		// Strategies when you've vetted the target's caching policy.
 	}
 }
 
