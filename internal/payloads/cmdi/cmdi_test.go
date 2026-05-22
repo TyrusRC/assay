@@ -81,10 +81,8 @@ func TestGetWAFBypassPayloads(t *testing.T) {
 func TestGetAllPayloads(t *testing.T) {
 	all := GetAllPayloads()
 
-	linuxCount := len(linuxPayloads)
-	windowsCount := len(windowsPayloads)
-	bothCount := len(bothPayloads)
-	expected := linuxCount + windowsCount + bothCount
+	expected := len(linuxPayloads) + len(windowsPayloads) + len(bothPayloads) +
+		len(linuxBlindPayloads) + len(linuxOOBPayloads) + len(linuxBypassPayloads)
 
 	if len(all) != expected {
 		t.Errorf("GetAllPayloads() returned %d payloads, want %d", len(all), expected)

