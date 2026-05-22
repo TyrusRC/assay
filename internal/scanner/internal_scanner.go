@@ -48,6 +48,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/http2race"
 	"github.com/TyrusRC/assay/internal/detection/idor"
 	"github.com/TyrusRC/assay/internal/detection/injection"
+	"github.com/TyrusRC/assay/internal/detection/jkuabuse"
 	"github.com/TyrusRC/assay/internal/detection/jndi"
 	"github.com/TyrusRC/assay/internal/detection/jsdep"
 	"github.com/TyrusRC/assay/internal/detection/jwt"
@@ -212,6 +213,7 @@ type InternalScanner struct {
 	authBypass403Detector   *authbypass403.Detector
 	http2RaceDetector       *http2race.Detector
 	graphqlDosDetector      *graphqldos.Detector
+	jkuAbuseDetector        *jkuabuse.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
@@ -332,6 +334,7 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		authBypass403Detector:   authbypass403.New(httpClient),
 		http2RaceDetector:       http2race.New(httpClient),
 		graphqlDosDetector:      graphqldos.New(httpClient),
+		jkuAbuseDetector:        jkuabuse.New(httpClient),
 		config:                  config,
 		confirmed:               newConfirmedFindings(),
 	}

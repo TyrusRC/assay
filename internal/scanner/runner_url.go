@@ -177,4 +177,6 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 		func() { emit(ctx, findingsChan, s.testHTTP2Race(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableGraphQLDoS,
 		func() { emit(ctx, findingsChan, s.testGraphQLDoS(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableJKUAbuse && c.JWTAdvancedToken != "",
+		func() { emit(ctx, findingsChan, s.testJKUAbuse(ctx, targetURL)) })
 }

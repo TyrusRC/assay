@@ -13,7 +13,9 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/graphqldos"
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/http2race"
+	"github.com/TyrusRC/assay/internal/detection/jkuabuse"
 	"github.com/TyrusRC/assay/internal/detection/jwtadvanced"
+	"github.com/TyrusRC/assay/internal/detection/oob"
 	"github.com/TyrusRC/assay/internal/detection/postmsg"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
 	"github.com/TyrusRC/assay/internal/detection/storage"
@@ -199,6 +201,49 @@ func (s *InternalScanner) testGraphQLAdvanced(ctx context.Context, targetURL str
 		return nil
 	}
 	return res.Findings
+}
+
+// testJKUAbuse forges a JWT whose header points jku at the OOB
+// callback URL and reports when the target's JWT library fetches it
+// before signature validation. The fetch alone is the bug — what the
+// library does with whatever JWKS it finds at the URL is a follow-up.
+// No-op when JWTAdvancedToken is empty or the OOB client isn't ready.
+func (s *InternalScanner) testJKUAbuse(ctx context.Context, targetURL string) []*core.Finding {
+	if s.jkuAbuseDetector == nil || s.config.JWTAdvancedToken == "" || s.oobClient == nil {
+		return nil
+	}
+	payload := s.oobClient.GeneratePayload("jkuabuse")
+	if payload == nil || payload.URL == "" {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing JKU/X5U URL trust on '%s' via callback '%s'...\n", targetURL, payload.URL)
+	}
+	opts := jkuabuse.DefaultOptions()
+	opts.Token = s.config.JWTAdvancedToken
+	opts.TokenParam = s.config.JWTAdvancedParam
+	opts.CallbackURL = payload.URL
+	opts.Callback = &oobInteractionChecker{client: s.oobClient}
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.jkuAbuseDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// oobInteractionChecker adapts the scanner's oob.Client to the
+// jkuabuse.CallbackChecker interface — interactsh's HasInteraction
+// already does a substring match across received payloads.
+type oobInteractionChecker struct {
+	client *oob.Client
+}
+
+func (o *oobInteractionChecker) HasInteraction(id string) bool {
+	if o == nil || o.client == nil {
+		return false
+	}
+	return o.client.HasInteraction(id)
 }
 
 // testJWTAdvanced actively replays forged JWTs (alg=none, empty
