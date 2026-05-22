@@ -114,9 +114,9 @@ func ParseFile(path, class string) ([]Payload, error) {
 
 	switch ext {
 	case ".md", ".markdown":
-		return extractCodeBlocks(string(data), class, subtype, path), nil
+		return ExtractMarkdownBlocks(string(data), class, subtype, path), nil
 	case ".txt":
-		return extractLines(string(data), class, subtype, path), nil
+		return ExtractLines(string(data), class, subtype, path), nil
 	}
 	return nil, nil
 }
@@ -203,10 +203,12 @@ func isPayloadFile(p string) bool {
 	return ext == ".md" || ext == ".markdown" || ext == ".txt"
 }
 
-// extractCodeBlocks scans a markdown document for fenced code blocks
+// ExtractMarkdownBlocks scans a markdown document for fenced code blocks
 // and emits each non-trivial line as a Payload. Bash / shell / json
-// blocks are skipped (see nonPayloadLangs).
-func extractCodeBlocks(body, class, subtype, source string) []Payload {
+// blocks are skipped (see nonPayloadLangs). Exported so sibling parsers
+// (htparser, htcloudparser) can share the markdown-extraction logic
+// while applying their own classification rules.
+func ExtractMarkdownBlocks(body, class, subtype, source string) []Payload {
 	out := make([]Payload, 0, 16)
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -248,9 +250,9 @@ func extractCodeBlocks(body, class, subtype, source string) []Payload {
 	return out
 }
 
-// extractLines reads a one-payload-per-line .txt file. Comment lines
-// (# prefix) and blank lines are skipped.
-func extractLines(body, class, subtype, source string) []Payload {
+// ExtractLines reads a one-payload-per-line .txt file. Comment lines
+// (# prefix) and blank lines are skipped. Exported for sibling parsers.
+func ExtractLines(body, class, subtype, source string) []Payload {
 	out := make([]Payload, 0, 32)
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
