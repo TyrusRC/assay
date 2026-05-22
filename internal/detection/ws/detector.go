@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gobwas/ws/wsutil"
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/http"
+	"github.com/gobwas/ws/wsutil"
 )
 
 // Detector finds WebSocket security issues. It uses the shared internal

@@ -62,8 +62,8 @@ func TestMultipartDiscoverer_Discover(t *testing.T) {
 			expectEmpty: true,
 		},
 		{
-			name: "no forms at all",
-			body: `<html><body><p>No forms here</p></body></html>`,
+			name:        "no forms at all",
+			body:        `<html><body><p>No forms here</p></body></html>`,
 			expectEmpty: true,
 		},
 		{

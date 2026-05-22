@@ -207,7 +207,7 @@ func TestDeduplicatePayloads(t *testing.T) {
 	payloads := []Payload{
 		{Value: "test1", Variant: Java},
 		{Value: "test2", Variant: Java},
-		{Value: "test1", Variant: Java},  // duplicate
+		{Value: "test1", Variant: Java}, // duplicate
 		{Value: "test3", Variant: Java},
 		{Value: "test2", Variant: PHP}, // different variant, same value
 	}

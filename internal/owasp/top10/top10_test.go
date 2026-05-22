@@ -319,10 +319,10 @@ func TestGetLatestCategory(t *testing.T) {
 		{"A01", "A01:2025"},
 		{"A03", "A03:2025"},
 		{"A10", "A10:2025"},
-		{"A00", ""},   // Invalid
-		{"A11", ""},   // Invalid
-		{"", ""},      // Empty
-		{"ZZZ", ""},   // Nonsense
+		{"A00", ""}, // Invalid
+		{"A11", ""}, // Invalid
+		{"", ""},    // Empty
+		{"ZZZ", ""}, // Nonsense
 	}
 
 	for _, tt := range tests {

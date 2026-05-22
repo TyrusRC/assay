@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/miekg/dns"
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/templates"
 	"github.com/TyrusRC/assay/internal/templates/matchers"
+	"github.com/miekg/dns"
 )
 
 // ---------------------------------------------------------------------------

@@ -89,4 +89,3 @@ func TestReport_ToText(t *testing.T) {
 		t.Error("Text output should contain finding type")
 	}
 }
-

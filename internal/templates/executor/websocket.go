@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/TyrusRC/assay/internal/templates"
 	"github.com/TyrusRC/assay/internal/templates/matchers"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 )
 
 // WebSocketConfig configures WebSocket executor behaviour.

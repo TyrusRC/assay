@@ -107,7 +107,7 @@ func (d *Detector) testInjection(ctx context.Context, page *headless.Page, targe
 			// Set the payload in the appropriate storage
 			if err := d.setStorage(ctx, page, st, payload); err != nil {
 				if d.verbose {
-					fmt.Fprintf(os.Stderr,"[!] Failed to set %s payload: %v\n", st, err)
+					fmt.Fprintf(os.Stderr, "[!] Failed to set %s payload: %v\n", st, err)
 				}
 				continue
 			}
@@ -125,7 +125,7 @@ func (d *Detector) testInjection(ctx context.Context, page *headless.Page, targe
 
 			if strings.Contains(dom, payload.Marker) {
 				if d.verbose {
-					fmt.Fprintf(os.Stderr,"[+] Storage injection found via %s: %s\n", st, payload.Description)
+					fmt.Fprintf(os.Stderr, "[+] Storage injection found via %s: %s\n", st, payload.Description)
 				}
 				finding := core.NewFinding("Client-Side Storage Injection", core.SeverityHigh)
 				finding.URL = targetURL
@@ -170,7 +170,7 @@ func (d *Detector) checkKeysForSensitiveData(data map[string]string, storageName
 		for _, pattern := range storageinj.SensitiveKeyPatterns {
 			if strings.Contains(keyLower, pattern) {
 				if d.verbose {
-					fmt.Fprintf(os.Stderr,"[+] Sensitive data in %s: key=%q matches pattern %q\n", storageName, key, pattern)
+					fmt.Fprintf(os.Stderr, "[+] Sensitive data in %s: key=%q matches pattern %q\n", storageName, key, pattern)
 				}
 				finding := core.NewFinding("Sensitive Data in Client Storage", core.SeverityMedium)
 				finding.URL = targetURL

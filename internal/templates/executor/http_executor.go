@@ -447,7 +447,6 @@ func (e *Executor) executeRawRequest(ctx context.Context, client *http.Client, t
 	return result
 }
 
-
 // mergeExtractedIntoVars merges extracted data from a result into the vars map,
 // making values available for interpolation in subsequent requests.
 func (e *Executor) mergeExtractedIntoVars(result *templates.ExecutionResult, vars map[string]interface{}) {

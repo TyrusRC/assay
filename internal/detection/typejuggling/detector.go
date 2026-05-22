@@ -84,7 +84,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL, username string) (*Res
 	// Array-coerced password. We can only express this in form bodies;
 	// JSON payloads don't have ambient PHP-style array semantics.
 	if hit := d.tryProbe(ctx, targetURL, baseRespForm, formBody(map[string]string{
-		"username":    username,
+		"username":   username,
 		"password[]": "x",
 	}), "application/x-www-form-urlencoded", "array-coerced password"); hit != nil {
 		res.Findings = append(res.Findings, hit)

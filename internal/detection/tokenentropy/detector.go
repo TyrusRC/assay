@@ -67,6 +67,7 @@ type Result struct {
 // Detect fetches targetURL once and inspects:
 //   - every Set-Cookie value (parsed via http.Header)
 //   - every embedded csrf / xsrf / authenticity token in the body.
+//
 // One finding is emitted per low-entropy / sequential token.
 func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error) {
 	res := &Result{}

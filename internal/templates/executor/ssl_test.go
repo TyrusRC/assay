@@ -211,8 +211,8 @@ func TestSSLExecute_ShortMode(t *testing.T) {
 	probe := &templates.SSLProbe{
 		Matchers: []templates.Matcher{
 			{
-				Type:  "dsl",
-				DSL:   []string{"ssl_subject_cn != \"\""},
+				Type: "dsl",
+				DSL:  []string{"ssl_subject_cn != \"\""},
 			},
 		},
 	}

@@ -727,18 +727,18 @@ func TestSQLMap_BuildArgs_AllOptions(t *testing.T) {
 	args := s.BuildArgs(req)
 
 	checks := map[string]bool{
-		"--batch":         false,
-		"--method":        false,
-		"--data":          false,
-		"-H":              false,
-		"--cookie":        false,
-		"--proxy":         false,
-		"-o":              false,
-		"--technique":     false,
-		"--dbms":          false,
-		"--tamper":        false,
-		"--random-agent":  false,
-		"--dbs":           false,
+		"--batch":        false,
+		"--method":       false,
+		"--data":         false,
+		"-H":             false,
+		"--cookie":       false,
+		"--proxy":        false,
+		"-o":             false,
+		"--technique":    false,
+		"--dbms":         false,
+		"--tamper":       false,
+		"--random-agent": false,
+		"--dbs":          false,
 	}
 
 	for _, arg := range args {

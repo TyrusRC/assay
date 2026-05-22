@@ -156,8 +156,8 @@ func (n *Nuclei) DefaultOptions() Options { return defaultOptions() }
 func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	args := []string{
 		"-target", req.Target,
-		"-jsonl",       // line-delimited JSON on stdout
-		"-no-color",    // strip ANSI from any non-JSONL output we capture
+		"-jsonl",    // line-delimited JSON on stdout
+		"-no-color", // strip ANSI from any non-JSONL output we capture
 		"-disable-update-check",
 	}
 	if n.options.Silent {
@@ -246,14 +246,14 @@ func (n *Nuclei) Execute(ctx context.Context, req *tools.ToolRequest) (*tools.To
 // render a core.Finding. Fields we don't consume are dropped to keep
 // the parser tolerant of upstream additions.
 type nucleiResult struct {
-	TemplateID  string `json:"template-id"`
-	TemplateURL string `json:"template-url"`
-	Type        string `json:"type"`
-	Host        string `json:"host"`
-	MatchedAt   string `json:"matched-at"`
-	Request     string `json:"request"`
-	Response    string `json:"response"`
-	CURL        string `json:"curl-command"`
+	TemplateID  string   `json:"template-id"`
+	TemplateURL string   `json:"template-url"`
+	Type        string   `json:"type"`
+	Host        string   `json:"host"`
+	MatchedAt   string   `json:"matched-at"`
+	Request     string   `json:"request"`
+	Response    string   `json:"response"`
+	CURL        string   `json:"curl-command"`
 	Extracted   []string `json:"extracted-results"`
 	Info        struct {
 		Name           string   `json:"name"`
@@ -263,9 +263,9 @@ type nucleiResult struct {
 		Reference      []string `json:"reference"`
 		Remediation    string   `json:"remediation"`
 		Classification struct {
-			CVEID    []string `json:"cve-id"`
-			CWEID    []string `json:"cwe-id"`
-			CVSSScore float64 `json:"cvss-score"`
+			CVEID     []string `json:"cve-id"`
+			CWEID     []string `json:"cwe-id"`
+			CVSSScore float64  `json:"cvss-score"`
 		} `json:"classification"`
 	} `json:"info"`
 }

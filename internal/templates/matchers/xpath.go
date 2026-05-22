@@ -3,10 +3,10 @@ package matchers
 import (
 	"strings"
 
+	"github.com/TyrusRC/assay/internal/templates"
 	"github.com/antchfx/htmlquery"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
-	"github.com/TyrusRC/assay/internal/templates"
 	"golang.org/x/net/html"
 )
 

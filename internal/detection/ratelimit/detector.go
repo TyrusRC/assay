@@ -86,10 +86,10 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 	}
 
 	var (
-		throttled       bool
-		sawHeaderHint   bool
-		statuses        []int
-		successCount    int
+		throttled     bool
+		sawHeaderHint bool
+		statuses      []int
+		successCount  int
 	)
 
 	ticker := time.NewTicker(gap)

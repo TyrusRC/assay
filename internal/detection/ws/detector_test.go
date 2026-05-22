@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	internalhttp "github.com/TyrusRC/assay/internal/http"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	internalhttp "github.com/TyrusRC/assay/internal/http"
 )
 
 // upgradeHandler returns an httptest server that upgrades any GET to a

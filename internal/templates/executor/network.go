@@ -278,4 +278,3 @@ func (e *NetworkExecutor) Execute(ctx context.Context, target string, probe *tem
 
 	return result, nil
 }
-

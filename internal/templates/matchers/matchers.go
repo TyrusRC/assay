@@ -131,4 +131,3 @@ func (e *MatcherEngine) MatchAll(matchers []templates.Matcher, condition string,
 
 	return matchedCount > 0, extracts
 }
-

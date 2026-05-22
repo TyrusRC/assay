@@ -161,7 +161,7 @@ func TestDeduplicatePayloads(t *testing.T) {
 	payloads := []Payload{
 		{Value: "test\r\nfake", Category: CRLF},
 		{Value: "%s%s%s%n", Category: FormatString},
-		{Value: "test\r\nfake", Category: CRLF},      // duplicate
+		{Value: "test\r\nfake", Category: CRLF},         // duplicate
 		{Value: "test\r\nfake", Category: FormatString}, // different category
 	}
 

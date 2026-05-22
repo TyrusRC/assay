@@ -158,13 +158,13 @@ func TestCheckXXESuccess(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		respBody       string
-		baselineBody   string
-		nilBaseline    bool
-		nilResp        bool
-		wantSuccess    bool
-		wantDataEmpty  bool
+		name          string
+		respBody      string
+		baselineBody  string
+		nilBaseline   bool
+		nilResp       bool
+		wantSuccess   bool
+		wantDataEmpty bool
 	}{
 		{
 			name:          "nil response returns false",
@@ -668,17 +668,17 @@ func TestCreateFinding(t *testing.T) {
 	d := New(client)
 
 	tests := []struct {
-		name             string
-		target           string
-		payload          xxe.Payload
-		respBody         string
-		extractedData    string
-		wantSeverity     core.Severity
-		wantToolField    string
-		wantHasEvidence  bool
-		wantHasSnippet   bool
-		wantRemediation  bool
-		wantOWASP        bool
+		name            string
+		target          string
+		payload         xxe.Payload
+		respBody        string
+		extractedData   string
+		wantSeverity    core.Severity
+		wantToolField   string
+		wantHasEvidence bool
+		wantHasSnippet  bool
+		wantRemediation bool
+		wantOWASP       bool
 	}{
 		{
 			name:   "file read payload - high severity",
@@ -1599,10 +1599,10 @@ func TestDetect_PayloadSendErrorContinues(t *testing.T) {
 
 func TestDetect_DetectedTypeAndTarget(t *testing.T) {
 	tests := []struct {
-		name       string
-		testTypes  []xxe.XXEType
-		respBody   string
-		wantType   xxe.XXEType
+		name      string
+		testTypes []xxe.XXEType
+		respBody  string
+		wantType  xxe.XXEType
 	}{
 		{
 			name:      "classic type detected",

@@ -801,10 +801,10 @@ func TestClient_SendPayloadInCookie_InvalidURL(t *testing.T) {
 
 func TestClient_SendPayloadInJSON(t *testing.T) {
 	tests := []struct {
-		name       string
-		fieldPath  string
-		payload    string
-		wantBody   string
+		name      string
+		fieldPath string
+		payload   string
+		wantBody  string
 	}{
 		{
 			name:      "inject into simple field",

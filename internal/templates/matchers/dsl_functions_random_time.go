@@ -267,4 +267,3 @@ var strftimeReplacer = strings.NewReplacer(
 func strftimeToGoLayout(format string) string {
 	return strftimeReplacer.Replace(format)
 }
-

@@ -23,9 +23,9 @@ func (h *HTMLCommentDiscoverer) Name() string {
 }
 
 var (
-	commentRegex   = regexp.MustCompile(`<!--([\s\S]*?)-->`)
-	kvRegex        = regexp.MustCompile(`(\w+)=(\S+)`)
-	queryRegex     = regexp.MustCompile(`\?([^\s"']+)`)
+	commentRegex       = regexp.MustCompile(`<!--([\s\S]*?)-->`)
+	kvRegex            = regexp.MustCompile(`(\w+)=(\S+)`)
+	queryRegex         = regexp.MustCompile(`\?([^\s"']+)`)
 	paramMentionAfter  = regexp.MustCompile(`(?:parameter|param)\s*[:\s]\s*(\w+)`)
 	paramMentionBefore = regexp.MustCompile(`(\w+)\s+(?:parameter|param)\b`)
 )

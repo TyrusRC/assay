@@ -1201,11 +1201,11 @@ func TestDetector_detectMathExpression_WithFingerprinting(t *testing.T) {
 // patterns from various template engines.
 func TestDetector_detectByError(t *testing.T) {
 	tests := []struct {
-		name             string
-		responder        func(payload string) string
-		wantPatterns     bool
-		wantEngine       ssti.TemplateEngine
-		wantMinPatterns  int
+		name            string
+		responder       func(payload string) string
+		wantPatterns    bool
+		wantEngine      ssti.TemplateEngine
+		wantMinPatterns int
 	}{
 		{
 			name: "jinja2 error pattern",
