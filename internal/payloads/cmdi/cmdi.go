@@ -77,6 +77,7 @@ func GetAllPayloads() []Payload {
 	all = append(all, linuxBlindPayloads...)
 	all = append(all, linuxOOBPayloads...)
 	all = append(all, linuxBypassPayloads...)
+	all = append(all, shellshockPayloads...)
 	return all
 }
 

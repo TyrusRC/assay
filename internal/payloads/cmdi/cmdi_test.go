@@ -82,7 +82,8 @@ func TestGetAllPayloads(t *testing.T) {
 	all := GetAllPayloads()
 
 	expected := len(linuxPayloads) + len(windowsPayloads) + len(bothPayloads) +
-		len(linuxBlindPayloads) + len(linuxOOBPayloads) + len(linuxBypassPayloads)
+		len(linuxBlindPayloads) + len(linuxOOBPayloads) + len(linuxBypassPayloads) +
+		len(shellshockPayloads)
 
 	if len(all) != expected {
 		t.Errorf("GetAllPayloads() returned %d payloads, want %d", len(all), expected)
