@@ -15,19 +15,13 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
-	"github.com/TyrusRC/assay/internal/detection/iistilde"
-	"github.com/TyrusRC/assay/internal/detection/samesitescript"
-	"github.com/TyrusRC/assay/internal/detection/wafdetect"
-	"github.com/TyrusRC/assay/internal/detection/xfs"
-	"github.com/TyrusRC/assay/internal/payloads/arginject"
-	"github.com/TyrusRC/assay/internal/payloads/esi"
-	"github.com/TyrusRC/assay/internal/payloads/fileops"
-	"github.com/TyrusRC/assay/internal/payloads/javareflect"
-	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
-	"github.com/TyrusRC/assay/internal/payloads/phpinject"
-	"github.com/TyrusRC/assay/internal/payloads/solrinject"
-	"github.com/TyrusRC/assay/internal/payloads/vhost"
 )
+
+// This file groups the classic OWASP-Top-10 URL-level probes:
+// JNDI / sec-headers / file-exposure / cloud / subdomain-takeover /
+// TLS / authentication / GraphQL / HTTP smuggling. The newer passive
+// stages live in urldetectors_passive.go, the bank-driven parameter
+// injectors in urldetectors_paraminject.go.
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.
 func (s *InternalScanner) testJNDI(ctx context.Context, targetURL string) []*core.Finding {
@@ -62,257 +56,6 @@ func (s *InternalScanner) testSecHeaders(ctx context.Context, targetURL string) 
 		return nil
 	}
 	return result.Findings
-}
-
-// testWAFDetect runs a single passive GET and fingerprints any WAF
-// product in the path. Output is informational (SeverityInfo); the
-// scanner uses the vendor downstream to switch in evasion-class payloads.
-func (s *InternalScanner) testWAFDetect(ctx context.Context, targetURL string) []*core.Finding {
-	if s.wafDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Fingerprinting WAF on '%s'...\n", targetURL)
-	}
-	opts := wafdetect.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	res, err := s.wafDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil {
-		return nil
-	}
-	return res.Findings
-}
-
-// testXFS runs a single passive GET and reports clickjacking exposure
-// from the combination of X-Frame-Options, CSP frame-ancestors, and any
-// JS framebuster in the rendered body.
-func (s *InternalScanner) testXFS(ctx context.Context, targetURL string) []*core.Finding {
-	if s.xfsDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Analyzing clickjacking exposure on '%s'...\n", targetURL)
-	}
-	opts := xfs.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	res, err := s.xfsDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testIISTilde runs the IIS short-name (~1) differential probe.
-// Auto no-ops on non-IIS hosts because the differential is undetectable
-// there. Fires 6 cheap GETs total.
-func (s *InternalScanner) testIISTilde(ctx context.Context, targetURL string) []*core.Finding {
-	if s.iisTildeDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Probing IIS short-name disclosure on '%s'...\n", targetURL)
-	}
-	opts := iistilde.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	res, err := s.iisTildeDetector.DetectWithOptions(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testSameSiteScript runs the DNS-only probe for the
-// localhost.victim.com → 127.0.0.1 misconfiguration. No HTTP traffic
-// hits the target — purely local DNS resolution.
-func (s *InternalScanner) testSameSiteScript(ctx context.Context, targetURL string) []*core.Finding {
-	if s.sameSiteScriptDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Checking Same-Site Scripting DNS misconfigurations for '%s'...\n", targetURL)
-	}
-	res, err := s.sameSiteScriptDetector.Detect(ctx, targetURL, samesitescript.DefaultOptions())
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testVHostEnum rotates Host: through a hostname wordlist and reports
-// distinct vhost blocks served from the same IP. Off by default because
-// of the request budget (default 150 GETs); enable for recon-class scans.
-func (s *InternalScanner) testVHostEnum(ctx context.Context, targetURL string) []*core.Finding {
-	if s.vhostDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Enumerating virtual hosts on '%s'...\n", targetURL)
-	}
-	opts := vhost.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.VHostMaxRequests > 0 {
-		opts.MaxVHosts = s.config.VHostMaxRequests
-	}
-	res, err := s.vhostDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testESI probes URL parameters for Edge Side Includes injection by
-// injecting fingerprint ESI payloads and looking for engine-evaluation
-// markers in the response.
-func (s *InternalScanner) testESI(ctx context.Context, targetURL string) []*core.Finding {
-	if s.esiDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing ESI injection on '%s'...\n", targetURL)
-	}
-	opts := esi.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.esiDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testSolrInject probes URL parameters for Apache Solr injection.
-// Gated on baseline showing Solr error patterns when
-// ConfirmedSolrOnly is enabled — keeps RCE payloads off non-Solr targets.
-func (s *InternalScanner) testSolrInject(ctx context.Context, targetURL string) []*core.Finding {
-	if s.solrInjectDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing Apache Solr injection on '%s'...\n", targetURL)
-	}
-	opts := solrinject.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.solrInjectDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testPHPInject probes URL parameters for PHP user-controlled sinks
-// (extract / assert / preg_replace /e / include / unserialize / dynamic
-// instantiation). RCE-class payloads self-gate on a PHP fingerprint.
-func (s *InternalScanner) testPHPInject(ctx context.Context, targetURL string) []*core.Finding {
-	if s.phpInjectDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing PHP user-controlled sinks on '%s'...\n", targetURL)
-	}
-	opts := phpinject.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.phpInjectDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testJavaReflect probes URL parameters for Java reflection abuse
-// (Runtime.exec via reflection, ProcessBuilder, classLoader chains,
-// JNDI lookups). RCE-class payloads self-gate on a Java fingerprint.
-func (s *InternalScanner) testJavaReflect(ctx context.Context, targetURL string) []*core.Finding {
-	if s.javaReflectDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing Java reflection abuse on '%s'...\n", targetURL)
-	}
-	opts := javareflect.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.javaReflectDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testNodeJSInject probes URL parameters for Server-Side JavaScript
-// Injection. Supports time-blind sleep detection alongside error-pattern
-// matching. RCE-class payloads self-gate on a Node fingerprint.
-func (s *InternalScanner) testNodeJSInject(ctx context.Context, targetURL string) []*core.Finding {
-	if s.nodejsInjectDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing NodeJS SSJI on '%s'...\n", targetURL)
-	}
-	opts := nodejsinject.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.nodejsInjectDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testArgInject probes URL parameters for argument injection into
-// wrapped binaries (curl/git/ssh/tar/find/convert/python/php/ruby/perl/…).
-// Matches per-binary error patterns that confirm the flag landed in argv.
-func (s *InternalScanner) testArgInject(ctx context.Context, targetURL string) []*core.Finding {
-	if s.argInjectDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing argument injection on '%s'...\n", targetURL)
-	}
-	opts := arginject.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.argInjectDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
-}
-
-// testFileOps probes URL parameters for arbitrary file create / delete /
-// tamper sinks via path traversal. Matches filesystem error patterns
-// (Permission denied, ENOENT, fopen failed, …) referencing the
-// traversed path.
-func (s *InternalScanner) testFileOps(ctx context.Context, targetURL string) []*core.Finding {
-	if s.fileOpsDetector == nil {
-		return nil
-	}
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing arbitrary file-ops on '%s'...\n", targetURL)
-	}
-	opts := fileops.DefaultOptions()
-	opts.Timeout = s.config.RequestTimeout
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
-		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
-	}
-	res, err := s.fileOpsDetector.Detect(ctx, targetURL, opts)
-	if err != nil || res == nil || !res.Vulnerable {
-		return nil
-	}
-	return res.Findings
 }
 
 // testExposure tests for exposed sensitive files and directories.
@@ -380,35 +123,25 @@ func (s *InternalScanner) testTLS(ctx context.Context, targetURL string) []*core
 	return result.Findings
 }
 
-// testAuth tests for authentication vulnerabilities.
+// testAuth tests for authentication vulnerabilities (default-credentials,
+// user-enumeration, missing rate-limit).
 func (s *InternalScanner) testAuth(ctx context.Context, loginURL string) []*core.Finding {
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing authentication on '%s'...\n", loginURL)
 	}
 
 	var findings []*core.Finding
-
-	result, err := s.authDetector.DetectDefaultCredentials(ctx, loginURL, auth.DetectOptions{
-		Timeout: s.config.RequestTimeout,
-	})
-	if err == nil && result.Vulnerable {
-		findings = append(findings, result.Findings...)
+	probes := []func(context.Context, string, auth.DetectOptions) (*auth.DetectionResult, error){
+		s.authDetector.DetectDefaultCredentials,
+		s.authDetector.DetectUserEnumeration,
+		s.authDetector.DetectMissingRateLimit,
 	}
-
-	result, err = s.authDetector.DetectUserEnumeration(ctx, loginURL, auth.DetectOptions{
-		Timeout: s.config.RequestTimeout,
-	})
-	if err == nil && result.Vulnerable {
-		findings = append(findings, result.Findings...)
+	opts := auth.DetectOptions{Timeout: s.config.RequestTimeout}
+	for _, probe := range probes {
+		if result, err := probe(ctx, loginURL, opts); err == nil && result.Vulnerable {
+			findings = append(findings, result.Findings...)
+		}
 	}
-
-	result, err = s.authDetector.DetectMissingRateLimit(ctx, loginURL, auth.DetectOptions{
-		Timeout: s.config.RequestTimeout,
-	})
-	if err == nil && result.Vulnerable {
-		findings = append(findings, result.Findings...)
-	}
-
 	return findings
 }
 
@@ -418,11 +151,12 @@ func (s *InternalScanner) testGraphQL(ctx context.Context, targetURL string) []*
 		fmt.Fprintf(os.Stderr, "[*] Testing GraphQL vulnerabilities on '%s'...\n", targetURL)
 	}
 
+	opts := graphql.DetectOptions{Timeout: s.config.RequestTimeout}
+
 	endpoints, err := s.graphqlDetector.DiscoverEndpoints(ctx, targetURL)
 	if err != nil || len(endpoints) == 0 {
-		result, detectErr := s.graphqlDetector.Detect(ctx, targetURL, graphql.DetectOptions{
-			Timeout: s.config.RequestTimeout,
-		})
+		// Fall back to probing the target itself.
+		result, detectErr := s.graphqlDetector.Detect(ctx, targetURL, opts)
 		if detectErr != nil || !result.IsGraphQL {
 			return nil
 		}
@@ -431,9 +165,7 @@ func (s *InternalScanner) testGraphQL(ctx context.Context, targetURL string) []*
 
 	var findings []*core.Finding
 	for _, endpoint := range endpoints {
-		result, detectErr := s.graphqlDetector.Detect(ctx, endpoint, graphql.DetectOptions{
-			Timeout: s.config.RequestTimeout,
-		})
+		result, detectErr := s.graphqlDetector.Detect(ctx, endpoint, opts)
 		if detectErr != nil || !result.IsGraphQL {
 			continue
 		}
