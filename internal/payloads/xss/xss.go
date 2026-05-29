@@ -24,6 +24,7 @@ const (
 	TypeReflected PayloadType = "reflected"
 	TypeStored    PayloadType = "stored"
 	TypeDOM       PayloadType = "dom"
+	TypeBlind     PayloadType = "blind"
 )
 
 // Payload represents an XSS payload.
@@ -87,6 +88,7 @@ func GetAllPayloads() []Payload {
 	all = append(all, sandboxEscapePayloads...)
 	all = append(all, browserBypassPayloads...)
 	all = append(all, bashFunctionConstructorPayloads...)
+	all = append(all, blindPayloads...)
 	return all
 }
 

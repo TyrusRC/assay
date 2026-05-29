@@ -122,6 +122,7 @@ func TestPayloadValidTypes(t *testing.T) {
 		TypeReflected: true,
 		TypeStored:    true,
 		TypeDOM:       true,
+		TypeBlind:     true,
 		"":            true, // Some payloads may have empty type
 	}
 
