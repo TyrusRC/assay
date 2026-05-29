@@ -75,6 +75,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
+	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -216,6 +217,7 @@ type InternalScanner struct {
 	jkuAbuseDetector        *jkuabuse.Detector
 	sameSiteLaxDetector     *samesitelax.Detector
 	wafDetector             *wafdetect.Detector
+	xfsDetector             *xfs.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client

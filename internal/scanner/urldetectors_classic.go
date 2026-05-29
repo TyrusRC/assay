@@ -16,6 +16,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
+	"github.com/TyrusRC/assay/internal/detection/xfs"
 )
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.
@@ -67,6 +68,25 @@ func (s *InternalScanner) testWAFDetect(ctx context.Context, targetURL string) [
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.wafDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testXFS runs a single passive GET and reports clickjacking exposure
+// from the combination of X-Frame-Options, CSP frame-ancestors, and any
+// JS framebuster in the rendered body.
+func (s *InternalScanner) testXFS(ctx context.Context, targetURL string) []*core.Finding {
+	if s.xfsDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Analyzing clickjacking exposure on '%s'...\n", targetURL)
+	}
+	opts := xfs.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.xfsDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
 	return res.Findings

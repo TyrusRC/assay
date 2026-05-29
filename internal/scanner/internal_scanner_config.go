@@ -135,6 +135,7 @@ type InternalScanConfig struct {
 	EnableSameSiteLax     bool   // Inspects auth-cookie SameSite attributes; flags missing/Lax/None on auth cookies as CSRF surface
 	SameSiteLaxProbeGET   bool   // When true, also probes well-known GET-logout paths to escalate the finding to confirmed CSRF
 	EnableWAFDetect       bool   // Passive WAF fingerprinting from response headers/cookies/body; emits SeverityInfo per matched vendor
+	EnableXFS             bool   // Clickjacking / Cross-Frame Scripting exposure analyzer (XFO + CSP frame-ancestors + JS framebuster)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -261,6 +262,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableJKUAbuse:        true, // no-op without JWTAdvancedToken and an OOB client — safe everywhere
 		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
 		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
+		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

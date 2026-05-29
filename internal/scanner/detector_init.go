@@ -73,6 +73,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
+	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -205,6 +206,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.jkuAbuseDetector = jkuabuse.New(httpClient)
 	s.sameSiteLaxDetector = samesitelax.New(httpClient)
 	s.wafDetector = wafdetect.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.xfsDetector = xfs.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.config = config
 	s.confirmed = newConfirmedFindings()
 }
