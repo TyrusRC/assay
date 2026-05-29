@@ -72,6 +72,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/redos"
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
+	"github.com/TyrusRC/assay/internal/detection/cspaudit"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
 	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
@@ -235,6 +236,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.rscInjectDetector = rscinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.webauthnDetector = webauthn.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.http3DesyncDetector = http3desync.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.cspAuditDetector = cspaudit.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.config = config
 	s.confirmed = newConfirmedFindings()
 }

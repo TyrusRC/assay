@@ -107,6 +107,11 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		res.Findings = append(res.Findings, buildGETMutationFinding(target))
 	}
 
+	if d.probeIncrementalDelivery(ctx, target, opts) {
+		res.Techniques = append(res.Techniques, "defer_stream_enabled")
+		res.Findings = append(res.Findings, buildIncrementalDeliveryFinding(target))
+	}
+
 	res.Vulnerable = len(res.Findings) > 0
 	return res, nil
 }
@@ -214,6 +219,45 @@ func (d *Detector) probeGETMutation(ctx context.Context, target string, opts Det
 	return strings.Contains(body, `"data"`)
 }
 
+// probeIncrementalDelivery sends a query with the @defer directive on
+// the __typename meta-field. Servers that accept incremental delivery
+// return a multipart/mixed response or a JSON envelope with the
+// `"hasNext":true` continuation marker. Enabled @defer/@stream opens a
+// side-channel: even when the deferred field's value is denied, the
+// chunk timing and presence reveal information about access-control
+// boundaries (cardinality leaks via @stream, hidden-field presence via
+// @defer's per-path error timing).
+//
+// References:
+//   - https://github.com/graphql/graphql-spec/blob/main/rfcs/DeferStream.md
+//   - PortSwigger 2024 "GraphQL incremental delivery side channels"
+func (d *Detector) probeIncrementalDelivery(ctx context.Context, target string, opts DetectOptions) bool {
+	// Use a defer fragment on __typename — every schema has it, and the
+	// directive support is independent of whether any sensitive field
+	// exists.
+	q := `{"query":"query { __typename ... @defer { __typename } }"}`
+	resp, err := d.postJSON(ctx, target, q, opts.Timeout)
+	if err != nil || resp == nil {
+		return false
+	}
+
+	// Multipart-mixed response is the canonical incremental delivery
+	// transport.
+	if strings.Contains(strings.ToLower(resp.ContentType), "multipart/mixed") {
+		return true
+	}
+	body := resp.Body
+	// JSON envelope variant — newer servers can also deliver incremental
+	// payloads in a single multi-payload JSON object with hasNext / pending.
+	if strings.Contains(body, `"hasNext":true`) || strings.Contains(body, `"hasNext": true`) {
+		return true
+	}
+	if strings.Contains(body, `"incremental":[`) || strings.Contains(body, `"pending":[`) {
+		return true
+	}
+	return false
+}
+
 // postJSON wraps client.Do for the common GraphQL request shape.
 func (d *Detector) postJSON(ctx context.Context, target, body string, timeout time.Duration) (*scanhttp.Response, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -270,6 +314,30 @@ func buildGETMutationFinding(target string) *core.Finding {
 		[]string{"WSTG-SESS-05"},
 		[]string{"A01:2025"},
 		[]string{"CWE-352"},
+	)
+	return f
+}
+
+// buildIncrementalDeliveryFinding builds the finding for @defer/@stream
+// being enabled. Severity is Medium — the feature itself is a side-
+// channel risk, not an immediate vuln; a full audit would chain it with
+// a deferred-field access-control bug to upgrade to High.
+func buildIncrementalDeliveryFinding(target string) *core.Finding {
+	f := core.NewFinding("GraphQL incremental delivery (@defer/@stream) enabled", core.SeverityMedium)
+	f.Title = "GraphQL endpoint supports @defer/@stream incremental delivery"
+	f.URL = target
+	f.Tool = "graphqladvanced-detector"
+	f.Description = "The endpoint accepted a query with the @defer directive. Incremental delivery emits the deferred portion as a separate chunk; even when the deferred field's value is denied, the chunk's PRESENCE and TIMING reveal information about access-control boundaries (cardinality of @stream'd lists, existence of @defer'd hidden fields). Combined with a per-field auth bug, this becomes a data-exfil side channel."
+	f.Evidence = `query { __typename ... @defer { __typename } } returned multipart/mixed or {"hasNext":true}`
+	f.Remediation = "Audit every @defer-eligible field for access-control checks that apply to the DEFERRED chunk too — not just the initial response. If the server is using graphql-js, consider disabling incremental delivery (`enableIncrementalDelivery: false`) until the access-control review is complete."
+	f.References = []string{
+		"https://github.com/graphql/graphql-spec/blob/main/rfcs/DeferStream.md",
+		"https://portswigger.net/research/graphql-incremental-delivery-side-channels",
+	}
+	f.WithOWASPMapping(
+		[]string{"WSTG-INPV-12"},
+		[]string{"A01:2021"},
+		[]string{"CWE-200"},
 	)
 	return f
 }

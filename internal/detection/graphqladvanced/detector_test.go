@@ -164,6 +164,70 @@ func TestDetector_GETMutationCSRF(t *testing.T) {
 	}
 }
 
+func TestDetector_IncrementalDelivery_MultipartMixed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"errors":[{"message":"POST only"}]}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "@defer") {
+			// Servers that support @defer signal it via multipart/mixed.
+			w.Header().Set("Content-Type", `multipart/mixed; boundary="-"`)
+			_, _ = w.Write([]byte(`---` + "\nContent-Type: application/json\n\n" + `{"data":{"__typename":"Query"},"hasNext":true}` + "\n---" + `--`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"__typename":"Query"}}`))
+	}))
+	defer srv.Close()
+
+	d := New(newClient())
+	res, err := d.Detect(context.Background(), srv.URL, DefaultOptions())
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if !containsTechnique(res.Techniques, "defer_stream_enabled") {
+		t.Errorf("expected technique 'defer_stream_enabled', got %v", res.Techniques)
+	}
+	found := false
+	for _, f := range res.Findings {
+		if strings.Contains(f.Title, "@defer") {
+			found = true
+			if f.Severity != core.SeverityMedium {
+				t.Errorf("@defer severity = %q, want Medium", f.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected an @defer finding")
+	}
+}
+
+func TestDetector_IncrementalDelivery_HasNextJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), "@defer") {
+				_, _ = w.Write([]byte(`{"data":{"__typename":"Query"},"hasNext":true,"incremental":[]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"__typename":"Query"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"errors":[{"message":"POST only"}]}`))
+	}))
+	defer srv.Close()
+
+	d := New(newClient())
+	res, _ := d.Detect(context.Background(), srv.URL, DefaultOptions())
+	if !containsTechnique(res.Techniques, "defer_stream_enabled") {
+		t.Errorf("expected 'defer_stream_enabled' from JSON hasNext envelope, got %v", res.Techniques)
+	}
+}
+
 // TestDetector_HardenedServer_NoFindings ensures a properly-configured
 // server triggers no findings. False positives here would be very
 // expensive — graphqladvanced runs against any GraphQL-shaped endpoint.

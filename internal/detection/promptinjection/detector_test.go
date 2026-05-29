@@ -106,8 +106,8 @@ func TestDetect_SkipsNon2xxNon404(t *testing.T) {
 
 func TestBuildPayloads_CoversAttackFamilies(t *testing.T) {
 	got := buildPayloads()
-	if len(got) < 8 {
-		t.Errorf("expected at least 8 prompt-injection variants, got %d", len(got))
+	if len(got) < 13 {
+		t.Errorf("expected at least 13 prompt-injection variants, got %d", len(got))
 	}
 	required := []string{
 		"ignore-previous",
@@ -119,6 +119,10 @@ func TestBuildPayloads_CoversAttackFamilies(t *testing.T) {
 		"function-call",
 		"sandwich",
 		"cross-language",
+		"indirect injection",
+		"image-ocr",
+		"fake tool-result",
+		"unicode tag-character",
 	}
 	for _, want := range required {
 		found := false

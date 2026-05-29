@@ -151,6 +151,7 @@ type InternalScanConfig struct {
 	EnableRSCInject       bool   // React Server Components / Next.js Server-Action injection probe
 	EnableWebAuthn        bool   // WebAuthn / passkey endpoint discovery + policy-footgun analysis
 	EnableHTTP3Desync     bool   // HTTP/3 advertisement discovery + upstream-CVE fingerprint
+	EnableCSPAudit        bool   // Deep CSP policy audit (nonce reuse, strict-dynamic baseline, unsafe-eval+nonce)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -293,6 +294,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableRSCInject:       true, // gated on RSC fingerprint; auto no-op on non-Next.js targets
 		EnableWebAuthn:        true, // probes the curated CommonEndpoints wordlist (cheap; auto no-op on hosts without /webauthn or /api/passkey)
 		EnableHTTP3Desync:     true, // single passive HEAD; auto no-op on hosts without Alt-Svc
+		EnableCSPAudit:        true, // 1-2 GETs; complements secheaders with policy-shape analysis
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

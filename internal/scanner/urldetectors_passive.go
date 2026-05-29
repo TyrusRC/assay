@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/cspaudit"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
@@ -151,6 +152,26 @@ func (s *InternalScanner) testHTTP3Desync(ctx context.Context, targetURL string)
 	opts := http3desync.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.http3DesyncDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || len(res.Findings) == 0 {
+		return nil
+	}
+	return res.Findings
+}
+
+// testCSPAudit performs a deep CSP policy audit — nonce reuse, strict-
+// dynamic with permissive baseline, unsafe-eval combined with nonce,
+// data: in script-src. Complements secheaders (which only checks
+// presence) with policy-shape analysis. 1-2 GETs total.
+func (s *InternalScanner) testCSPAudit(ctx context.Context, targetURL string) []*core.Finding {
+	if s.cspAuditDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Auditing CSP policy on '%s'...\n", targetURL)
+	}
+	opts := cspaudit.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.cspAuditDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || len(res.Findings) == 0 {
 		return nil
 	}
