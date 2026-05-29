@@ -136,6 +136,7 @@ type InternalScanConfig struct {
 	SameSiteLaxProbeGET   bool   // When true, also probes well-known GET-logout paths to escalate the finding to confirmed CSRF
 	EnableWAFDetect       bool   // Passive WAF fingerprinting from response headers/cookies/body; emits SeverityInfo per matched vendor
 	EnableXFS             bool   // Clickjacking / Cross-Frame Scripting exposure analyzer (XFO + CSP frame-ancestors + JS framebuster)
+	EnableIISTilde        bool   // IIS short-name (~1) enumeration probe; opt-in because it fires 5 anomalous-method requests
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -263,6 +264,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
 		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
 		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
+		EnableIISTilde:        true, // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

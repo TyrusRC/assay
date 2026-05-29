@@ -15,6 +15,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
+	"github.com/TyrusRC/assay/internal/detection/iistilde"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 )
@@ -86,6 +87,25 @@ func (s *InternalScanner) testXFS(ctx context.Context, targetURL string) []*core
 	opts := xfs.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.xfsDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testIISTilde runs the IIS short-name (~1) differential probe.
+// Auto no-ops on non-IIS hosts because the differential is undetectable
+// there. Fires 6 cheap GETs total.
+func (s *InternalScanner) testIISTilde(ctx context.Context, targetURL string) []*core.Finding {
+	if s.iisTildeDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing IIS short-name disclosure on '%s'...\n", targetURL)
+	}
+	opts := iistilde.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.iisTildeDetector.DetectWithOptions(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
