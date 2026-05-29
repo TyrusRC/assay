@@ -13,6 +13,7 @@ const (
 	CategoryLog         Category = "log"
 	CategoryIDE         Category = "ide"
 	CategoryDatabase    Category = "database"
+	CategoryWebShell    Category = "webshell"
 )
 
 // Severity indicates the exposure severity.
@@ -143,6 +144,75 @@ var payloads = []Payload{
 	{Path: "sitemap.xml", Category: CategoryConfig, Severity: SeverityLow, Description: "Sitemap file", Patterns: []string{"urlset", "url", "loc"}},
 	{Path: ".DS_Store", Category: CategoryIDE, Severity: SeverityMedium, Description: "macOS metadata file", Patterns: []string{"Bud1"}},
 	{Path: "Thumbs.db", Category: CategoryIDE, Severity: SeverityLow, Description: "Windows thumbnail cache", Patterns: []string{}},
+
+	// --- VCS deep paths (AWVS Git/SVN/Hg/Bzr/CVS repo audit) ---
+	{Path: ".git/logs/HEAD", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git HEAD reflog (commit history)", Patterns: []string{"commit", "checkout"}},
+	{Path: ".git/refs/heads/master", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git master branch ref", Patterns: []string{}},
+	{Path: ".git/refs/heads/main", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git main branch ref", Patterns: []string{}},
+	{Path: ".git/refs/heads/develop", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git develop branch ref", Patterns: []string{}},
+	{Path: ".git/packed-refs", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git packed refs (all branches/tags)", Patterns: []string{"refs/heads/", "refs/tags/"}},
+	{Path: ".git/ORIG_HEAD", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Git previous HEAD", Patterns: []string{}},
+	{Path: ".git/FETCH_HEAD", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Git last fetched ref", Patterns: []string{"branch"}},
+	{Path: ".git/COMMIT_EDITMSG", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Git last commit message", Patterns: []string{}},
+	{Path: ".git/MERGE_MSG", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Git merge message", Patterns: []string{"Merge"}},
+	{Path: ".git/description", Category: CategoryVersionCtrl, Severity: SeverityLow, Description: "Git repo description", Patterns: []string{}},
+	{Path: ".git/objects/info/packs", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Git pack file index (enables blob extraction)", Patterns: []string{"P pack-"}},
+	{Path: ".git/objects/info/alternates", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Git alternates (linked repos)", Patterns: []string{}},
+	{Path: ".git/info/exclude", Category: CategoryVersionCtrl, Severity: SeverityLow, Description: "Git local ignore file", Patterns: []string{}},
+	{Path: ".git/hooks/pre-commit.sample", Category: CategoryVersionCtrl, Severity: SeverityLow, Description: "Git hook sample (confirms .git/ readable)", Patterns: []string{"#!/bin/sh", "pre-commit"}},
+
+	{Path: ".svn/format", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "SVN working copy format", Patterns: []string{}},
+	{Path: ".svn/all-wcprops", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "SVN working copy properties", Patterns: []string{"K ", "V ", "END"}},
+	{Path: ".svn/dir-prop-base", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "SVN directory props base", Patterns: []string{}},
+	{Path: ".svn/prop-base", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "SVN property base", Patterns: []string{}},
+	{Path: ".svn/pristine", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "SVN pristine store (file copies)", Patterns: []string{}},
+
+	{Path: ".hg/requires", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Mercurial repo requirements", Patterns: []string{"revlogv1", "store", "fncache"}},
+	{Path: ".hg/store/00manifest.i", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Mercurial manifest index", Patterns: []string{}},
+	{Path: ".hg/branch", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Mercurial current branch", Patterns: []string{}},
+	{Path: ".hg/last-message.txt", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Mercurial last commit message", Patterns: []string{}},
+
+	{Path: ".bzr/branch/branch-format", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Bazaar branch format", Patterns: []string{"Bazaar"}},
+	{Path: ".bzr/checkout/dirstate", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "Bazaar dirstate (working copy index)", Patterns: []string{}},
+	{Path: ".bzr/repository/format", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "Bazaar repository format", Patterns: []string{"Bazaar"}},
+
+	{Path: "CVS/Root", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "CVS repository root (often contains user@host:path)", Patterns: []string{":pserver:", "@"}},
+	{Path: "CVS/Entries", Category: CategoryVersionCtrl, Severity: SeverityHigh, Description: "CVS entries list", Patterns: []string{"/", "//"}},
+	{Path: "CVS/Repository", Category: CategoryVersionCtrl, Severity: SeverityMedium, Description: "CVS module path", Patterns: []string{}},
+	{Path: "CVS/Entries.Log", Category: CategoryVersionCtrl, Severity: SeverityLow, Description: "CVS entries change log", Patterns: []string{}},
+	{Path: "CVS/Tag", Category: CategoryVersionCtrl, Severity: SeverityLow, Description: "CVS sticky tag", Patterns: []string{}},
+
+	// --- Editor leftover files (fixed names) ---
+	{Path: "DEADJOE", Category: CategoryIDE, Severity: SeverityMedium, Description: "Joe editor crash dump (may contain partial file)", Patterns: []string{}},
+	{Path: ".netrwhist", Category: CategoryIDE, Severity: SeverityLow, Description: "Vim netrw history", Patterns: []string{"NetrwHistory"}},
+	{Path: ".viminfo", Category: CategoryIDE, Severity: SeverityMedium, Description: "Vim history (recent files, registers)", Patterns: []string{"# This viminfo"}},
+	{Path: ".bash_history", Category: CategoryLog, Severity: SeverityHigh, Description: "Bash command history", Patterns: []string{}},
+	{Path: ".zsh_history", Category: CategoryLog, Severity: SeverityHigh, Description: "Zsh command history", Patterns: []string{}},
+	{Path: ".lesshst", Category: CategoryLog, Severity: SeverityLow, Description: "less history", Patterns: []string{"shell"}},
+
+	// --- Web-shells (compromised-asset indicators) ---
+	{Path: "c99.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "c99 PHP web-shell (compromise indicator)", Patterns: []string{"c99shell", "c99"}},
+	{Path: "r57.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "r57 PHP web-shell", Patterns: []string{"r57shell", "r57"}},
+	{Path: "wso.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "WSO PHP web-shell", Patterns: []string{"WSO", "Web Shell by oRb"}},
+	{Path: "b374k.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "b374k PHP web-shell", Patterns: []string{"b374k"}},
+	{Path: "alfa.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "ALFA TeaM web-shell", Patterns: []string{"ALFA TEaM", "AlfaShell"}},
+	{Path: "indoxploit.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "IndoXploit web-shell", Patterns: []string{"IndoXploit"}},
+	{Path: "shell.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic PHP shell", Patterns: []string{"system(", "exec(", "passthru("}},
+	{Path: "cmd.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic PHP command shell", Patterns: []string{"system(", "exec("}},
+	{Path: "x.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic short-name shell", Patterns: []string{"<?php"}},
+	{Path: "hax0r.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic hax0r shell name", Patterns: []string{"<?php"}},
+	{Path: "webshell.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic web-shell filename", Patterns: []string{"<?php"}},
+	{Path: "shell.jsp", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic JSP shell", Patterns: []string{"Runtime.getRuntime()", "exec("}},
+	{Path: "cmd.jsp", Category: CategoryWebShell, Severity: SeverityCritical, Description: "JSP command shell", Patterns: []string{"Runtime.getRuntime()", "exec("}},
+	{Path: "cmd.aspx", Category: CategoryWebShell, Severity: SeverityCritical, Description: "ASPX command shell", Patterns: []string{"Process.Start", "cmd.exe"}},
+	{Path: "shell.aspx", Category: CategoryWebShell, Severity: SeverityCritical, Description: "Generic ASPX shell", Patterns: []string{"Process.Start", "Runtime"}},
+	{Path: "tryag.php", Category: CategoryWebShell, Severity: SeverityCritical, Description: "TryagSec PHP web-shell", Patterns: []string{"tryag"}},
+
+	// --- AWVS-style debug/info disclosure (CGI test scripts) ---
+	{Path: "cgi-bin/printenv", Category: CategoryDebug, Severity: SeverityHigh, Description: "CGI environment dump (leaks env vars)", Patterns: []string{"HTTP_HOST", "SERVER_NAME", "PATH"}},
+	{Path: "cgi-bin/printenv.pl", Category: CategoryDebug, Severity: SeverityHigh, Description: "Perl CGI environment dump", Patterns: []string{"HTTP_HOST", "SERVER_NAME"}},
+	{Path: "cgi-bin/test-cgi", Category: CategoryDebug, Severity: SeverityHigh, Description: "Apache test-cgi script (leaks env)", Patterns: []string{"CGI/1.0", "SERVER_SOFTWARE"}},
+	{Path: "cgi-bin/test.cgi", Category: CategoryDebug, Severity: SeverityMedium, Description: "Generic test CGI", Patterns: []string{"Content-type"}},
 }
 
 // GetPayloads returns all sensitive file exposure payloads.

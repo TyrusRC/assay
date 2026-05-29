@@ -145,6 +145,7 @@ func TestPayloadValidCategories(t *testing.T) {
 		CategoryLog:         true,
 		CategoryIDE:         true,
 		CategoryDatabase:    true,
+		CategoryWebShell:    true,
 	}
 
 	for _, p := range payloads {
@@ -221,12 +222,81 @@ func TestAllCategoriesHavePayloads(t *testing.T) {
 	categories := []Category{
 		CategoryConfig, CategoryVersionCtrl, CategoryBackup,
 		CategoryDebug, CategorySecret, CategoryLog, CategoryIDE, CategoryDatabase,
+		CategoryWebShell,
 	}
 
 	for _, cat := range categories {
 		payloads := GetByCategory(cat)
 		if len(payloads) == 0 {
 			t.Errorf("Category %s has no payloads", cat)
+		}
+	}
+}
+
+func TestVCSExpansion_GitDeepPaths(t *testing.T) {
+	vcs := GetByCategory(CategoryVersionCtrl)
+	if len(vcs) < 25 {
+		t.Errorf("expected at least 25 VCS paths after expansion, got %d", len(vcs))
+	}
+	pathSet := make(map[string]bool, len(vcs))
+	for _, p := range vcs {
+		pathSet[p.Path] = true
+	}
+	required := []string{
+		".git/logs/HEAD",
+		".git/refs/heads/master",
+		".git/refs/heads/main",
+		".git/packed-refs",
+		".git/objects/info/packs",
+		".git/COMMIT_EDITMSG",
+		".git/description",
+		".svn/format",
+		".svn/all-wcprops",
+		".hg/requires",
+		".hg/store/00manifest.i",
+		".bzr/branch/branch-format",
+		"CVS/Entries",
+		"CVS/Root",
+	}
+	for _, p := range required {
+		if !pathSet[p] {
+			t.Errorf("missing required VCS path: %s", p)
+		}
+	}
+}
+
+func TestWebShellCategory(t *testing.T) {
+	shells := GetByCategory(CategoryWebShell)
+	if len(shells) < 12 {
+		t.Errorf("expected at least 12 web-shells, got %d", len(shells))
+	}
+	names := make(map[string]bool, len(shells))
+	for _, s := range shells {
+		names[s.Path] = true
+		if s.Severity != SeverityCritical {
+			t.Errorf("web-shell %s should be Critical severity, got %s", s.Path, s.Severity)
+		}
+	}
+	required := []string{"c99.php", "r57.php", "wso.php", "b374k.php", "alfa.php"}
+	for _, n := range required {
+		if !names[n] {
+			t.Errorf("missing common web-shell: %s", n)
+		}
+	}
+}
+
+func TestEditorTempFiles(t *testing.T) {
+	all := GetPayloads()
+	pathSet := make(map[string]bool, len(all))
+	for _, p := range all {
+		pathSet[p.Path] = true
+	}
+	// Editor leftovers with fixed names (per-file .swp variants live in a
+	// separate generator).
+	required := []string{"DEADJOE", ".netrwhist"}
+	for _, p := range required {
+		if !pathSet[p] {
+			t.Errorf("missing editor-temp file: %s", p)
 		}
 	}
 }
