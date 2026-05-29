@@ -142,6 +142,7 @@ type InternalScanConfig struct {
 	EnableVHostEnum       bool   // Virtual-host enumeration via Host: header rotation; off by default (issues up to MaxVHosts requests)
 	VHostMaxRequests      int    // Cap on vhost wordlist size (default 150 when EnableVHostEnum is on)
 	EnableESI             bool   // Edge Side Includes injection probe; injects 6 ESI payloads per URL param
+	EnableSolrInject      bool   // Apache Solr parameter-injection probe; injects 6 Solr payloads per URL param
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -275,6 +276,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableVHostEnum:       false, // off by default — issues up to 150 requests with rotated Host headers
 		VHostMaxRequests:      150,
 		EnableESI:             true, // 6 payloads × N params; gated on URL having params at all
+		EnableSolrInject:      true, // ConfirmedSolrOnly gates RCE payloads behind an error-pattern fingerprint
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

@@ -80,6 +80,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
@@ -228,6 +229,7 @@ type InternalScanner struct {
 	longPwdDetector         *longpwd.Detector
 	vhostDetector           *vhost.Detector
 	esiDetector             *esi.Detector
+	solrInjectDetector      *solrinject.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client

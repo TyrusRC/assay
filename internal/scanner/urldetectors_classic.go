@@ -20,6 +20,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 )
 
@@ -170,6 +171,28 @@ func (s *InternalScanner) testESI(ctx context.Context, targetURL string) []*core
 		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
 	}
 	res, err := s.esiDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testSolrInject probes URL parameters for Apache Solr injection.
+// Gated on baseline showing Solr error patterns when
+// ConfirmedSolrOnly is enabled — keeps RCE payloads off non-Solr targets.
+func (s *InternalScanner) testSolrInject(ctx context.Context, targetURL string) []*core.Finding {
+	if s.solrInjectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing Apache Solr injection on '%s'...\n", targetURL)
+	}
+	opts := solrinject.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.solrInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
