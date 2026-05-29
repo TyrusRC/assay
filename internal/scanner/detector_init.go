@@ -73,6 +73,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
+	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
@@ -211,6 +212,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.xfsDetector = xfs.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.iisTildeDetector = iistilde.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.sameSiteScriptDetector = samesitescript.New()
+	s.longPwdDetector = longpwd.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.config = config
 	s.confirmed = newConfirmedFindings()
 }

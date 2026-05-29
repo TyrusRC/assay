@@ -41,6 +41,8 @@ func (s *InternalScanner) launchURLAuthFlow(ctx context.Context, wg *sync.WaitGr
 	c := s.config
 	s.launchIf(wg, c.EnableTimingEnum && c.LoginURL != "",
 		func() { emit(ctx, findingsChan, s.testTimingEnum(ctx, c.LoginURL)) })
+	s.launchIf(wg, c.EnableLongPwdDoS && c.LoginURL != "",
+		func() { emit(ctx, findingsChan, s.testLongPwdDoS(ctx, c.LoginURL)) })
 	s.launchIf(wg, c.EnablePasswordReset && c.PasswordResetURL != "",
 		func() { emit(ctx, findingsChan, s.testPasswordReset(ctx, c.PasswordResetURL)) })
 	s.launchIf(wg, c.EnableSessionLifecycle && c.LoginURL != "" && c.ProtectedURL != "",

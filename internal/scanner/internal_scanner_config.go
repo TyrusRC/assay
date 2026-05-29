@@ -138,6 +138,7 @@ type InternalScanConfig struct {
 	EnableXFS             bool   // Clickjacking / Cross-Frame Scripting exposure analyzer (XFO + CSP frame-ancestors + JS framebuster)
 	EnableIISTilde        bool   // IIS short-name (~1) enumeration probe; opt-in because it fires 5 anomalous-method requests
 	EnableSameSiteScript  bool   // DNS-only probe for localhost.victim.com → 127.0.0.1 misconfigurations (cookie/eTLD+1 leakage)
+	EnableLongPwdDoS      bool   // Long-password DoS timing probe on LoginURL; off by default (sends 100k-char POST to a real auth endpoint)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -267,6 +268,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
 		EnableIISTilde:        true, // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
 		EnableSameSiteScript:  true, // pure DNS lookups; no HTTP cost on the target
+		EnableLongPwdDoS:      false, // off by default — sends a 100k-char password POST and may trip account lockouts
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

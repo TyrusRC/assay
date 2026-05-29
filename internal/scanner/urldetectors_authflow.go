@@ -10,6 +10,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/auth"
 	"github.com/TyrusRC/assay/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/assay/internal/detection/http2advanced"
+	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/mfabypass"
 	"github.com/TyrusRC/assay/internal/detection/oauthflow"
 	"github.com/TyrusRC/assay/internal/detection/openapisemantic"
@@ -23,6 +24,28 @@ import (
 // testTimingEnum runs the statistical paired-arm timing oracle on the
 // configured LoginURL. It needs a known-valid username (read from
 // AuthA.Username if set, else "admin") and a known-invalid one ("zzz_no_user").
+// testLongPwdDoS submits two timed login attempts with a 10-character
+// password and a 100k-character password. A large response-time delta
+// indicates the server hashes the full input without length-capping.
+func (s *InternalScanner) testLongPwdDoS(ctx context.Context, loginURL string) []*core.Finding {
+	if s.longPwdDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing long-password DoS on '%s'...\n", loginURL)
+	}
+	opts := longpwd.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if u := s.config.AuthA.Username; u != "" {
+		opts.Username = u
+	}
+	res, err := s.longPwdDetector.Detect(ctx, loginURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
 func (s *InternalScanner) testTimingEnum(ctx context.Context, loginURL string) []*core.Finding {
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing timing-based account enumeration on '%s'...\n", loginURL)

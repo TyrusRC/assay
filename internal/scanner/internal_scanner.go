@@ -75,6 +75,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
+	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
@@ -222,6 +223,7 @@ type InternalScanner struct {
 	xfsDetector             *xfs.Detector
 	iisTildeDetector        *iistilde.Detector
 	sameSiteScriptDetector  *samesitescript.Detector
+	longPwdDetector         *longpwd.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
