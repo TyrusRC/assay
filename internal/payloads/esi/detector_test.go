@@ -128,14 +128,6 @@ func TestInjectParam_SetsValue(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
-	if got := truncate("hi", 80); got != "hi" {
-		t.Errorf("short string should pass through, got %q", got)
-	}
-	if got := truncate(strings.Repeat("x", 100), 10); got != strings.Repeat("x", 10)+"…" {
-		t.Errorf("unexpected truncate output %q", got)
-	}
-}
 
 func TestEvaluationMarker_MarkerInBaseline_Skipped(t *testing.T) {
 	p := Payload{Value: `<esi:debug/>`, Marker: "<esi:debug"}

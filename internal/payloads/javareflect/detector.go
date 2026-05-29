@@ -3,13 +3,13 @@ package javareflect
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for Java-reflection sinks by injecting
@@ -137,17 +137,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, *http.Response, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", nil, err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), resp, nil
+	return paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 }
 
 func isJavaResponse(resp *http.Response, body string) bool {
@@ -181,20 +171,14 @@ func isJavaResponse(resp *http.Response, body string) bool {
 }
 
 func evaluationMarker(body, baseline string) string {
-	for _, p := range GetErrorPatterns() {
-		if strings.Contains(body, p) && !strings.Contains(baseline, p) {
-			return "error pattern: " + p
-		}
+	if hit := paraminject.FirstNewMatch(body, baseline, GetErrorPatterns()); hit != "" {
+		return "error pattern: " + hit
 	}
 	return ""
 }
 
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker string, javaConfirmed bool) *core.Finding {
@@ -210,7 +194,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker string,
 	f.Title = "Java reflection abuse: " + p.Technique
 	f.Confidence = conf
 	f.Description = "A user-controlled value reaches a Java reflection sink. " + p.Description
-	f.Evidence = "payload `" + truncate(p.Value, 100) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 100) + "` → " + marker
 	f.Metadata["technique"] = p.Technique
 	f.Metadata["impact"] = string(p.Impact)
 	f.Remediation = "Replace reflection on tainted strings with explicit, allowlisted dispatch. " +
@@ -241,9 +225,3 @@ func mapSeverity(i Impact) core.Severity {
 	}
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}

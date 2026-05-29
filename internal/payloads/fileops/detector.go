@@ -3,13 +3,12 @@ package fileops
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for arbitrary file-create / delete /
@@ -123,17 +122,8 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), nil
+	body, _, err := paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+	return body, err
 }
 
 // filesystemErrorPatterns returns response substrings that confirm the
@@ -165,20 +155,14 @@ func filesystemErrorPatterns() []string {
 }
 
 func evaluationMarker(body, baseline string) string {
-	for _, p := range filesystemErrorPatterns() {
-		if strings.Contains(body, p) && !strings.Contains(baseline, p) {
-			return "fs error: " + p
-		}
+	if hit := paraminject.FirstNewMatch(body, baseline, filesystemErrorPatterns()); hit != "" {
+		return "fs error: " + hit
 	}
 	return ""
 }
 
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker string) *core.Finding {
@@ -191,7 +175,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker string)
 	f.Confidence = core.ConfidenceMedium // body-only confirmation
 	f.Description = "A user-controlled value reaches a filesystem " + string(p.Operation) + " sink. " + p.Description + ". " +
 		"The response contained a filesystem error referencing the traversed path, confirming the sink processed the payload."
-	f.Evidence = "payload `" + truncate(p.Value, 100) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 100) + "` → " + marker
 	f.Metadata["operation"] = string(p.Operation)
 	f.Remediation = remediationFor(p.Operation)
 	f.References = []string{
@@ -227,9 +211,3 @@ func remediationFor(op Operation) string {
 	return "Validate the supplied path against an allowlist before passing it to any filesystem syscall."
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}

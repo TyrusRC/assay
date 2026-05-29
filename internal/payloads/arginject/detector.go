@@ -3,13 +3,12 @@ package arginject
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for argument-injection by injecting
@@ -122,17 +121,8 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), nil
+	body, _, err := paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+	return body, err
 }
 
 // binaryErrorPatterns returns the per-binary error fingerprints that
@@ -178,20 +168,14 @@ func binaryErrorPatterns(binary string) []string {
 }
 
 func evaluationMarker(p Payload, body, baseline string) string {
-	for _, pat := range binaryErrorPatterns(p.Binary) {
-		if strings.Contains(body, pat) && !strings.Contains(baseline, pat) {
-			return p.Binary + " error pattern: " + pat
-		}
+	if hit := paraminject.FirstNewMatch(body, baseline, binaryErrorPatterns(p.Binary)); hit != "" {
+		return p.Binary + " error pattern: " + hit
 	}
 	return ""
 }
 
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker string) *core.Finding {
@@ -203,7 +187,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker string)
 	f.Title = "Argument injection into " + p.Binary
 	f.Confidence = core.ConfidenceHigh
 	f.Description = "A user-controlled value reaches the argv of `" + p.Binary + "` without sanitisation. " + p.Description
-	f.Evidence = "payload `" + truncate(p.Value, 100) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 100) + "` → " + marker
 	f.Metadata["binary"] = p.Binary
 	f.Metadata["impact"] = string(p.Impact)
 	f.Remediation = "Strip leading `-` and `--` from values before passing to exec / Process.Start / spawn. " +
@@ -236,9 +220,3 @@ func mapSeverity(i Impact) core.Severity {
 	}
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}

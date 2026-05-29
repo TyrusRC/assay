@@ -3,13 +3,13 @@ package esi
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for Edge Side Includes injection by
@@ -152,21 +152,12 @@ func (d *Detector) fingerprintEngine(ctx context.Context, target string, opts De
 	return ""
 }
 
-// fetch returns the body (capped to MaxBodyBytes) and the response.
+// fetch wraps paraminject.Fetch with this detector's per-request
+// timeout. The shared helper handles body-capping and response read.
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, *http.Response, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", nil, err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), resp, nil
+	return paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 }
 
 // head is fetch's HEAD-only variant for the engine fingerprint preflight.
@@ -226,12 +217,10 @@ func reflectsAttribute(value, body string) bool {
 	return false
 }
 
+// injectParam is a thin wrapper around paraminject.InjectParam kept
+// only so internal tests that call injectParam() compile unchanged.
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker, engine string) *core.Finding {
@@ -247,7 +236,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker, engine
 	f.Confidence = conf
 	f.Description = "A user-controlled value is reflected into a response that an edge processor (Akamai, Varnish, Fastly, Squid) parses as ESI markup. " +
 		"This yields SSRF from the CDN's network position (often inside the operator's trust boundary), cookie exfiltration via include URLs, and on Akamai stylesheet-include RCE."
-	f.Evidence = "payload `" + truncate(p.Value, 80) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 80) + "` → " + marker
 	f.Metadata["technique"] = p.Description
 	if engine != "" {
 		f.Metadata["edge_engine"] = engine
@@ -265,9 +254,3 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker, engine
 	return f
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}

@@ -3,13 +3,13 @@ package phpinject
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for PHP user-controlled-sink
@@ -138,17 +138,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, *http.Response, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", nil, err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", nil, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), resp, nil
+	return paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 }
 
 // isPHPResponse reports whether the baseline shows PHP fingerprints in
@@ -201,11 +191,7 @@ func isHighImpactSink(s Sink) bool {
 }
 
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker string, phpConfirmed bool) *core.Finding {
@@ -222,7 +208,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker string,
 	f.Confidence = conf
 	f.Description = "A user-controlled value reaches a dangerous PHP function (" + string(p.Sink) + "). " +
 		p.Description
-	f.Evidence = "payload `" + truncate(p.Value, 80) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 80) + "` → " + marker
 	f.Metadata["sink"] = string(p.Sink)
 	if p.MaxPHP != "" {
 		f.Metadata["max_php"] = p.MaxPHP
@@ -273,9 +259,3 @@ func remediationFor(s Sink) string {
 	return "Validate user input against an allowlist before passing it into PHP runtime sinks."
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}

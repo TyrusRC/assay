@@ -3,13 +3,12 @@ package solrinject
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Detector probes URL parameters for Apache Solr injection by
@@ -143,25 +142,12 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions) (string, error) {
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, target, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, opts.MaxBodyBytes))
-	return string(body), nil
+	body, _, err := paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+	return body, err
 }
 
 func injectParam(u *url.URL, name, value string) string {
-	uCopy := *u
-	q := uCopy.Query()
-	q.Set(name, value)
-	uCopy.RawQuery = q.Encode()
-	return uCopy.String()
+	return paraminject.InjectParam(u, name, value)
 }
 
 // evaluationMarker decides whether a payload landed:
@@ -170,22 +156,14 @@ func injectParam(u *url.URL, name, value string) string {
 //     OOB callback, not body content — outside the scope of this passive
 //     check, but the response often surfaces a NamingException error).
 func evaluationMarker(p Payload, body, baseline string) string {
-	patterns := GetErrorPatterns()
-	for _, pat := range patterns {
-		if strings.Contains(body, pat) && !strings.Contains(baseline, pat) {
-			return "error pattern: " + pat
-		}
+	if hit := paraminject.FirstNewMatch(body, baseline, GetErrorPatterns()); hit != "" {
+		return "error pattern: " + hit
 	}
 	return ""
 }
 
 func containsAny(s string, patterns []string) bool {
-	for _, p := range patterns {
-		if strings.Contains(s, p) {
-			return true
-		}
-	}
-	return false
+	return paraminject.ContainsAny(s, patterns)
 }
 
 func (d *Detector) toFinding(target, paramName string, p Payload, marker string, solrConfirmed bool) *core.Finding {
@@ -202,7 +180,7 @@ func (d *Detector) toFinding(target, paramName string, p Payload, marker string,
 	f.Confidence = conf
 	f.Description = "A user-controlled value reaches an Apache Solr query parameter without validation. " +
 		p.Description + ". The injection enables " + describeImpact(p.Impact) + "."
-	f.Evidence = "payload `" + truncate(p.Value, 100) + "` → " + marker
+	f.Evidence = "payload `" + paraminject.Truncate(p.Value, 100) + "` → " + marker
 	f.Metadata["technique"] = p.Technique
 	f.Metadata["impact"] = string(p.Impact)
 	if p.CVE != "" {
@@ -245,9 +223,3 @@ func describeImpact(i Impact) string {
 	}
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
-}
