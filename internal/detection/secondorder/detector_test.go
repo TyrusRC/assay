@@ -31,7 +31,7 @@ func TestNew_DefaultStrategiesCount(t *testing.T) {
 	client := internalhttp.NewClient()
 	detector := New(client)
 
-	expected := 4
+	expected := 7
 	if got := len(detector.strategies); got != expected {
 		t.Errorf("New() created %d strategies, want %d", got, expected)
 	}
@@ -292,8 +292,8 @@ func TestDetect_EmptyStrategiesList_RunsAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Detect() returned error: %v", err)
 	}
-	if result.TestedStrategies != 4 {
-		t.Errorf("TestedStrategies = %d, want 4 (all defaults)", result.TestedStrategies)
+	if result.TestedStrategies != 7 {
+		t.Errorf("TestedStrategies = %d, want 7 (all defaults)", result.TestedStrategies)
 	}
 }
 
@@ -465,8 +465,8 @@ func TestDetect_MaxPayloadsLimit(t *testing.T) {
 func TestDefaultStrategies(t *testing.T) {
 	strategies := DefaultStrategies()
 
-	if len(strategies) != 4 {
-		t.Fatalf("DefaultStrategies() returned %d strategies, want 4", len(strategies))
+	if len(strategies) != 7 {
+		t.Fatalf("DefaultStrategies() returned %d strategies, want 7", len(strategies))
 	}
 
 	names := make(map[string]bool)

@@ -49,6 +49,9 @@ func DefaultStrategies() []Strategy {
 		secondOrderSQLiStrategy(),
 		logInjectionStrategy(),
 		jndiHeadersStrategy(),
+		storedLFIStrategy(),
+		storedCmdExecStrategy(),
+		storedCodeExecStrategy(),
 	}
 }
 
@@ -222,6 +225,12 @@ func GetPayloads(strategy Strategy, callbackDomain string) []string {
 		return logInjectionPayloads()
 	case StrategyJNDIHeaders:
 		return jndiHeaderPayloads(callbackDomain)
+	case StrategyStoredLFI:
+		return storedLFIPayloads()
+	case StrategyStoredCmdExec:
+		return storedCmdExecPayloads()
+	case StrategyStoredCodeExec:
+		return storedCodeExecPayloads()
 	default:
 		return nil
 	}
