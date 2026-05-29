@@ -19,6 +19,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/esi"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 )
 
@@ -147,6 +148,28 @@ func (s *InternalScanner) testVHostEnum(ctx context.Context, targetURL string) [
 		opts.MaxVHosts = s.config.VHostMaxRequests
 	}
 	res, err := s.vhostDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testESI probes URL parameters for Edge Side Includes injection by
+// injecting fingerprint ESI payloads and looking for engine-evaluation
+// markers in the response.
+func (s *InternalScanner) testESI(ctx context.Context, targetURL string) []*core.Finding {
+	if s.esiDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing ESI injection on '%s'...\n", targetURL)
+	}
+	opts := esi.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.esiDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
