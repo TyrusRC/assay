@@ -178,5 +178,12 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	fmt.Fprintf(os.Stderr, "[+] Internal scan finished for %s — %d findings\n", targetURL, len(result.Findings))
 
+	// Surface baseline-cache effectiveness. Quiet on verbose-off when the
+	// cache was never consulted (no parameterised URLs in scope).
+	if stats := s.baselineCache.Stats(); stats.Hits+stats.Misses > 0 {
+		fmt.Fprintf(os.Stderr, "[*] Baseline cache: %d hits / %d misses (%.0f%% hit rate; %d GETs saved)\n",
+			stats.Hits, stats.Misses, stats.HitRate()*100, stats.Hits)
+	}
+
 	return result, nil
 }
