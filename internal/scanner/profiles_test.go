@@ -113,3 +113,127 @@ func TestGetProfile_EmptyString(t *testing.T) {
 		t.Errorf("expected name 'normal' for empty input, got %q", p.Name)
 	}
 }
+
+func TestQuickProfile_DisablesHeavyPerParamRunners(t *testing.T) {
+	p := QuickProfile()
+	cases := []struct {
+		name string
+		on   bool
+	}{
+		{"EnableNodeJSInject", p.Config.EnableNodeJSInject},
+		{"EnableJavaReflect", p.Config.EnableJavaReflect},
+		{"EnableFileOps", p.Config.EnableFileOps},
+		{"EnableArgInject", p.Config.EnableArgInject},
+		{"EnableSolrInject", p.Config.EnableSolrInject},
+		{"EnablePHPInject", p.Config.EnablePHPInject},
+		{"EnableESI", p.Config.EnableESI},
+	}
+	for _, c := range cases {
+		if c.on {
+			t.Errorf("Quick profile expected %s=false, got true", c.name)
+		}
+	}
+	// Passive context detectors must stay on — they share baseline budget.
+	if !p.Config.EnableWAFDetect {
+		t.Error("Quick profile must keep EnableWAFDetect=true (passive)")
+	}
+	if !p.Config.EnableXFS {
+		t.Error("Quick profile must keep EnableXFS=true (passive)")
+	}
+}
+
+func TestThoroughProfile_EnablesReconStages(t *testing.T) {
+	p := ThoroughProfile()
+	if !p.Config.EnableVHostEnum {
+		t.Error("Thorough profile expected EnableVHostEnum=true")
+	}
+	if !p.Config.EnableLongPwdDoS {
+		t.Error("Thorough profile expected EnableLongPwdDoS=true")
+	}
+	if p.Config.VHostMaxRequests < 500 {
+		t.Errorf("Thorough profile expected VHostMaxRequests >= 500, got %d", p.Config.VHostMaxRequests)
+	}
+}
+
+func TestPassiveProfile_Basics(t *testing.T) {
+	p := PassiveProfile()
+	if p.Name != "passive" {
+		t.Errorf("expected name 'passive', got %q", p.Name)
+	}
+	if p.Description == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Config == nil {
+		t.Fatal("expected non-nil config")
+	}
+}
+
+func TestPassiveProfile_NoInjections(t *testing.T) {
+	p := PassiveProfile()
+	cases := []struct {
+		name string
+		on   bool
+	}{
+		{"EnableSQLi", p.Config.EnableSQLi},
+		{"EnableXSS", p.Config.EnableXSS},
+		{"EnableCMDI", p.Config.EnableCMDI},
+		{"EnableSSRF", p.Config.EnableSSRF},
+		{"EnableLFI", p.Config.EnableLFI},
+		{"EnableXXE", p.Config.EnableXXE},
+		{"EnableNoSQL", p.Config.EnableNoSQL},
+		{"EnableSSTI", p.Config.EnableSSTI},
+		{"EnableLDAP", p.Config.EnableLDAP},
+		{"EnableXPath", p.Config.EnableXPath},
+		{"EnableJNDI", p.Config.EnableJNDI},
+		{"EnableESI", p.Config.EnableESI},
+		{"EnableSolrInject", p.Config.EnableSolrInject},
+		{"EnablePHPInject", p.Config.EnablePHPInject},
+		{"EnableJavaReflect", p.Config.EnableJavaReflect},
+		{"EnableNodeJSInject", p.Config.EnableNodeJSInject},
+		{"EnableArgInject", p.Config.EnableArgInject},
+		{"EnableFileOps", p.Config.EnableFileOps},
+		{"EnableSecondOrder", p.Config.EnableSecondOrder},
+		{"EnableSmuggling", p.Config.EnableSmuggling},
+		{"EnableRaceCond", p.Config.EnableRaceCond},
+		{"EnableOOB", p.Config.EnableOOB},
+	}
+	for _, c := range cases {
+		if c.on {
+			t.Errorf("Passive profile expected %s=false, got true", c.name)
+		}
+	}
+}
+
+func TestPassiveProfile_KeepsPassiveDetectors(t *testing.T) {
+	p := PassiveProfile()
+	cases := []struct {
+		name string
+		on   bool
+	}{
+		{"EnableWAFDetect", p.Config.EnableWAFDetect},
+		{"EnableXFS", p.Config.EnableXFS},
+		{"EnableSameSiteScript", p.Config.EnableSameSiteScript},
+		{"EnableIISTilde", p.Config.EnableIISTilde},
+		{"EnableSecHeaders", p.Config.EnableSecHeaders},
+		{"EnableExposure", p.Config.EnableExposure},
+		{"EnableCloud", p.Config.EnableCloud},
+		{"EnableTLS", p.Config.EnableTLS},
+		{"EnableTechScan", p.Config.EnableTechScan},
+		{"EnableJSDep", p.Config.EnableJSDep},
+	}
+	for _, c := range cases {
+		if !c.on {
+			t.Errorf("Passive profile expected %s=true (passive/header-only), got false", c.name)
+		}
+	}
+}
+
+func TestGetProfile_Passive(t *testing.T) {
+	p := GetProfile("passive")
+	if p.Name != "passive" {
+		t.Errorf("expected name 'passive', got %q", p.Name)
+	}
+	if p.Config.EnableSQLi {
+		t.Error("expected EnableSQLi=false in passive profile")
+	}
+}
