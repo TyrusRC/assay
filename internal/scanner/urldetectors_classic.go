@@ -19,6 +19,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/vhost"
 )
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.
@@ -124,6 +125,28 @@ func (s *InternalScanner) testSameSiteScript(ctx context.Context, targetURL stri
 		fmt.Fprintf(os.Stderr, "[*] Checking Same-Site Scripting DNS misconfigurations for '%s'...\n", targetURL)
 	}
 	res, err := s.sameSiteScriptDetector.Detect(ctx, targetURL, samesitescript.DefaultOptions())
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testVHostEnum rotates Host: through a hostname wordlist and reports
+// distinct vhost blocks served from the same IP. Off by default because
+// of the request budget (default 150 GETs); enable for recon-class scans.
+func (s *InternalScanner) testVHostEnum(ctx context.Context, targetURL string) []*core.Finding {
+	if s.vhostDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Enumerating virtual hosts on '%s'...\n", targetURL)
+	}
+	opts := vhost.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.VHostMaxRequests > 0 {
+		opts.MaxVHosts = s.config.VHostMaxRequests
+	}
+	res, err := s.vhostDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
