@@ -152,6 +152,8 @@ type InternalScanConfig struct {
 	EnableWebAuthn        bool   // WebAuthn / passkey endpoint discovery + policy-footgun analysis
 	EnableHTTP3Desync     bool   // HTTP/3 advertisement discovery + upstream-CVE fingerprint
 	EnableCSPAudit        bool   // Deep CSP policy audit (nonce reuse, strict-dynamic baseline, unsafe-eval+nonce)
+	EnableCookieToss      bool   // Cookie-tossing audit: __Host-/Secure prefix, over-broad Domain, missing scoping
+	EnableWebhookSig      bool   // Webhook receiver signature-verification audit (missing/wrong/stale)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -295,6 +297,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableWebAuthn:        true, // probes the curated CommonEndpoints wordlist (cheap; auto no-op on hosts without /webauthn or /api/passkey)
 		EnableHTTP3Desync:     true, // single passive HEAD; auto no-op on hosts without Alt-Svc
 		EnableCSPAudit:        true, // 1-2 GETs; complements secheaders with policy-shape analysis
+		EnableCookieToss:      true, // single GET; passive Set-Cookie audit, no risk
+		EnableWebhookSig:      true, // probes the curated wordlist of /webhook-shaped paths; off-by-default endpoints stay 404
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

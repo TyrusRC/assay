@@ -6,10 +6,12 @@ import (
 	"os"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/cookietoss"
 	"github.com/TyrusRC/assay/internal/detection/cspaudit"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
+	"github.com/TyrusRC/assay/internal/detection/webhooksig"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/payloads/http3desync"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
@@ -172,6 +174,45 @@ func (s *InternalScanner) testCSPAudit(ctx context.Context, targetURL string) []
 	opts := cspaudit.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.cspAuditDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || len(res.Findings) == 0 {
+		return nil
+	}
+	return res.Findings
+}
+
+// testCookieToss audits Set-Cookie attributes for cookie-tossing
+// exposure: missing __Host-/__Secure- prefix on auth cookies,
+// over-broad Domain attribute, missing scoping defaults. Single GET.
+func (s *InternalScanner) testCookieToss(ctx context.Context, targetURL string) []*core.Finding {
+	if s.cookieTossDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Auditing cookies on '%s'...\n", targetURL)
+	}
+	opts := cookietoss.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.cookieTossDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || len(res.Findings) == 0 {
+		return nil
+	}
+	return res.Findings
+}
+
+// testWebhookSig audits webhook receiver endpoints for signature-
+// verification flaws (missing signature accepted, wrong signature
+// accepted, stale timestamp accepted). Probes the curated CommonEndpoints
+// wordlist; off-by-default endpoints auto-skip.
+func (s *InternalScanner) testWebhookSig(ctx context.Context, targetURL string) []*core.Finding {
+	if s.webhookSigDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Auditing webhook receivers on '%s'...\n", targetURL)
+	}
+	opts := webhooksig.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.webhookSigDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || len(res.Findings) == 0 {
 		return nil
 	}

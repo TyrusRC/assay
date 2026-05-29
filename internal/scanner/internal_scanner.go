@@ -74,8 +74,10 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/redos"
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
+	"github.com/TyrusRC/assay/internal/detection/cookietoss"
 	"github.com/TyrusRC/assay/internal/detection/cspaudit"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
+	"github.com/TyrusRC/assay/internal/detection/webhooksig"
 	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
@@ -249,6 +251,8 @@ type InternalScanner struct {
 	webauthnDetector        *webauthn.Detector
 	http3DesyncDetector     *http3desync.Detector
 	cspAuditDetector        *cspaudit.Detector
+	cookieTossDetector      *cookietoss.Detector
+	webhookSigDetector      *webhooksig.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client
