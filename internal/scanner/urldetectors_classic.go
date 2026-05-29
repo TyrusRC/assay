@@ -19,8 +19,11 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/arginject"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/fileops"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
@@ -239,6 +242,73 @@ func (s *InternalScanner) testJavaReflect(ctx context.Context, targetURL string)
 		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
 	}
 	res, err := s.javaReflectDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testNodeJSInject probes URL parameters for Server-Side JavaScript
+// Injection. Supports time-blind sleep detection alongside error-pattern
+// matching. RCE-class payloads self-gate on a Node fingerprint.
+func (s *InternalScanner) testNodeJSInject(ctx context.Context, targetURL string) []*core.Finding {
+	if s.nodejsInjectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing NodeJS SSJI on '%s'...\n", targetURL)
+	}
+	opts := nodejsinject.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.nodejsInjectDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testArgInject probes URL parameters for argument injection into
+// wrapped binaries (curl/git/ssh/tar/find/convert/python/php/ruby/perl/…).
+// Matches per-binary error patterns that confirm the flag landed in argv.
+func (s *InternalScanner) testArgInject(ctx context.Context, targetURL string) []*core.Finding {
+	if s.argInjectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing argument injection on '%s'...\n", targetURL)
+	}
+	opts := arginject.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.argInjectDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testFileOps probes URL parameters for arbitrary file create / delete /
+// tamper sinks via path traversal. Matches filesystem error patterns
+// (Permission denied, ENOENT, fopen failed, …) referencing the
+// traversed path.
+func (s *InternalScanner) testFileOps(ctx context.Context, targetURL string) []*core.Finding {
+	if s.fileOpsDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing arbitrary file-ops on '%s'...\n", targetURL)
+	}
+	opts := fileops.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.fileOpsDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

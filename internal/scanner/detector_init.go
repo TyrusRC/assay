@@ -77,8 +77,11 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/arginject"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/fileops"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
@@ -223,6 +226,9 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.solrInjectDetector = solrinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.phpInjectDetector = phpinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.javaReflectDetector = javareflect.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.nodejsInjectDetector = nodejsinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.argInjectDetector = arginject.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.fileOpsDetector = fileops.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.config = config
 	s.confirmed = newConfirmedFindings()
 }

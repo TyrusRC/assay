@@ -145,6 +145,9 @@ type InternalScanConfig struct {
 	EnableSolrInject      bool   // Apache Solr parameter-injection probe; injects 6 Solr payloads per URL param
 	EnablePHPInject       bool   // PHP user-controlled-sink probe (extract/assert/preg_replace/include/unserialize)
 	EnableJavaReflect     bool   // Java reflection abuse probe (Runtime.exec, ProcessBuilder, classLoader chains, JNDI)
+	EnableNodeJSInject    bool   // Server-Side JavaScript Injection probe (eval/Function/vm-escape + time-blind sleep)
+	EnableArgInject       bool   // Argument-injection probe against wrapped binaries (curl/git/ssh/tar/find/convert/…)
+	EnableFileOps         bool   // Arbitrary file create/delete/tamper probe via path traversal
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -281,6 +284,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSolrInject:      true, // ConfirmedSolrOnly gates RCE payloads behind an error-pattern fingerprint
 		EnablePHPInject:       true, // ConfirmedPHPOnly gates high-impact sinks behind a PHP fingerprint
 		EnableJavaReflect:     true, // ConfirmedJavaOnly gates RCE payloads behind a Java fingerprint
+		EnableNodeJSInject:    true, // ConfirmedNodeOnly gates RCE payloads; supports time-blind sleep
+		EnableArgInject:       true, // per-binary error patterns confirm flag landed in argv
+		EnableFileOps:         true, // matches FS error patterns referencing the traversed path
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

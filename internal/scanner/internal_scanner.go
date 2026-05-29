@@ -79,8 +79,11 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/arginject"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/fileops"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
@@ -234,6 +237,9 @@ type InternalScanner struct {
 	solrInjectDetector      *solrinject.Detector
 	phpInjectDetector       *phpinject.Detector
 	javaReflectDetector     *javareflect.Detector
+	nodejsInjectDetector    *nodejsinject.Detector
+	argInjectDetector       *arginject.Detector
+	fileOpsDetector         *fileops.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client

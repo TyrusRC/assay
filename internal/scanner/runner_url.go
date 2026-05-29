@@ -85,6 +85,9 @@ func (s *InternalScanner) launchURLClassic(ctx context.Context, wg *sync.WaitGro
 	s.launchIf(wg, c.EnableSolrInject, func() { emit(ctx, findingsChan, s.testSolrInject(ctx, targetURL)) })
 	s.launchIf(wg, c.EnablePHPInject, func() { emit(ctx, findingsChan, s.testPHPInject(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableJavaReflect, func() { emit(ctx, findingsChan, s.testJavaReflect(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableNodeJSInject, func() { emit(ctx, findingsChan, s.testNodeJSInject(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableArgInject, func() { emit(ctx, findingsChan, s.testArgInject(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableFileOps, func() { emit(ctx, findingsChan, s.testFileOps(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableExposure, func() { emit(ctx, findingsChan, s.testExposure(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableCloud, func() { emit(ctx, findingsChan, s.testCloud(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableSubTakeover && len(c.Subdomains) > 0,
