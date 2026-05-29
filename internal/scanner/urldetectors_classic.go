@@ -15,6 +15,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
+	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 )
 
 // testJNDI tests for JNDI/Log4Shell vulnerabilities.
@@ -50,6 +51,25 @@ func (s *InternalScanner) testSecHeaders(ctx context.Context, targetURL string) 
 		return nil
 	}
 	return result.Findings
+}
+
+// testWAFDetect runs a single passive GET and fingerprints any WAF
+// product in the path. Output is informational (SeverityInfo); the
+// scanner uses the vendor downstream to switch in evasion-class payloads.
+func (s *InternalScanner) testWAFDetect(ctx context.Context, targetURL string) []*core.Finding {
+	if s.wafDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Fingerprinting WAF on '%s'...\n", targetURL)
+	}
+	opts := wafdetect.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.wafDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
 }
 
 // testExposure tests for exposed sensitive files and directories.

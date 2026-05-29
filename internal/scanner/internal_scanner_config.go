@@ -134,6 +134,7 @@ type InternalScanConfig struct {
 	EnableJKUAbuse        bool   // JWT jku/x5u URL trust probe — requires JWTAdvancedToken + OOB client
 	EnableSameSiteLax     bool   // Inspects auth-cookie SameSite attributes; flags missing/Lax/None on auth cookies as CSRF surface
 	SameSiteLaxProbeGET   bool   // When true, also probes well-known GET-logout paths to escalate the finding to confirmed CSRF
+	EnableWAFDetect       bool   // Passive WAF fingerprinting from response headers/cookies/body; emits SeverityInfo per matched vendor
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -259,6 +260,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableGraphQLDoS:      true, // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
 		EnableJKUAbuse:        true, // no-op without JWTAdvancedToken and an OOB client — safe everywhere
 		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
+		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,
