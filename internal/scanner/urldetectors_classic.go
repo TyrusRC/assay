@@ -20,6 +20,8 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 )
@@ -193,6 +195,50 @@ func (s *InternalScanner) testSolrInject(ctx context.Context, targetURL string) 
 		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
 	}
 	res, err := s.solrInjectDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testPHPInject probes URL parameters for PHP user-controlled sinks
+// (extract / assert / preg_replace /e / include / unserialize / dynamic
+// instantiation). RCE-class payloads self-gate on a PHP fingerprint.
+func (s *InternalScanner) testPHPInject(ctx context.Context, targetURL string) []*core.Finding {
+	if s.phpInjectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing PHP user-controlled sinks on '%s'...\n", targetURL)
+	}
+	opts := phpinject.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.phpInjectDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testJavaReflect probes URL parameters for Java reflection abuse
+// (Runtime.exec via reflection, ProcessBuilder, classLoader chains,
+// JNDI lookups). RCE-class payloads self-gate on a Java fingerprint.
+func (s *InternalScanner) testJavaReflect(ctx context.Context, targetURL string) []*core.Finding {
+	if s.javaReflectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing Java reflection abuse on '%s'...\n", targetURL)
+	}
+	opts := javareflect.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < opts.MaxPayloadsPerParam {
+		opts.MaxPayloadsPerParam = s.config.MaxPayloadsPerParam
+	}
+	res, err := s.javaReflectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

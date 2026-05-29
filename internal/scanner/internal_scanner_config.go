@@ -143,6 +143,8 @@ type InternalScanConfig struct {
 	VHostMaxRequests      int    // Cap on vhost wordlist size (default 150 when EnableVHostEnum is on)
 	EnableESI             bool   // Edge Side Includes injection probe; injects 6 ESI payloads per URL param
 	EnableSolrInject      bool   // Apache Solr parameter-injection probe; injects 6 Solr payloads per URL param
+	EnablePHPInject       bool   // PHP user-controlled-sink probe (extract/assert/preg_replace/include/unserialize)
+	EnableJavaReflect     bool   // Java reflection abuse probe (Runtime.exec, ProcessBuilder, classLoader chains, JNDI)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -277,6 +279,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		VHostMaxRequests:      150,
 		EnableESI:             true, // 6 payloads × N params; gated on URL having params at all
 		EnableSolrInject:      true, // ConfirmedSolrOnly gates RCE payloads behind an error-pattern fingerprint
+		EnablePHPInject:       true, // ConfirmedPHPOnly gates high-impact sinks behind a PHP fingerprint
+		EnableJavaReflect:     true, // ConfirmedJavaOnly gates RCE payloads behind a Java fingerprint
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,
