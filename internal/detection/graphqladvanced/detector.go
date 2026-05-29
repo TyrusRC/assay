@@ -112,6 +112,16 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		res.Findings = append(res.Findings, buildIncrementalDeliveryFinding(target))
 	}
 
+	if sdl := d.probeFederationSDL(ctx, target, opts); sdl != "" {
+		res.Techniques = append(res.Techniques, "apollo_federation_sdl_disclosure")
+		res.Findings = append(res.Findings, buildFederationSDLFinding(target, sdl))
+	}
+
+	if d.probeFederationEntities(ctx, target, opts) {
+		res.Techniques = append(res.Techniques, "apollo_federation_entities_exposed")
+		res.Findings = append(res.Findings, buildFederationEntitiesFinding(target))
+	}
+
 	res.Vulnerable = len(res.Findings) > 0
 	return res, nil
 }
@@ -258,6 +268,68 @@ func (d *Detector) probeIncrementalDelivery(ctx context.Context, target string, 
 	return false
 }
 
+// probeFederationSDL POSTs the Apollo Federation introspection query
+// (_service { sdl }) and returns the disclosed SDL string when the
+// server returns it. The _service field is a Federation-internal
+// surface: it returns the FULL subgraph schema as a string, including
+// every type, every field, every @key directive — i.e. every cardinal
+// piece of information needed to plan an attack on the federation
+// gateway. The query MUST be reachable only by the federation router,
+// never by external clients.
+//
+// References:
+//   - https://www.apollographql.com/docs/federation/subgraph-spec/#enhanced-introspection-with-query_service
+//   - https://github.blog/2022-12-21-an-introduction-to-apollo-federation/
+func (d *Detector) probeFederationSDL(ctx context.Context, target string, opts DetectOptions) string {
+	q := `{"query":"query { _service { sdl } }"}`
+	resp, err := d.postJSON(ctx, target, q, opts.Timeout)
+	if err != nil || resp == nil || resp.StatusCode >= 400 {
+		return ""
+	}
+	body := resp.Body
+	// The SDL is returned inside a JSON envelope under data._service.sdl.
+	// We don't need to fully parse JSON — the presence of an "sdl":"…"
+	// field with substantial content is the signal.
+	idx := strings.Index(body, `"sdl":"`)
+	if idx < 0 {
+		idx = strings.Index(body, `"sdl": "`)
+	}
+	if idx < 0 {
+		return ""
+	}
+	// Snippet starting at the opening quote of the SDL value. A real
+	// SDL is hundreds of bytes; an empty placeholder isn't worth flagging.
+	snippet := body[idx:]
+	if len(snippet) < 100 {
+		return ""
+	}
+	if len(snippet) > 400 {
+		snippet = snippet[:400] + "…"
+	}
+	return snippet
+}
+
+// probeFederationEntities POSTs an _entities query with a synthetic
+// representation. A subgraph that responds successfully (even with a
+// "type not found" error per the Apollo spec) confirms _entities is
+// reachable — which means anyone who can hit the endpoint can request
+// arbitrary entity types by their __typename + key fields, bypassing
+// authorisation logic that the federation gateway would normally apply.
+func (d *Detector) probeFederationEntities(ctx context.Context, target string, opts DetectOptions) bool {
+	q := `{"query":"query($r:[_Any!]!){ _entities(representations:$r){ __typename } }","variables":{"r":[{"__typename":"User","id":"1"}]}}`
+	resp, err := d.postJSON(ctx, target, q, opts.Timeout)
+	if err != nil || resp == nil || resp.StatusCode >= 400 {
+		return false
+	}
+	body := strings.ToLower(resp.Body)
+	// Federation-aware servers reply with _entities-shaped responses
+	// even when the requested type doesn't exist (the error names
+	// _entities specifically).
+	return strings.Contains(body, "_entities") ||
+		strings.Contains(body, "no type found for") ||
+		strings.Contains(body, "_any")
+}
+
 // postJSON wraps client.Do for the common GraphQL request shape.
 func (d *Detector) postJSON(ctx context.Context, target, body string, timeout time.Duration) (*scanhttp.Response, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -338,6 +410,55 @@ func buildIncrementalDeliveryFinding(target string) *core.Finding {
 		[]string{"WSTG-INPV-12"},
 		[]string{"A01:2021"},
 		[]string{"CWE-200"},
+	)
+	return f
+}
+
+// buildFederationSDLFinding builds the finding for Apollo Federation
+// _service { sdl } being publicly reachable. High severity — full
+// schema disclosure of a federation subgraph hands the attacker the
+// data model.
+func buildFederationSDLFinding(target, sdlSnippet string) *core.Finding {
+	f := core.NewFinding("Apollo Federation _service { sdl } publicly reachable", core.SeverityHigh)
+	f.Title = "GraphQL subgraph leaks Federation SDL via _service field"
+	f.URL = target
+	f.Tool = "graphqladvanced-detector"
+	f.Description = "The endpoint responded to `query { _service { sdl } }` with a populated SDL string. " +
+		"The Apollo Federation `_service` field is meant to be called only by the federation router; it returns the FULL subgraph schema as a single string, including every type, field, @key directive, and reference. " +
+		"Public exposure hands an attacker the entire data model — including types and fields that introspection-disabled servers were supposed to hide."
+	f.Evidence = "POST { _service { sdl } } returned SDL: " + sdlSnippet
+	f.Remediation = "Restrict `_service` to the federation router only. Apollo Router and Apollo Gateway authenticate router-to-subgraph requests via a shared secret (APOLLO_ROUTER_SECRET / hard-coded HTTP header). Reject `_service` queries that don't carry this credential at the subgraph's HTTP layer (before GraphQL parsing)."
+	f.References = []string{
+		"https://www.apollographql.com/docs/federation/subgraph-spec/",
+		"https://www.apollographql.com/docs/federation/subgraph-spec/#enhanced-introspection-with-query_service",
+	}
+	f.WithOWASPMapping(
+		[]string{"WSTG-INFO-08"},
+		[]string{"A05:2021"},
+		[]string{"CWE-200"},
+	)
+	return f
+}
+
+// buildFederationEntitiesFinding builds the finding for _entities
+// being reachable. High severity — bypasses gateway-level authorisation.
+func buildFederationEntitiesFinding(target string) *core.Finding {
+	f := core.NewFinding("Apollo Federation _entities resolver publicly reachable", core.SeverityHigh)
+	f.Title = "GraphQL subgraph exposes _entities to external clients"
+	f.URL = target
+	f.Tool = "graphqladvanced-detector"
+	f.Description = "The endpoint responded to a `_entities(representations: …)` query with a Federation-shaped response. " +
+		"`_entities` is the router-side entity-fetch mechanism — it lets the caller specify `__typename` + key fields and the subgraph returns the corresponding entity. " +
+		"When reachable externally, an attacker can request arbitrary entity types by their declared `@key` fields, bypassing any authorisation logic that the federation gateway would normally apply (rate limiting, field-level access control, query-cost limits)."
+	f.Evidence = "POST { _entities(representations: [{__typename:\"User\",id:\"1\"}]) { __typename } } got Federation-shaped response"
+	f.Remediation = "Block `_entities` (and `_service`) at the subgraph's HTTP layer for requests that don't authenticate as the federation router. The same shared-secret mechanism that protects `_service` should protect `_entities`."
+	f.References = []string{
+		"https://www.apollographql.com/docs/federation/subgraph-spec/",
+	}
+	f.WithOWASPMapping(
+		[]string{"WSTG-INPV-12"},
+		[]string{"A01:2021"},
+		[]string{"CWE-863"},
 	)
 	return f
 }

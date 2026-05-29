@@ -39,6 +39,9 @@ func (d *Detector) DetectAll(ctx context.Context, opts DetectOptions) (*Detectio
 				combined.Findings = append(combined.Findings, r.Findings...)
 			}
 		}
+		if r, err := d.DetectResourceIndicatorConfusion(ctx, opts.AuthzURL, opts); err == nil && r != nil {
+			combined.Findings = append(combined.Findings, r.Findings...)
+		}
 	}
 	if opts.TokenURL != "" {
 		if r, err := d.DetectIDTokenAlgNone(ctx, opts); err == nil && r != nil {

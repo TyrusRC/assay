@@ -228,6 +228,67 @@ func TestDetector_IncrementalDelivery_HasNextJSON(t *testing.T) {
 	}
 }
 
+func TestDetector_FederationSDL_Disclosure(t *testing.T) {
+	sdl := `type Query { user(id:ID!): User } type User @key(fields:\"id\") { id: ID! email: String! adminFlag: Boolean! }`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"errors":[{"message":"POST only"}]}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(string(body), "_service") {
+			_, _ = w.Write([]byte(`{"data":{"_service":{"sdl":"` + sdl + `"}}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"__typename":"Query"}}`))
+	}))
+	defer srv.Close()
+
+	d := New(newClient())
+	res, _ := d.Detect(context.Background(), srv.URL, DefaultOptions())
+	if !containsTechnique(res.Techniques, "apollo_federation_sdl_disclosure") {
+		t.Errorf("expected 'apollo_federation_sdl_disclosure', got %v", res.Techniques)
+	}
+	found := false
+	for _, f := range res.Findings {
+		if strings.Contains(f.Title, "_service") {
+			found = true
+			if f.Severity != core.SeverityHigh {
+				t.Errorf("SDL disclosure severity = %q, want High", f.Severity)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected an _service finding")
+	}
+}
+
+func TestDetector_FederationEntities_Disclosure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"errors":[{"message":"POST only"}]}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(string(body), "_entities") {
+			_, _ = w.Write([]byte(`{"data":{"_entities":[null]},"errors":[{"message":"No type found for representation"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"__typename":"Query"}}`))
+	}))
+	defer srv.Close()
+
+	d := New(newClient())
+	res, _ := d.Detect(context.Background(), srv.URL, DefaultOptions())
+	if !containsTechnique(res.Techniques, "apollo_federation_entities_exposed") {
+		t.Errorf("expected 'apollo_federation_entities_exposed', got %v", res.Techniques)
+	}
+}
+
 // TestDetector_HardenedServer_NoFindings ensures a properly-configured
 // server triggers no findings. False positives here would be very
 // expensive — graphqladvanced runs against any GraphQL-shaped endpoint.
