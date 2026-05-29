@@ -148,6 +148,9 @@ type InternalScanConfig struct {
 	EnableNodeJSInject    bool   // Server-Side JavaScript Injection probe (eval/Function/vm-escape + time-blind sleep)
 	EnableArgInject       bool   // Argument-injection probe against wrapped binaries (curl/git/ssh/tar/find/convert/…)
 	EnableFileOps         bool   // Arbitrary file create/delete/tamper probe via path traversal
+	EnableRSCInject       bool   // React Server Components / Next.js Server-Action injection probe
+	EnableWebAuthn        bool   // WebAuthn / passkey endpoint discovery + policy-footgun analysis
+	EnableHTTP3Desync     bool   // HTTP/3 advertisement discovery + upstream-CVE fingerprint
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -287,6 +290,9 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableNodeJSInject:    true, // ConfirmedNodeOnly gates RCE payloads; supports time-blind sleep
 		EnableArgInject:       true, // per-binary error patterns confirm flag landed in argv
 		EnableFileOps:         true, // matches FS error patterns referencing the traversed path
+		EnableRSCInject:       true, // gated on RSC fingerprint; auto no-op on non-Next.js targets
+		EnableWebAuthn:        true, // probes the curated CommonEndpoints wordlist (cheap; auto no-op on hosts without /webauthn or /api/passkey)
+		EnableHTTP3Desync:     true, // single passive HEAD; auto no-op on hosts without Alt-Svc
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

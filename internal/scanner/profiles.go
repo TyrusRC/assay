@@ -31,6 +31,7 @@ func QuickProfile() *Profile {
 	config.EnableSolrInject = false
 	config.EnablePHPInject = false
 	config.EnableESI = false
+	config.EnableRSCInject = false // posts Server-Action bodies; skip for quick
 	return &Profile{Name: "quick", Description: "Fast scan with reduced payloads and heavy per-param runners disabled", Config: config}
 }
 
@@ -132,6 +133,10 @@ func PassiveProfile() *Profile {
 	config.EnableNodeJSInject = false
 	config.EnableArgInject = false
 	config.EnableFileOps = false
+	// rscinject fires Server-Action POSTs against the target — disable.
+	// webauthn + http3desync are pure discovery (wordlist GETs / single
+	// HEAD respectively) and stay on.
+	config.EnableRSCInject = false
 
 	return &Profile{Name: "passive", Description: "Passive-only scan — no parameter injections; safe for production", Config: config}
 }

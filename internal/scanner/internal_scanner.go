@@ -82,11 +82,14 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/arginject"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
 	"github.com/TyrusRC/assay/internal/payloads/fileops"
+	"github.com/TyrusRC/assay/internal/payloads/http3desync"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
 	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
+	"github.com/TyrusRC/assay/internal/payloads/rscinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
+	"github.com/TyrusRC/assay/internal/payloads/webauthn"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
@@ -241,6 +244,9 @@ type InternalScanner struct {
 	nodejsInjectDetector    *nodejsinject.Detector
 	argInjectDetector       *arginject.Detector
 	fileOpsDetector         *fileops.Detector
+	rscInjectDetector       *rscinject.Detector
+	webauthnDetector        *webauthn.Detector
+	http3DesyncDetector     *http3desync.Detector
 	discoveryPipeline       *discovery.Pipeline
 	headlessPool            *headless.Pool
 	oobClient               *oob.Client

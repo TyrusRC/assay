@@ -12,6 +12,7 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
 	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
+	"github.com/TyrusRC/assay/internal/payloads/rscinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 )
 
@@ -172,6 +173,26 @@ func (s *InternalScanner) testFileOps(ctx context.Context, targetURL string) []*
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
 	opts.BaselineCache = s.baselineCache
 	res, err := s.fileOpsDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testRSCInject probes a target for React Server Components / Next.js
+// Server-Action injection. Auto no-ops on non-Next.js targets via the
+// RSC fingerprint gate.
+func (s *InternalScanner) testRSCInject(ctx context.Context, targetURL string) []*core.Finding {
+	if s.rscInjectDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing RSC / Next.js Server-Action injection on '%s'...\n", targetURL)
+	}
+	opts := rscinject.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	opts.BaselineCache = s.baselineCache
+	res, err := s.rscInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}

@@ -10,7 +10,9 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
+	"github.com/TyrusRC/assay/internal/payloads/http3desync"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
+	"github.com/TyrusRC/assay/internal/payloads/webauthn"
 )
 
 // This file groups the URL-level detectors that perform no parameter
@@ -109,6 +111,47 @@ func (s *InternalScanner) testVHostEnum(ctx context.Context, targetURL string) [
 	}
 	res, err := s.vhostDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testWebAuthn probes the target for WebAuthn / FIDO2 endpoints and
+// emits Informational findings on discovery plus Medium findings on
+// known policy footguns (attestation=none, userVerification=discouraged,
+// RP-ID=localhost). Auto no-op on hosts without the standard
+// /webauthn or /api/passkey route shapes.
+func (s *InternalScanner) testWebAuthn(ctx context.Context, targetURL string) []*core.Finding {
+	if s.webauthnDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Discovering WebAuthn endpoints on '%s'...\n", targetURL)
+	}
+	opts := webauthn.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.webauthnDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || len(res.Findings) == 0 {
+		return nil
+	}
+	return res.Findings
+}
+
+// testHTTP3Desync passively parses Alt-Svc to confirm HTTP/3
+// advertisement and fingerprints the upstream against the public H3
+// desync CVE list. Single passive HEAD; auto no-op on hosts without
+// Alt-Svc.
+func (s *InternalScanner) testHTTP3Desync(ctx context.Context, targetURL string) []*core.Finding {
+	if s.http3DesyncDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Checking HTTP/3 advertisement on '%s'...\n", targetURL)
+	}
+	opts := http3desync.DefaultOptions()
+	opts.Timeout = s.config.RequestTimeout
+	res, err := s.http3DesyncDetector.Detect(ctx, targetURL, opts)
+	if err != nil || res == nil || len(res.Findings) == 0 {
 		return nil
 	}
 	return res.Findings

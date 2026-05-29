@@ -80,10 +80,13 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/arginject"
 	"github.com/TyrusRC/assay/internal/payloads/esi"
 	"github.com/TyrusRC/assay/internal/payloads/fileops"
+	"github.com/TyrusRC/assay/internal/payloads/http3desync"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
 	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
+	"github.com/TyrusRC/assay/internal/payloads/rscinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
+	"github.com/TyrusRC/assay/internal/payloads/webauthn"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
@@ -229,6 +232,9 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.nodejsInjectDetector = nodejsinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.argInjectDetector = arginject.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.fileOpsDetector = fileops.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.rscInjectDetector = rscinject.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.webauthnDetector = webauthn.New(&nethttp.Client{Timeout: config.RequestTimeout})
+	s.http3DesyncDetector = http3desync.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.config = config
 	s.confirmed = newConfirmedFindings()
 }
