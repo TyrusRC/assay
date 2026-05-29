@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
 // Scan performs internal vulnerability scanning on a target. It is the main
@@ -38,6 +39,12 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// One-Scanner-per-Scan is the contract; concurrent scans on the same
 	// scanner instance would race on these settings.
 	applyScanConfig(s.client, scanConfig)
+
+	// Reset the per-scan baseline cache. Each of the 7 bank-driven
+	// parameter-injection detectors fetches the target URL once as its
+	// baseline; sharing those results across detectors saves up to 6
+	// duplicate GETs per parameterised URL.
+	s.baselineCache = paraminject.NewCache()
 
 	// scanClient is kept as an alias for the few hot paths that take an
 	// explicit *http.Client argument (SQLi, ClassifyParameters, OOB).

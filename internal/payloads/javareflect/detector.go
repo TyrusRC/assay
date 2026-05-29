@@ -45,6 +45,9 @@ type DetectOptions struct {
 	// ConfirmedJavaOnly gates RCE-class payloads behind a confirmed
 	// Java fingerprint in the baseline response.
 	ConfirmedJavaOnly bool
+	// BaselineCache, when non-nil, shares the baseline GET response
+	// with other detectors targeting the same URL.
+	BaselineCache *paraminject.Cache
 }
 
 // DefaultOptions returns sensible defaults.
@@ -86,7 +89,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		return &DetectionResult{URL: target}, nil
 	}
 
-	baselineBody, baselineResp, err := d.fetch(ctx, target, opts)
+	baselineBody, baselineResp, err := d.cachedFetch(ctx, target, opts)
 	if err != nil {
 		return nil, fmt.Errorf("javareflect: baseline: %w", err)
 	}
@@ -138,6 +141,13 @@ func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions)
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	return paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+}
+
+// cachedFetch routes the baseline through the per-scan cache when set.
+func (d *Detector) cachedFetch(ctx context.Context, target string, opts DetectOptions) (string, *http.Response, error) {
+	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
+	return opts.BaselineCache.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 }
 
 func isJavaResponse(resp *http.Response, body string) bool {

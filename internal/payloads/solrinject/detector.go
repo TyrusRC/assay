@@ -44,6 +44,9 @@ type DetectOptions struct {
 	// passive fingerprint probe and only fires high-impact payloads
 	// (Velocity RCE, DIH RCE) if the response is recognisably Solr.
 	ConfirmedSolrOnly bool
+	// BaselineCache, when non-nil, shares the baseline GET response
+	// with other detectors targeting the same URL.
+	BaselineCache *paraminject.Cache
 }
 
 // DefaultOptions returns sensible defaults.
@@ -86,7 +89,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		return &DetectionResult{URL: target}, nil
 	}
 
-	baselineBody, err := d.fetch(ctx, target, opts)
+	baselineBody, err := d.cachedFetch(ctx, target, opts)
 	if err != nil {
 		return nil, fmt.Errorf("solrinject: baseline: %w", err)
 	}
@@ -143,6 +146,14 @@ func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions)
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	body, _, err := paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+	return body, err
+}
+
+// cachedFetch routes the baseline through the per-scan cache when set.
+func (d *Detector) cachedFetch(ctx context.Context, target string, opts DetectOptions) (string, error) {
+	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
+	body, _, err := opts.BaselineCache.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 	return body, err
 }
 

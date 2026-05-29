@@ -43,6 +43,7 @@ func (s *InternalScanner) testESI(ctx context.Context, targetURL string) []*core
 	opts := esi.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.esiDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
@@ -63,6 +64,7 @@ func (s *InternalScanner) testSolrInject(ctx context.Context, targetURL string) 
 	opts := solrinject.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.solrInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
@@ -83,6 +85,7 @@ func (s *InternalScanner) testPHPInject(ctx context.Context, targetURL string) [
 	opts := phpinject.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.phpInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
@@ -103,6 +106,7 @@ func (s *InternalScanner) testJavaReflect(ctx context.Context, targetURL string)
 	opts := javareflect.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.javaReflectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
@@ -143,6 +147,7 @@ func (s *InternalScanner) testArgInject(ctx context.Context, targetURL string) [
 	opts := arginject.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.argInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
@@ -164,6 +169,7 @@ func (s *InternalScanner) testFileOps(ctx context.Context, targetURL string) []*
 	opts := fileops.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.fileOpsDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil

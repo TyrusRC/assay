@@ -84,6 +84,7 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/fileops"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
 	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 	"github.com/TyrusRC/assay/internal/payloads/vhost"
@@ -248,6 +249,12 @@ type InternalScanner struct {
 	techHint                *TechHint
 	config                  *InternalScanConfig
 	confirmed               *confirmedFindings
+	// baselineCache is the per-scan shared baseline cache consumed by the
+	// 7 bank-driven parameter-injection detectors (esi, solrinject,
+	// phpinject, javareflect, arginject, fileops + esi). Reset at the
+	// start of every Scan call; nil is safe (detectors fall through to
+	// uncached fetch).
+	baselineCache *paraminject.Cache
 	mu                      sync.Mutex
 }
 

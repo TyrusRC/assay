@@ -52,6 +52,11 @@ type DetectOptions struct {
 	// ConfirmedNodeOnly gates RCE-class payloads behind a confirmed
 	// Node runtime fingerprint in the baseline.
 	ConfirmedNodeOnly bool
+	// NOTE: this detector deliberately does NOT honor a baseline cache.
+	// The time-blind probe requires a freshly-measured baseline
+	// duration; a cached body returns near-zero lookup time and
+	// invalidates the delta comparison. The body cost of one extra
+	// baseline GET per scan is a tolerable trade for accurate timing.
 }
 
 // DefaultOptions returns sensible defaults.

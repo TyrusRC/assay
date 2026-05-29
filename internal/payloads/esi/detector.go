@@ -44,6 +44,10 @@ type DetectOptions struct {
 	// MaxPayloadsPerParam caps probes per parameter so a wide URL
 	// (?a=1&b=2&c=3) doesn't fan out 13 payloads × params.
 	MaxPayloadsPerParam int
+	// BaselineCache, when non-nil, shares the baseline GET response with
+	// other detectors targeting the same URL. Per-payload fetches are
+	// never cached — each injected URL is unique by construction.
+	BaselineCache *paraminject.Cache
 }
 
 // DefaultOptions returns sensible defaults.
@@ -95,7 +99,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		result.Engine = eng
 	}
 
-	baseline, _, err := d.fetch(ctx, target, opts)
+	baseline, _, err := d.cachedFetch(ctx, target, opts)
 	if err != nil {
 		return nil, fmt.Errorf("esi: baseline: %w", err)
 	}
@@ -158,6 +162,15 @@ func (d *Detector) fetch(ctx context.Context, target string, opts DetectOptions)
 	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	return paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
+}
+
+// cachedFetch is the baseline-fetch variant that consults the per-scan
+// baseline cache when set. Per-payload fetches go through fetch (above)
+// because each injected URL is unique by construction.
+func (d *Detector) cachedFetch(ctx context.Context, target string, opts DetectOptions) (string, *http.Response, error) {
+	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
+	return opts.BaselineCache.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 }
 
 // head is fetch's HEAD-only variant for the engine fingerprint preflight.
