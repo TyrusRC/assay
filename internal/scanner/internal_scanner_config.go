@@ -137,6 +137,7 @@ type InternalScanConfig struct {
 	EnableWAFDetect       bool   // Passive WAF fingerprinting from response headers/cookies/body; emits SeverityInfo per matched vendor
 	EnableXFS             bool   // Clickjacking / Cross-Frame Scripting exposure analyzer (XFO + CSP frame-ancestors + JS framebuster)
 	EnableIISTilde        bool   // IIS short-name (~1) enumeration probe; opt-in because it fires 5 anomalous-method requests
+	EnableSameSiteScript  bool   // DNS-only probe for localhost.victim.com → 127.0.0.1 misconfigurations (cookie/eTLD+1 leakage)
 
 	// Template scanning
 	EnableTemplates bool     // Enable template-based scanning (default false)
@@ -265,6 +266,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
 		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
 		EnableIISTilde:        true, // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
+		EnableSameSiteScript:  true, // pure DNS lookups; no HTTP cost on the target
 
 		EnableTimingEnum:       true,
 		EnablePasswordReset:    true,

@@ -77,6 +77,7 @@ func (s *InternalScanner) launchURLClassic(ctx context.Context, wg *sync.WaitGro
 	s.launchIf(wg, c.EnableWAFDetect, func() { emit(ctx, findingsChan, s.testWAFDetect(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableXFS, func() { emit(ctx, findingsChan, s.testXFS(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableIISTilde, func() { emit(ctx, findingsChan, s.testIISTilde(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableSameSiteScript, func() { emit(ctx, findingsChan, s.testSameSiteScript(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableExposure, func() { emit(ctx, findingsChan, s.testExposure(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableCloud, func() { emit(ctx, findingsChan, s.testCloud(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableSubTakeover && len(c.Subdomains) > 0,

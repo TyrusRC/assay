@@ -16,6 +16,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	tlsdetect "github.com/TyrusRC/assay/internal/detection/tls"
 	"github.com/TyrusRC/assay/internal/detection/iistilde"
+	"github.com/TyrusRC/assay/internal/detection/samesitescript"
 	"github.com/TyrusRC/assay/internal/detection/wafdetect"
 	"github.com/TyrusRC/assay/internal/detection/xfs"
 )
@@ -106,6 +107,23 @@ func (s *InternalScanner) testIISTilde(ctx context.Context, targetURL string) []
 	opts := iistilde.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	res, err := s.iisTildeDetector.DetectWithOptions(ctx, targetURL, opts)
+	if err != nil || res == nil || !res.Vulnerable {
+		return nil
+	}
+	return res.Findings
+}
+
+// testSameSiteScript runs the DNS-only probe for the
+// localhost.victim.com → 127.0.0.1 misconfiguration. No HTTP traffic
+// hits the target — purely local DNS resolution.
+func (s *InternalScanner) testSameSiteScript(ctx context.Context, targetURL string) []*core.Finding {
+	if s.sameSiteScriptDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Checking Same-Site Scripting DNS misconfigurations for '%s'...\n", targetURL)
+	}
+	res, err := s.sameSiteScriptDetector.Detect(ctx, targetURL, samesitescript.DefaultOptions())
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil
 	}
