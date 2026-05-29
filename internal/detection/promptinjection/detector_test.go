@@ -104,6 +104,66 @@ func TestDetect_SkipsNon2xxNon404(t *testing.T) {
 	}
 }
 
+func TestBuildPayloads_CoversAttackFamilies(t *testing.T) {
+	got := buildPayloads()
+	if len(got) < 8 {
+		t.Errorf("expected at least 8 prompt-injection variants, got %d", len(got))
+	}
+	required := []string{
+		"ignore-previous",
+		"system prompt",
+		"role-override",
+		"markdown",
+		"json",
+		"base64",
+		"function-call",
+		"sandwich",
+		"cross-language",
+	}
+	for _, want := range required {
+		found := false
+		for _, p := range got {
+			if strings.Contains(strings.ToLower(p.desc), want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("missing prompt-injection family: %q", want)
+		}
+	}
+}
+
+func TestBuildPayloads_AllHaveCanaryMatchers(t *testing.T) {
+	got := buildPayloads()
+	for _, p := range got {
+		if p.prompt == "" {
+			t.Errorf("payload %q has empty prompt", p.desc)
+		}
+		if p.matches == nil {
+			t.Errorf("payload %q has nil matcher", p.desc)
+		}
+		if p.matches("") {
+			t.Errorf("payload %q matcher returned true on empty body", p.desc)
+		}
+	}
+}
+
+func TestBase64Encode(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"", ""},
+		{"f", "Zg=="},
+		{"fo", "Zm8="},
+		{"foo", "Zm9v"},
+		{"foobar", "Zm9vYmFy"},
+	}
+	for _, c := range cases {
+		if got := base64Encode(c.in); got != c.want {
+			t.Errorf("base64Encode(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestPathLooksLLM(t *testing.T) {
 	cases := map[string]bool{
 		"/api/v1/chat":   true,
