@@ -11,16 +11,17 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/esi"
 	"github.com/TyrusRC/assay/internal/payloads/fileops"
 	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
 	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 	"github.com/TyrusRC/assay/internal/payloads/phpinject"
 	"github.com/TyrusRC/assay/internal/payloads/solrinject"
 )
 
 // TestSharedBaselineCacheAcrossDetectors confirms that a single
-// paraminject.Cache instance is honored by all 6 bank-driven detectors
-// that opted into caching, dropping per-target baseline GETs from 6 to 1.
-// nodejsinject is intentionally excluded — it needs a fresh baseline
-// duration for the time-blind probe.
+// paraminject.Cache instance is honored by all 7 bank-driven detectors,
+// dropping per-target baseline GETs from 7 to 1. nodejsinject was
+// initially excluded but now uses Cache.FetchTimed for the time-blind
+// probe.
 func TestSharedBaselineCacheAcrossDetectors(t *testing.T) {
 	var baselineHits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,11 +92,20 @@ func TestSharedBaselineCacheAcrossDetectors(t *testing.T) {
 		opts.MaxPayloadsPerParam = 1
 		_, _ = d.Detect(ctx, target, opts)
 	}
+	// NodeJS SSJI (consumes FetchTimed).
+	{
+		d := nodejsinject.New(srv.Client())
+		opts := nodejsinject.DefaultOptions()
+		opts.BaselineCache = cache
+		opts.MaxPayloadsPerParam = 1
+		opts.ConfirmedNodeOnly = false
+		_, _ = d.Detect(ctx, target, opts)
+	}
 
-	// All 6 detectors share one baseline. Without caching we'd see 6.
+	// All 7 detectors share one baseline. Without caching we'd see 7.
 	got := atomic.LoadInt32(&baselineHits)
 	if got != 1 {
-		t.Errorf("expected 1 baseline GET across 6 detectors with shared cache, got %d", got)
+		t.Errorf("expected 1 baseline GET across 7 detectors with shared cache, got %d", got)
 	}
 	if cache.Size() != 1 {
 		t.Errorf("expected cache size 1, got %d", cache.Size())

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCache_FirstFetchHitsServerSecondReturnsCached(t *testing.T) {
@@ -118,6 +119,96 @@ func TestCache_NegativeResultCached(t *testing.T) {
 	}
 	if c.Size() != 1 {
 		t.Errorf("negative result not cached: size = %d, want 1", c.Size())
+	}
+}
+
+func TestCacheStats_HitsAndMisses(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	c := NewCache()
+	// First fetch is a miss; subsequent fetches are hits.
+	_, _, _ = c.Fetch(context.Background(), srv.Client(), srv.URL, 1024)
+	_, _, _ = c.Fetch(context.Background(), srv.Client(), srv.URL, 1024)
+	_, _, _ = c.Fetch(context.Background(), srv.Client(), srv.URL, 1024)
+
+	s := c.Stats()
+	if s.Misses != 1 {
+		t.Errorf("expected 1 miss, got %d", s.Misses)
+	}
+	if s.Hits != 2 {
+		t.Errorf("expected 2 hits, got %d", s.Hits)
+	}
+	if got := s.HitRate(); got < 0.66 || got > 0.67 {
+		t.Errorf("hit rate = %f, want ~0.67", got)
+	}
+}
+
+func TestCacheStats_NilCacheReturnsZeroStats(t *testing.T) {
+	var c *Cache
+	if got := c.Stats(); got.Hits != 0 || got.Misses != 0 {
+		t.Errorf("nil cache stats should be zero, got %+v", got)
+	}
+	// HitRate of empty stats must not divide by zero.
+	if got := (Stats{}).HitRate(); got != 0 {
+		t.Errorf("empty stats hit rate = %f, want 0", got)
+	}
+}
+
+func TestFetchTimed_ReturnsRealDurationOnMiss(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		_, _ = w.Write([]byte("slow"))
+	}))
+	defer srv.Close()
+
+	c := NewCache()
+	_, _, dur, err := c.FetchTimed(context.Background(), srv.Client(), srv.URL, 1024)
+	if err != nil {
+		t.Fatalf("FetchTimed: %v", err)
+	}
+	if dur < 40*time.Millisecond {
+		t.Errorf("expected duration >= 40ms (server slept 50ms), got %v", dur)
+	}
+}
+
+func TestFetchTimed_ReturnsCachedDurationOnHit(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		time.Sleep(50 * time.Millisecond)
+		_, _ = w.Write([]byte("slow"))
+	}))
+	defer srv.Close()
+
+	c := NewCache()
+	_, _, firstDur, _ := c.FetchTimed(context.Background(), srv.Client(), srv.URL, 1024)
+	_, _, secondDur, _ := c.FetchTimed(context.Background(), srv.Client(), srv.URL, 1024)
+
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Errorf("expected exactly 1 server hit, got %d", hits)
+	}
+	if firstDur != secondDur {
+		t.Errorf("cached duration must equal first-measured duration: %v vs %v", firstDur, secondDur)
+	}
+}
+
+func TestFetchTimed_NilCacheStillMeasures(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	var c *Cache
+	_, _, dur, err := c.FetchTimed(context.Background(), srv.Client(), srv.URL, 1024)
+	if err != nil {
+		t.Fatalf("FetchTimed on nil cache: %v", err)
+	}
+	if dur < 20*time.Millisecond {
+		t.Errorf("nil-cache FetchTimed should still measure (>= 20ms), got %v", dur)
 	}
 }
 

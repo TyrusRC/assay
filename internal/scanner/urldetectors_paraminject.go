@@ -127,6 +127,7 @@ func (s *InternalScanner) testNodeJSInject(ctx context.Context, targetURL string
 	opts := nodejsinject.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	opts.MaxPayloadsPerParam = s.capPayloads(opts.MaxPayloadsPerParam)
+	opts.BaselineCache = s.baselineCache
 	res, err := s.nodejsInjectDetector.Detect(ctx, targetURL, opts)
 	if err != nil || res == nil || !res.Vulnerable {
 		return nil

@@ -52,11 +52,16 @@ type DetectOptions struct {
 	// ConfirmedNodeOnly gates RCE-class payloads behind a confirmed
 	// Node runtime fingerprint in the baseline.
 	ConfirmedNodeOnly bool
-	// NOTE: this detector deliberately does NOT honor a baseline cache.
-	// The time-blind probe requires a freshly-measured baseline
-	// duration; a cached body returns near-zero lookup time and
-	// invalidates the delta comparison. The body cost of one extra
-	// baseline GET per scan is a tolerable trade for accurate timing.
+	// BaselineCache, when non-nil, shares the baseline GET response
+	// (and its measured duration) with other detectors targeting the
+	// same URL. The cache records the wall-clock duration of the very
+	// first fetch — subsequent detectors reuse that as the baseline
+	// for time-blind comparisons. Network conditions inside a single
+	// scan window are typically stable enough that the cached duration
+	// stays accurate; if conditions shift drastically you get a false
+	// negative (cached baseline is slow, payload looks normal), never a
+	// false positive.
+	BaselineCache *paraminject.Cache
 }
 
 // DefaultOptions returns sensible defaults.
@@ -102,7 +107,7 @@ func (d *Detector) Detect(ctx context.Context, target string, opts DetectOptions
 		return &DetectionResult{URL: target}, nil
 	}
 
-	baselineBody, baselineDur, baselineResp, err := d.timedFetch(ctx, target, opts)
+	baselineBody, baselineDur, baselineResp, err := d.cachedTimedFetch(ctx, target, opts)
 	if err != nil {
 		return nil, fmt.Errorf("nodejsinject: baseline: %w", err)
 	}
@@ -156,6 +161,17 @@ func (d *Detector) timedFetch(ctx context.Context, target string, opts DetectOpt
 	start := time.Now()
 	body, resp, err := paraminject.Fetch(rctx, d.client, target, opts.MaxBodyBytes)
 	return body, time.Since(start), resp, err
+}
+
+// cachedTimedFetch routes the baseline through the per-scan time-blind
+// cache when set. On a cache hit the returned duration is the one
+// measured during the very first detector's baseline; on a miss it's
+// freshly measured.
+func (d *Detector) cachedTimedFetch(ctx context.Context, target string, opts DetectOptions) (string, time.Duration, *http.Response, error) {
+	rctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
+	body, resp, dur, err := opts.BaselineCache.FetchTimed(rctx, d.client, target, opts.MaxBodyBytes)
+	return body, dur, resp, err
 }
 
 func isNodeResponse(resp *http.Response, body string) bool {
