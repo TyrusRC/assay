@@ -34,11 +34,12 @@ type Finding struct {
 	Response string `json:"response,omitempty"`
 
 	// OWASP Mapping
-	WSTG     []string `json:"wstg,omitempty"`
-	Top10    []string `json:"top10,omitempty"`
-	APITop10 []string `json:"api_top10,omitempty"`
-	CWE      []string `json:"cwe,omitempty"`
-	CVSS     float64  `json:"cvss,omitempty"`
+	WSTG       []string `json:"wstg,omitempty"`
+	Top10      []string `json:"top10,omitempty"`
+	APITop10   []string `json:"api_top10,omitempty"`
+	CWE        []string `json:"cwe,omitempty"`
+	CVSS       float64  `json:"cvss,omitempty"`
+	CVSSVector string   `json:"cvss_vector,omitempty"`
 
 	// Remediation
 	Remediation string   `json:"remediation,omitempty"`

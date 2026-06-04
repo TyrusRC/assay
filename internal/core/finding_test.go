@@ -240,3 +240,11 @@ func TestFinding_Age(t *testing.T) {
 		t.Errorf("Finding.Age() = %v, expected ~24h", age)
 	}
 }
+
+func TestFinding_CVSSVectorField(t *testing.T) {
+	f := NewFinding("SQL Injection", SeverityCritical)
+	f.CVSSVector = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+	if f.CVSSVector != "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" {
+		t.Errorf("CVSSVector not set, got %q", f.CVSSVector)
+	}
+}
