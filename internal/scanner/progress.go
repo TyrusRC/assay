@@ -44,12 +44,12 @@ func (p *Progress) IncrementFindings(count int) {
 	atomic.AddInt64(&p.findingsCount, int64(count))
 }
 
-// SetPhase updates the current scan phase label.
+// SetPhase updates the current scan phase label used by the live progress
+// line. It does not print on its own; the scan emits its own phase banners
+// (shown in every mode), while this label only contextualizes the verbose
+// per-parameter counter printed by IncrementTested.
 func (p *Progress) SetPhase(phase string) {
 	p.currentPhase.Store(phase)
-	if p.enabled {
-		fmt.Fprintf(os.Stderr, "\n[*] %s\n", phase)
-	}
 }
 
 // Finish prints the final scan completion summary.

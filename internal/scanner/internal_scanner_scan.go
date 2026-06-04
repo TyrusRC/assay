@@ -118,6 +118,10 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		fmt.Fprintf(os.Stderr, "[*] Testing %d parameters\n", len(params))
 	}
 
+	// Live progress tracking. The per-parameter counter is only printed in
+	// verbose mode; counters are always maintained and summarized at the end.
+	prog := NewProgress(len(params), s.config.Verbose)
+
 	var wg sync.WaitGroup
 	findingsChan := make(chan *core.Finding, 100)
 
@@ -134,18 +138,21 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		defer collectWg.Done()
 		for finding := range findingsChan {
 			collectedFindings = append(collectedFindings, finding)
+			prog.IncrementFindings(1)
 		}
 	}()
 
 	// Phase 1: parameter-injection tests, only when we have params to inject into.
 	if len(params) > 0 {
+		prog.SetPhase("parameter-injection")
 		fmt.Fprintf(os.Stderr, "[*] Phase 1: parameter-injection tests...\n")
 		ClassifyParameters(ctx, scanClient, targetURL, params, method)
-		s.runParameterTests(ctx, &wg, findingsChan, params, targetURL, method, scanClient)
+		s.runParameterTests(ctx, &wg, findingsChan, params, targetURL, method, scanClient, prog)
 		wg.Wait()
 	}
 
 	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
+	prog.SetPhase("url-level")
 	fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
 	s.runURLLevelTests(ctx, &wg, findingsChan, targetURL, scanConfig)
 
@@ -154,6 +161,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	// Phase 1.75: Template scanning (after URL-level tests, before OOB)
 	if s.config.EnableTemplates && len(s.config.TemplatePaths) > 0 {
+		prog.SetPhase("templates")
 		fmt.Fprintf(os.Stderr, "[*] Phase 1.75: template scans...\n")
 		proxyURL := ""
 		if scanConfig != nil {
@@ -164,6 +172,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 
 	// Phase 2: OOB detection (after SQLi/XSS, wait for OOB client with timeout)
+	prog.SetPhase("oob")
 	fmt.Fprintf(os.Stderr, "[*] Phase 2: OOB / blind-vulnerability detection...\n")
 	s.runOOBTests(ctx, &wg, findingsChan, result, params, targetURL, method, scanClient)
 
@@ -172,6 +181,8 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// Close channel and wait for collector to finish
 	close(findingsChan)
 	collectWg.Wait()
+
+	prog.Finish()
 
 	// Deduplicate findings
 	result.Findings = collectedFindings.Deduplicate()

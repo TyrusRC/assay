@@ -8,13 +8,18 @@ import (
 	"github.com/TyrusRC/assay/internal/http"
 )
 
-// runParameterTests launches goroutines for all parameter-level injection tests.
-func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client) {
+// runParameterTests launches goroutines for all parameter-level injection
+// tests. Each parameter is reported to prog as tested once its detectors
+// finish, so the progress tracker reflects per-parameter completion.
+func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress) {
 	for _, param := range params {
 		wg.Add(1)
 		go func(p core.Parameter) {
 			defer wg.Done()
 			s.runParamDetectors(ctx, findingsChan, targetURL, p, method, scanClient)
+			if prog != nil {
+				prog.IncrementTested()
+			}
 		}(param)
 	}
 }
