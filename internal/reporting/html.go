@@ -4,218 +4,208 @@ import (
 	"html/template"
 	"io"
 	"time"
+	"unicode"
 
 	"github.com/TyrusRC/assay/internal/core"
 )
 
-// htmlData holds template data for the HTML report.
-type htmlData struct {
-	Version     string
-	GeneratedAt string
-	Targets     []string
-	Duration    string
-	ToolsRun    int
-	Total       int
-	Critical    int
-	High        int
-	Medium      int
-	Low         int
-	Info        int
-	Findings    []htmlFinding
-	Errors      []string
-}
-
-// htmlFinding holds a single finding for the HTML template.
 type htmlFinding struct {
-	Index       int
-	ID          string
-	Type        string
-	Severity    string
-	BadgeClass  string
-	URL         string
-	Parameter   string
-	Description string
-	Evidence    string
-	Tool        string
-	WSTG        []string
-	Top10       []string
-	APITop10    []string
-	CWE         []string
+	Type          string
+	Severity      string
+	SeverityClass string
+	CVSS          float64
+	CVSSVector    string
+	Confidence    string
+	URL           string
+	Parameter     string
+	Description   string
+	Evidence      string
+	Request       string
+	Response      string
+	Remediation   string
+	CWE           []string
+	Top10         []string
+	WSTG          []string
 }
 
-// severityBadgeClass returns the CSS class for a severity badge.
-func severityBadgeClass(s core.Severity) string {
+type htmlSeverityGroup struct {
+	Severity string
+	Class    string
+	Count    int
+	Findings []htmlFinding
+}
+
+type htmlSevCount struct {
+	Severity string
+	Class    string
+	Count    int
+	Pct      int
+}
+
+type htmlOWASP struct {
+	Code  string
+	Count int
+}
+
+type htmlData struct {
+	Tool         string
+	Version      string
+	GeneratedAt  string
+	Duration     string
+	Targets      []string
+	Technologies []string
+	ToolsRun     int
+	ToolsSkipped int
+	Total        int
+	BySeverity   []htmlSevCount
+	OWASP        []htmlOWASP
+	Groups       []htmlSeverityGroup
+}
+
+// capitalizeSeverity returns the severity label with the first letter
+// upper-cased (e.g. "critical" → "Critical").
+func capitalizeSeverity(s core.Severity) string {
+	str := string(s)
+	if str == "" {
+		return str
+	}
+	runes := []rune(str)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
+}
+
+func severityClass(s core.Severity) string {
 	switch s {
 	case core.SeverityCritical:
-		return "badge-critical"
+		return "critical"
 	case core.SeverityHigh:
-		return "badge-high"
+		return "high"
 	case core.SeverityMedium:
-		return "badge-medium"
+		return "medium"
 	case core.SeverityLow:
-		return "badge-low"
-	case core.SeverityInfo:
-		return "badge-info"
+		return "low"
 	default:
-		return "badge-info"
+		return "info"
 	}
 }
 
-// WriteHTML writes the report as a self-contained HTML file.
+// WriteHTML writes a rich, self-contained HTML report (inline CSS, no external
+// assets).
 func (r *Report) WriteHTML(w io.Writer) error {
-	data := htmlData{
-		Version:     r.Version,
-		GeneratedAt: r.GeneratedAt.Format(time.RFC3339),
-		Targets:     r.ScanResult.Targets,
-		Duration:    r.ScanResult.Duration.Round(time.Second).String(),
-		ToolsRun:    r.ScanResult.ToolsRun,
-		Total:       r.Summary.TotalFindings,
-		Critical:    r.Summary.Critical,
-		High:        r.Summary.High,
-		Medium:      r.Summary.Medium,
-		Low:         r.Summary.Low,
-		Info:        r.Summary.Info,
-		Errors:      r.ScanResult.Errors,
-	}
+	res := r.ScanResult
+	st := computeStats(res.Findings)
 
-	for i, f := range r.ScanResult.Findings {
-		data.Findings = append(data.Findings, htmlFinding{
-			Index:       i + 1,
-			ID:          f.ID,
-			Type:        f.Type,
-			Severity:    string(f.Severity),
-			BadgeClass:  severityBadgeClass(f.Severity),
-			URL:         f.URL,
-			Parameter:   f.Parameter,
-			Description: f.Description,
-			Evidence:    f.Evidence,
-			Tool:        f.Tool,
-			WSTG:        f.WSTG,
-			Top10:       f.Top10,
-			APITop10:    f.APITop10,
-			CWE:         f.CWE,
+	data := htmlData{
+		Tool:         r.Tool,
+		Version:      r.Version,
+		GeneratedAt:  r.GeneratedAt.Format(time.RFC3339),
+		Duration:     res.Duration.Round(time.Second).String(),
+		Targets:      res.Targets,
+		Technologies: res.Technologies,
+		ToolsRun:     res.ToolsRun,
+		ToolsSkipped: res.ToolsSkipped,
+		Total:        st.Total,
+	}
+	for _, sev := range severityOrder {
+		count := st.BySeverity[sev]
+		pct := 0
+		if st.Total > 0 {
+			pct = count * 100 / st.Total
+		}
+		data.BySeverity = append(data.BySeverity, htmlSevCount{
+			Severity: capitalizeSeverity(sev), Class: severityClass(sev), Count: count, Pct: pct,
 		})
+		group := res.Findings.FilterBySeverity(sev)
+		if len(group) == 0 {
+			continue
+		}
+		hg := htmlSeverityGroup{Severity: capitalizeSeverity(sev), Class: severityClass(sev), Count: len(group)}
+		for _, f := range group {
+			hg.Findings = append(hg.Findings, htmlFinding{
+				Type: f.Type, Severity: capitalizeSeverity(f.Severity), SeverityClass: severityClass(f.Severity),
+				CVSS: f.CVSS, CVSSVector: f.CVSSVector, Confidence: string(f.Confidence),
+				URL: f.URL, Parameter: f.Parameter, Description: f.Description,
+				Evidence: f.Evidence, Request: f.Request, Response: f.Response,
+				Remediation: f.Remediation, CWE: f.CWE, Top10: f.Top10, WSTG: f.WSTG,
+			})
+		}
+		data.Groups = append(data.Groups, hg)
+	}
+	for code, n := range st.OWASPCoverage {
+		data.OWASP = append(data.OWASP, htmlOWASP{Code: code, Count: n})
 	}
 
 	tmpl, err := template.New("report").Parse(htmlTemplate)
 	if err != nil {
 		return err
 	}
-
 	return tmpl.Execute(w, data)
 }
 
 const htmlTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>assay Scan Report</title>
+<meta charset="utf-8">
+<title>{{.Tool}} scan report</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6}
-.container{max-width:1100px;margin:0 auto;padding:20px}
-h1{color:#e94560;margin-bottom:5px}
-h2{color:#0f3460;background:#16213e;padding:12px 18px;border-left:4px solid #e94560;margin:30px 0 15px;border-radius:0 6px 6px 0;color:#e0e0e0}
-.meta{color:#888;font-size:0.9em;margin-bottom:20px}
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:20px 0}
-.summary-card{background:#16213e;border-radius:8px;padding:18px;text-align:center}
-.summary-card .count{font-size:2em;font-weight:bold}
-.summary-card .label{font-size:0.85em;color:#888;text-transform:uppercase}
-.count-critical{color:#ff4757}
-.count-high{color:#ff6b35}
-.count-medium{color:#ffc048}
-.count-low{color:#4da6ff}
-.count-info{color:#888}
-.count-total{color:#e94560}
-.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.8em;font-weight:600;text-transform:uppercase;color:#fff}
-.badge-critical{background:#ff4757}
-.badge-high{background:#ff6b35}
-.badge-medium{background:#ffc048;color:#1a1a2e}
-.badge-low{background:#4da6ff}
-.badge-info{background:#555}
-.finding{background:#16213e;border-radius:8px;margin:12px 0;overflow:hidden}
-.finding-header{padding:14px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
-.finding-header:hover{background:#1a2744}
-.finding-title{font-weight:600}
-.finding-details{padding:0 18px 18px;display:none}
-.finding-details.open{display:block}
-.detail-row{margin:6px 0}
-.detail-label{color:#888;font-size:0.85em;display:inline-block;min-width:110px}
-.detail-value{color:#e0e0e0}
-.tag{display:inline-block;background:#0f3460;padding:2px 8px;border-radius:4px;font-size:0.8em;margin:2px}
-.evidence{background:#0d1b2a;padding:12px;border-radius:6px;font-family:monospace;font-size:0.85em;white-space:pre-wrap;word-break:break-all;margin-top:6px}
-.errors{background:#2d1b1b;border:1px solid #ff4757;border-radius:8px;padding:14px;margin:20px 0}
-.errors h3{color:#ff4757;margin-bottom:8px}
-.chevron{transition:transform 0.2s;font-size:0.8em}
-.chevron.open{transform:rotate(90deg)}
-footer{text-align:center;color:#555;margin:40px 0 20px;font-size:0.85em}
+:root{--c-critical:#b00020;--c-high:#e65100;--c-medium:#f9a825;--c-low:#0277bd;--c-info:#607d8b}
+body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;color:#1a1a1a;background:#f5f6f8}
+header{background:#11243b;color:#fff;padding:24px 32px}
+header h1{margin:0 0 4px;font-size:20px}
+header .meta{font-size:13px;opacity:.85}
+main{max-width:1000px;margin:0 auto;padding:24px 32px}
+.dash{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.card{flex:1;min-width:120px;background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.card .n{font-size:28px;font-weight:700}
+.bar{height:10px;border-radius:5px;background:#e0e0e0;overflow:hidden;margin-top:8px;display:flex}
+.seg{height:100%}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;font-size:12px;font-weight:600}
+.critical{background:var(--c-critical)}.high{background:var(--c-high)}.medium{background:var(--c-medium)}.low{background:var(--c-low)}.info{background:var(--c-info)}
+.finding{background:#fff;border-radius:8px;margin:12px 0;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.finding h3{margin:0 0 8px;font-size:16px}
+.kv{font-size:13px;color:#333;margin:2px 0}
+pre{background:#0f1115;color:#e6e6e6;padding:10px;border-radius:6px;overflow:auto;font-size:12px}
+details{margin-top:8px}summary{cursor:pointer;font-size:13px;color:#11243b}
+.owasp span{display:inline-block;background:#eef;border-radius:6px;padding:2px 8px;margin:2px;font-size:12px}
+.tag{display:inline-block;background:#eee;border-radius:6px;padding:1px 6px;margin:1px;font-size:12px}
 </style>
 </head>
 <body>
-<div class="container">
-<h1>assay Scan Report</h1>
-<div class="meta">
-Version {{.Version}} | Generated {{.GeneratedAt}} | Duration {{.Duration}} | Tools Run: {{.ToolsRun}}
+<header>
+<h1>{{.Tool}} scan report</h1>
+<div class="meta">Generated {{.GeneratedAt}} &middot; Duration {{.Duration}} &middot; {{.ToolsRun}} tools run, {{.ToolsSkipped}} skipped</div>
+<div class="meta">Targets: {{range .Targets}}{{.}} {{end}}</div>
+{{if .Technologies}}<div class="meta">Tech: {{range .Technologies}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
+</header>
+<main>
+<div class="dash">
+{{range .BySeverity}}<div class="card"><div class="n">{{.Count}}</div><span class="badge {{.Class}}">{{.Severity}}</span></div>{{end}}
+<div class="card"><div class="n">{{.Total}}</div>Total</div>
 </div>
-
-<h2>Targets</h2>
-<ul>
-{{range .Targets}}<li>{{.}}</li>{{end}}
-</ul>
-
-<h2>Summary</h2>
-<div class="summary-grid">
-<div class="summary-card"><div class="count count-total">{{.Total}}</div><div class="label">Total</div></div>
-<div class="summary-card"><div class="count count-critical">{{.Critical}}</div><div class="label">Critical</div></div>
-<div class="summary-card"><div class="count count-high">{{.High}}</div><div class="label">High</div></div>
-<div class="summary-card"><div class="count count-medium">{{.Medium}}</div><div class="label">Medium</div></div>
-<div class="summary-card"><div class="count count-low">{{.Low}}</div><div class="label">Low</div></div>
-<div class="summary-card"><div class="count count-info">{{.Info}}</div><div class="label">Info</div></div>
+<div class="bar">
+{{range .BySeverity}}{{if .Count}}<div class="seg {{.Class}}" style="width:{{.Pct}}%"></div>{{end}}{{end}}
 </div>
+{{if .OWASP}}<div class="owasp" style="margin-top:16px">OWASP coverage: {{range .OWASP}}<span>{{.Code}} ({{.Count}})</span>{{end}}</div>{{end}}
 
-<h2>Findings</h2>
-{{if .Findings}}
+{{range .Groups}}
+<h2><span class="badge {{.Class}}">{{.Severity}}</span> {{.Count}}</h2>
 {{range .Findings}}
 <div class="finding">
-<div class="finding-header" onclick="toggleDetails(this)">
-<span class="finding-title">[{{.Index}}] {{.Type}} <span class="badge {{.BadgeClass}}">{{.Severity}}</span></span>
-<span class="chevron">&#9654;</span>
-</div>
-<div class="finding-details">
-<div class="detail-row"><span class="detail-label">ID:</span> <span class="detail-value">{{.ID}}</span></div>
-<div class="detail-row"><span class="detail-label">URL:</span> <span class="detail-value">{{.URL}}</span></div>
-{{if .Parameter}}<div class="detail-row"><span class="detail-label">Parameter:</span> <span class="detail-value">{{.Parameter}}</span></div>{{end}}
-{{if .Description}}<div class="detail-row"><span class="detail-label">Description:</span> <span class="detail-value">{{.Description}}</span></div>{{end}}
-{{if .Tool}}<div class="detail-row"><span class="detail-label">Tool:</span> <span class="detail-value">{{.Tool}}</span></div>{{end}}
-{{if .WSTG}}<div class="detail-row"><span class="detail-label">WSTG:</span> {{range .WSTG}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
-{{if .Top10}}<div class="detail-row"><span class="detail-label">OWASP Top 10:</span> {{range .Top10}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
-{{if .APITop10}}<div class="detail-row"><span class="detail-label">API Top 10:</span> {{range .APITop10}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
-{{if .CWE}}<div class="detail-row"><span class="detail-label">CWE:</span> {{range .CWE}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
-{{if .Evidence}}<div class="detail-row"><span class="detail-label">Evidence:</span><div class="evidence">{{.Evidence}}</div></div>{{end}}
-</div>
+<h3>{{.Type}}</h3>
+{{if gt .CVSS 0.0}}<div class="kv"><strong>CVSS:</strong> {{printf "%.1f" .CVSS}}{{if .CVSSVector}} <code>{{.CVSSVector}}</code> (default){{end}}</div>{{end}}
+<div class="kv"><strong>URL:</strong> {{.URL}}</div>
+{{if .Parameter}}<div class="kv"><strong>Parameter:</strong> {{.Parameter}}</div>{{end}}
+{{if .Confidence}}<div class="kv"><strong>Confidence:</strong> {{.Confidence}}</div>{{end}}
+{{if .CWE}}<div class="kv">{{range .CWE}}<span class="tag">{{.}}</span>{{end}}{{range .Top10}}<span class="tag">{{.}}</span>{{end}}{{range .WSTG}}<span class="tag">{{.}}</span>{{end}}</div>{{end}}
+{{if .Description}}<div class="kv">{{.Description}}</div>{{end}}
+{{if .Evidence}}<details><summary>Evidence</summary><pre>{{.Evidence}}</pre></details>{{end}}
+{{if .Request}}<details><summary>Request</summary><pre>{{.Request}}</pre></details>{{end}}
+{{if .Response}}<details><summary>Response</summary><pre>{{.Response}}</pre></details>{{end}}
+{{if .Remediation}}<div class="kv"><strong>Remediation:</strong> {{.Remediation}}</div>{{end}}
 </div>
 {{end}}
-{{else}}
-<p>No vulnerabilities found.</p>
 {{end}}
-
-{{if .Errors}}
-<div class="errors">
-<h3>Errors</h3>
-<ul>{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
-</div>
-{{end}}
-
-</div>
-<footer>Generated by assay - Context-aware web vulnerability assay</footer>
-<script>
-function toggleDetails(header){
-var details=header.nextElementSibling;
-var chevron=header.querySelector('.chevron');
-details.classList.toggle('open');
-chevron.classList.toggle('open');
-}
-</script>
+{{if not .Groups}}<p>No vulnerabilities found.</p>{{end}}
+</main>
 </body>
 </html>`
