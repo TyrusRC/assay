@@ -113,6 +113,45 @@ func TestClient_WithProxy(t *testing.T) {
 	}
 }
 
+func TestResolveProxy(t *testing.T) {
+	tests := []struct {
+		name     string
+		proxyURL string
+		wantHost string
+		wantErr  bool
+	}{
+		{name: "empty is no proxy", proxyURL: "", wantHost: "", wantErr: false},
+		{name: "valid http proxy", proxyURL: "http://127.0.0.1:8080", wantHost: "127.0.0.1:8080", wantErr: false},
+		{name: "valid socks5 proxy", proxyURL: "socks5://10.0.0.1:1080", wantHost: "10.0.0.1:1080", wantErr: false},
+		{name: "malformed url", proxyURL: "://bad", wantErr: true},
+		{name: "missing scheme and host", proxyURL: "not-a-proxy", wantErr: true},
+		{name: "scheme without host", proxyURL: "http://", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveProxy(tt.proxyURL)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("resolveProxy(%q) expected error, got nil", tt.proxyURL)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveProxy(%q) unexpected error: %v", tt.proxyURL, err)
+			}
+			if tt.wantHost == "" {
+				if got != nil {
+					t.Fatalf("resolveProxy(%q) expected nil proxy, got %v", tt.proxyURL, got)
+				}
+				return
+			}
+			if got == nil || got.Host != tt.wantHost {
+				t.Fatalf("resolveProxy(%q) host = %v, want %q", tt.proxyURL, got, tt.wantHost)
+			}
+		})
+	}
+}
+
 func TestClient_WithTimeout(t *testing.T) {
 	client := NewClient().WithTimeout(5 * time.Second)
 	if client.timeout != 5*time.Second {

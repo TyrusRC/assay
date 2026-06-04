@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -82,15 +83,13 @@ func (c *Client) buildHTTPClient() {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	// Set proxy if configured
-	if c.proxyURL != "" {
-		proxyURL, err := url.Parse(c.proxyURL)
-		if err != nil {
-			// Log the error - proxy URL is invalid, will proceed without proxy
-			// Invalid proxy URL, proceeding without proxy
-		} else {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
+	// Set proxy if configured. An invalid proxy URL is surfaced as a warning
+	// rather than silently ignored, so the operator knows traffic is not
+	// being routed through the intended proxy (e.g. Burp Suite).
+	if proxy, err := resolveProxy(c.proxyURL); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] %v; proceeding without proxy\n", err)
+	} else if proxy != nil {
+		transport.Proxy = http.ProxyURL(proxy)
 	}
 
 	c.httpClient = &http.Client{
@@ -104,6 +103,24 @@ func (c *Client) buildHTTPClient() {
 			return http.ErrUseLastResponse
 		}
 	}
+}
+
+// resolveProxy parses the configured proxy URL. It returns (nil, nil) when no
+// proxy is configured, and a descriptive error when the URL is malformed or
+// missing a scheme/host so callers can surface it instead of silently
+// proceeding without a proxy.
+func resolveProxy(proxyURL string) (*url.URL, error) {
+	if proxyURL == "" {
+		return nil, nil
+	}
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("invalid proxy URL %q: missing scheme or host", proxyURL)
+	}
+	return u, nil
 }
 
 // Clone creates a deep copy of the client, safe for concurrent modification.
