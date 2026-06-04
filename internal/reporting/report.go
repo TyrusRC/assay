@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/scoring"
 )
 
 const (
@@ -23,8 +24,10 @@ type Report struct {
 	Summary     scanner.ScanSummary `json:"summary"`
 }
 
-// NewReport creates a new report from scan results.
+// NewReport creates a new report from scan results. It enriches findings with
+// default CVSS scores before computing the summary.
 func NewReport(result *scanner.ScanResult) *Report {
+	scoring.Enrich(result.Findings)
 	return &Report{
 		Version:     reportVersion,
 		Tool:        toolName,

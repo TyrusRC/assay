@@ -89,3 +89,14 @@ func TestReport_ToText(t *testing.T) {
 		t.Error("Text output should contain finding type")
 	}
 }
+
+func TestNewReport_EnrichesCVSS(t *testing.T) {
+	f := core.NewFinding("SQL Injection", core.SeverityCritical)
+	f.URL = "https://example.com/?id=1"
+	f.CWE = []string{"CWE-89"}
+	result := &scanner.ScanResult{Findings: core.Findings{f}}
+	_ = NewReport(result)
+	if f.CVSS < 9.0 {
+		t.Errorf("NewReport should enrich CVSS, got %v", f.CVSS)
+	}
+}
