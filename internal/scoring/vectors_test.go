@@ -33,10 +33,7 @@ func TestDefaultVector_SeverityFallback(t *testing.T) {
 		v := DefaultVector([]string{"CWE-99999"}, tt.sev)
 		if tt.sev == core.SeverityInfo {
 			if v != "" {
-				m, _ := ParseVector(v)
-				if m.BaseScore() != 0.0 {
-					t.Errorf("Info fallback score = %v, want 0.0", m.BaseScore())
-				}
+				t.Errorf("Info severity should map to an empty vector, got %q", v)
 			}
 			continue
 		}

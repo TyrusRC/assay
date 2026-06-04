@@ -214,8 +214,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := validateOutput(formats, outputDir); err != nil {
-		return err
+	if verr := validateOutput(formats, outputDir); verr != nil {
+		return verr
 	}
 
 	// Print the human banner only when emitting the default text report to stdout.

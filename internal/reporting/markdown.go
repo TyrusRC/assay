@@ -41,34 +41,39 @@ func (r *Report) WriteMarkdown(w io.Writer) error {
 		}
 		fmt.Fprintf(w, "\n## %s (%d)\n\n", sev, len(group))
 		for _, f := range group {
-			fmt.Fprintf(w, "### %s\n\n", f.Type)
-			if f.CVSS > 0 {
-				fmt.Fprintf(w, "- **CVSS:** %.1f", f.CVSS)
-				if f.CVSSVector != "" {
-					fmt.Fprintf(w, " (`%s`, default)", f.CVSSVector)
-				}
-				fmt.Fprintf(w, "\n")
-			}
-			fmt.Fprintf(w, "- **URL:** %s\n", f.URL)
-			if f.Parameter != "" {
-				fmt.Fprintf(w, "- **Parameter:** %s\n", f.Parameter)
-			}
-			if len(f.CWE) > 0 {
-				fmt.Fprintf(w, "- **CWE:** %s\n", strings.Join(f.CWE, ", "))
-			}
-			if len(f.Top10) > 0 {
-				fmt.Fprintf(w, "- **OWASP:** %s\n", strings.Join(f.Top10, ", "))
-			}
-			if f.Description != "" {
-				fmt.Fprintf(w, "\n%s\n", f.Description)
-			}
-			if f.Evidence != "" {
-				fmt.Fprintf(w, "\n```\n%s\n```\n", f.Evidence)
-			}
-			if f.Remediation != "" {
-				fmt.Fprintf(w, "\n**Remediation:** %s\n", f.Remediation)
-			}
+			writeMarkdownFinding(w, f)
 		}
 	}
 	return nil
+}
+
+// writeMarkdownFinding renders a single finding as a Markdown section.
+func writeMarkdownFinding(w io.Writer, f *core.Finding) {
+	fmt.Fprintf(w, "### %s\n\n", f.Type)
+	if f.CVSS > 0 {
+		fmt.Fprintf(w, "- **CVSS:** %.1f", f.CVSS)
+		if f.CVSSVector != "" {
+			fmt.Fprintf(w, " (`%s`, default)", f.CVSSVector)
+		}
+		fmt.Fprintf(w, "\n")
+	}
+	fmt.Fprintf(w, "- **URL:** %s\n", f.URL)
+	if f.Parameter != "" {
+		fmt.Fprintf(w, "- **Parameter:** %s\n", f.Parameter)
+	}
+	if len(f.CWE) > 0 {
+		fmt.Fprintf(w, "- **CWE:** %s\n", strings.Join(f.CWE, ", "))
+	}
+	if len(f.Top10) > 0 {
+		fmt.Fprintf(w, "- **OWASP:** %s\n", strings.Join(f.Top10, ", "))
+	}
+	if f.Description != "" {
+		fmt.Fprintf(w, "\n%s\n", f.Description)
+	}
+	if f.Evidence != "" {
+		fmt.Fprintf(w, "\n```\n%s\n```\n", f.Evidence)
+	}
+	if f.Remediation != "" {
+		fmt.Fprintf(w, "\n**Remediation:** %s\n", f.Remediation)
+	}
 }
