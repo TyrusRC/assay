@@ -24,6 +24,8 @@ var (
 	risk         int
 	jsonOutput   bool
 	htmlOutput   bool
+	formatList   string
+	outputDir    string
 	disableOOB   bool
 	noDiscovery  bool
 	storageInj   bool

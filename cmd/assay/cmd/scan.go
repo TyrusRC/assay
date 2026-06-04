@@ -63,6 +63,8 @@ func init() {
 	scanCmd.Flags().IntVar(&risk, "risk", 1, "Risk level (1-3)")
 	scanCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	scanCmd.Flags().BoolVar(&htmlOutput, "html", false, "Output results as HTML report")
+	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md")
+	scanCmd.Flags().StringVar(&outputDir, "output-dir", "", "Directory to write report files (required for multiple formats)")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -208,7 +210,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 		signal.Stop(sigChan)
 	}()
 
-	if !jsonOutput && !htmlOutput {
+	formats, err := resolveFormats(formatList, jsonOutput, htmlOutput)
+	if err != nil {
+		return err
+	}
+	if err := validateOutput(formats, outputDir); err != nil {
+		return err
+	}
+
+	// Print the human banner only when emitting the default text report to stdout.
+	if outputDir == "" && len(formats) == 1 && formats[0] == "text" {
 		if len(targets) == 1 {
 			printScanHeader(targets[0])
 		} else {
@@ -222,12 +233,5 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	report := reporting.NewReport(result)
-
-	if jsonOutput {
-		return report.WriteJSON(os.Stdout)
-	}
-	if htmlOutput {
-		return report.WriteHTML(os.Stdout)
-	}
-	return report.WriteText(os.Stdout)
+	return writeReports(report, formats, outputDir)
 }
