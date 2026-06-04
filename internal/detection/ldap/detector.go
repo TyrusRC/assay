@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/ldap"
 )
@@ -147,22 +148,12 @@ func (d *Detector) hasSignificantChange(resp, baseline *http.Response) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []ldap.Payload) []ldap.Payload {
-	seen := make(map[string]bool)
-	var unique []ldap.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p ldap.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a detected LDAP injection.
 func (d *Detector) createFinding(target, param string, payload ldap.Payload, resp *http.Response, detType string) *core.Finding {
-	finding := core.NewFinding("LDAP Injection", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("LDAP Injection", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf(
 		"LDAP Injection detected in parameter '%s' via %s detection. "+
 			"The application constructs LDAP queries using unsanitized user input, "+

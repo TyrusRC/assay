@@ -201,9 +201,7 @@ func (d *Detector) isReflectedUnescaped(body, baseline, payload string) bool {
 
 // createFinding creates a Finding from a successful CSV injection test.
 func (d *Detector) createFinding(target, param string, payload formulaPayload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("CSV/Formula Injection", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("CSV/Formula Injection", core.SeverityMedium).At(target, param)
 	finding.Description = fmt.Sprintf("CSV/Formula Injection vulnerability in '%s' parameter: %s",
 		param, payload.Description)
 

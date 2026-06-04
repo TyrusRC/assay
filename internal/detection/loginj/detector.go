@@ -295,9 +295,7 @@ func (d *Detector) hasFormatStringEvidence(body string) bool {
 
 // createFinding creates a Finding from a detected log injection vulnerability.
 func (d *Detector) createFinding(target, header string, payload loginj.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("Log Injection", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = header
+	finding := core.NewFinding("Log Injection", core.SeverityMedium).At(target, header)
 	finding.Description = fmt.Sprintf(
 		"Log Injection vulnerability detected via '%s' header. "+
 			"The application reflects unsanitized header values, "+

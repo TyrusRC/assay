@@ -240,9 +240,7 @@ func (d *Detector) hasResponseDifference(baseline, polluted *internalhttp.Respon
 
 // createFinding creates a Finding from a successful HPP detection.
 func (d *Detector) createFinding(target, param string, payload hpppayloads.Payload, resp *internalhttp.Response) *core.Finding {
-	finding := core.NewFinding("HTTP Parameter Pollution", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("HTTP Parameter Pollution", core.SeverityMedium).At(target, param)
 	finding.Description = fmt.Sprintf(
 		"HTTP Parameter Pollution vulnerability detected in '%s' parameter. "+
 			"The server responds differently when duplicate parameters are submitted, "+

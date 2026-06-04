@@ -115,9 +115,7 @@ func containsAny(haystack string, needles []string) (string, bool) {
 }
 
 func buildFinding(target, kind, marker, body string, sev core.Severity) *core.Finding {
-	finding := core.NewFinding("XSLT Injection", sev)
-	finding.URL = target
-	finding.Parameter = kind
+	finding := core.NewFinding("XSLT Injection", sev).At(target, kind)
 	finding.Tool = "xslt"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

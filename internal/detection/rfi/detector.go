@@ -9,6 +9,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/rfi"
 )
@@ -177,22 +178,12 @@ func isNarrowRFIPattern(pattern string) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []rfi.Payload) []rfi.Payload {
-	seen := make(map[string]bool)
-	var unique []rfi.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p rfi.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a detected RFI.
 func (d *Detector) createFinding(target, param string, payload rfi.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("Remote File Inclusion", core.SeverityCritical)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Remote File Inclusion", core.SeverityCritical).At(target, param)
 	finding.Description = fmt.Sprintf(
 		"Remote File Inclusion detected in parameter '%s'. The application includes content from remote URLs, "+
 			"allowing an attacker to execute arbitrary code by supplying a malicious URL.",

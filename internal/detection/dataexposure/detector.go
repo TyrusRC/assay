@@ -205,9 +205,7 @@ func buildFinding(targetURL string, h hit, alsoUnauth bool) *core.Finding {
 			severity = core.SeverityCritical
 		}
 	}
-	finding := core.NewFinding(title, severity)
-	finding.URL = targetURL
-	finding.Parameter = h.Path
+	finding := core.NewFinding(title, severity).At(targetURL, h.Path)
 	finding.Tool = "dataexposure"
 	finding.Confidence = core.ConfidenceHigh
 	desc := fmt.Sprintf(

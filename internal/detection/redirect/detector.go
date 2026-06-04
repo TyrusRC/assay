@@ -10,6 +10,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/redirect"
 )
@@ -340,15 +341,7 @@ func (d *Detector) isRedirectParam(resp, baseline *http.Response) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []redirect.Payload) []redirect.Payload {
-	seen := make(map[string]bool)
-	var unique []redirect.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p redirect.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful Open Redirect test.
@@ -359,9 +352,7 @@ func (d *Detector) createFinding(target, param string, payload redirect.Payload,
 		severity = core.SeverityMedium // Still medium but note bypass worked
 	}
 
-	finding := core.NewFinding("Open Redirect", severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Open Redirect", severity).At(target, param)
 	finding.Description = fmt.Sprintf("Open Redirect vulnerability in '%s' parameter", param)
 
 	if payload.BypassType != redirect.BypassNone {

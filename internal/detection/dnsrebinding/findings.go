@@ -25,9 +25,7 @@ func (d *Detector) toctouProbe(ctx context.Context, targetURL, ssrfParam, host s
 		return nil
 	}
 
-	f := core.NewFinding(TypeTOCTOU, core.SeverityHigh)
-	f.URL = targetURL
-	f.Parameter = ssrfParam
+	f := core.NewFinding(TypeTOCTOU, core.SeverityHigh).At(targetURL, ssrfParam)
 	f.Tool = toolName
 	f.Description = fmt.Sprintf(
 		"Server consistently fetched the rebinding test host %q across consecutive "+
@@ -50,9 +48,7 @@ func (d *Detector) toctouProbe(ctx context.Context, targetURL, ssrfParam, host s
 // toctouInformationalFinding emits the "TOCTOU probe skipped" placeholder
 // when the operator has not configured a rebinding test host.
 func (d *Detector) toctouInformationalFinding(targetURL, ssrfParam string) *core.Finding {
-	f := core.NewFinding(TypeTOCTOU, core.SeverityInfo)
-	f.URL = targetURL
-	f.Parameter = ssrfParam
+	f := core.NewFinding(TypeTOCTOU, core.SeverityInfo).At(targetURL, ssrfParam)
 	f.Tool = toolName
 	f.Description = "TOCTOU rebinding probe skipped: no operator-controlled rebinding test " +
 		"host was configured. Set DetectOptions.RebindingTestHost to a hostname you " +
@@ -104,9 +100,7 @@ func (d *Detector) buildShortTTLFinding(targetURL, host string, r1, r2 []net.IPA
 // buildAllowlistBypassFinding constructs the finding emitted by the
 // rebinding-friendly hostname probe loop in DetectAllowlistBypass.
 func (d *Detector) buildAllowlistBypassFinding(targetURL, ssrfParam, hostname string, resp *http.Response) *core.Finding {
-	f := core.NewFinding(TypeAllowlistBypass, core.SeverityCritical)
-	f.URL = targetURL
-	f.Parameter = ssrfParam
+	f := core.NewFinding(TypeAllowlistBypass, core.SeverityCritical).At(targetURL, ssrfParam)
 	f.Tool = toolName
 	f.Description = fmt.Sprintf(
 		"Server accepted and fetched a request to %q, a hostname that resolves to a "+

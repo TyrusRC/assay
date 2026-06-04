@@ -137,9 +137,7 @@ func (d *Detector) hasSSIExecution(body, baselineBody string, payload ssi.Payloa
 
 // createFinding creates a Finding from a successful SSI injection test.
 func (d *Detector) createFinding(target, param string, payload ssi.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("SSI Injection", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("SSI Injection", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf("SSI Injection vulnerability in '%s' parameter: server processed SSI directive from user input",
 		param)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s\nMarker found: %s",

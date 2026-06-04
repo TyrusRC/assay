@@ -9,6 +9,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/headerinj"
 )
@@ -176,22 +177,12 @@ func (d *Detector) hasCRLFReflection(body string, payload headerinj.Payload, bas
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []headerinj.Payload) []headerinj.Payload {
-	seen := make(map[string]bool)
-	var unique []headerinj.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p headerinj.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a detected header injection.
 func (d *Detector) createFinding(target, param string, payload headerinj.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("HTTP Header Injection", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("HTTP Header Injection", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf(
 		"HTTP Header Injection detected in parameter '%s'. "+
 			"The application includes user input in HTTP response headers without proper sanitization, "+

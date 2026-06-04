@@ -262,9 +262,7 @@ func (d *Detector) buildCloudAuthedFinding(
 	findingType, target, param, payload, description string,
 	resp *internalhttp.Response,
 ) *core.Finding {
-	f := core.NewFinding(findingType, core.SeverityCritical)
-	f.URL = target
-	f.Parameter = param
+	f := core.NewFinding(findingType, core.SeverityCritical).At(target, param)
 	f.Tool = toolNameCloudAuthed
 	f.Confidence = core.ConfidenceHigh
 	f.Description = description

@@ -364,9 +364,7 @@ func base64Encode(s string) string {
 }
 
 func buildFinding(target, payloadDesc, baseline, evidence string) *core.Finding {
-	finding := core.NewFinding("LLM Prompt Injection", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = payloadDesc
+	finding := core.NewFinding("LLM Prompt Injection", core.SeverityHigh).At(target, payloadDesc)
 	finding.Tool = "promptinjection"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = "The endpoint backs onto a language model that follows attacker-controlled instructions embedded in user input, overriding its system prompt. An attacker can extract the system prompt, change the assistant's role, or coerce it into emitting attacker-chosen text."

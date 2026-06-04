@@ -130,6 +130,39 @@ func TestFinding_WithOWASPMapping(t *testing.T) {
 	}
 }
 
+func TestFinding_At(t *testing.T) {
+	f := NewFinding("SQL Injection", SeverityCritical).At("https://example.com/p", "id")
+
+	if f.URL != "https://example.com/p" {
+		t.Errorf("Finding.URL = %q, want %q", f.URL, "https://example.com/p")
+	}
+	if f.Parameter != "id" {
+		t.Errorf("Finding.Parameter = %q, want %q", f.Parameter, "id")
+	}
+}
+
+func TestFinding_ByTool(t *testing.T) {
+	f := NewFinding("SQL Injection", SeverityCritical).ByTool("sqli-detector")
+
+	if f.Tool != "sqli-detector" {
+		t.Errorf("Finding.Tool = %q, want %q", f.Tool, "sqli-detector")
+	}
+}
+
+func TestFinding_FluentChaining(t *testing.T) {
+	f := NewFinding("XSS", SeverityHigh).
+		At("https://example.com", "q").
+		ByTool("xss-detector").
+		WithOWASPMapping([]string{"WSTG-INPV-02"}, []string{"A03:2021"}, []string{"CWE-79"})
+
+	if f.URL != "https://example.com" || f.Parameter != "q" || f.Tool != "xss-detector" {
+		t.Errorf("fluent chaining did not set fields: %+v", f)
+	}
+	if len(f.CWE) != 1 || f.CWE[0] != "CWE-79" {
+		t.Errorf("Finding.CWE = %v, want [CWE-79]", f.CWE)
+	}
+}
+
 func TestFinding_SetEvidence(t *testing.T) {
 	f := NewFinding("SQL Injection", SeverityCritical)
 	f.SetEvidence("Error message found", "GET /test?id=1' HTTP/1.1", "HTTP/1.1 500 Error")

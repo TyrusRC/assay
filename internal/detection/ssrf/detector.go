@@ -9,6 +9,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/analysis"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/ssrf"
 )
@@ -369,15 +370,7 @@ func (d *Detector) hasSSRFErrorIndicators(body string) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []ssrf.Payload) []ssrf.Payload {
-	seen := make(map[string]bool)
-	var unique []ssrf.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p ssrf.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful SSRF test.
@@ -387,9 +380,7 @@ func (d *Detector) createFinding(target, param string, payload ssrf.Payload, res
 		severity = core.SeverityCritical
 	}
 
-	finding := core.NewFinding("Server-Side Request Forgery (SSRF)", severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Server-Side Request Forgery (SSRF)", severity).At(target, param)
 	finding.Description = fmt.Sprintf("SSRF vulnerability in '%s' parameter (Target: %s, Protocol: %s)",
 		param, payload.Target, payload.Protocol)
 

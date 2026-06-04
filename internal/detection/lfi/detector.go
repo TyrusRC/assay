@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/lfi"
 )
@@ -322,22 +323,12 @@ func (d *Detector) looksLikeFileContent(content string) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []lfi.Payload) []lfi.Payload {
-	seen := make(map[string]bool)
-	var unique []lfi.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p lfi.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful LFI test.
 func (d *Detector) createFinding(target, param string, payload lfi.Payload, resp *http.Response, detectedFile string) *core.Finding {
-	finding := core.NewFinding("Local File Inclusion / Path Traversal", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Local File Inclusion / Path Traversal", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf("LFI/Path Traversal vulnerability in '%s' parameter (Technique: %s, Platform: %s)",
 		param, payload.Technique, payload.Platform)
 

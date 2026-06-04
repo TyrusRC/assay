@@ -161,9 +161,7 @@ func buildFinding(originalURL, probedURL, sibling string, resp *assayhttp.Respon
 	case sibling == "legacy", sibling == "v0", sibling == "alpha":
 		severity = core.SeverityHigh
 	}
-	finding := core.NewFinding("Reachable Sibling API Version", severity)
-	finding.URL = probedURL
-	finding.Parameter = sibling
+	finding := core.NewFinding("Reachable Sibling API Version", severity).At(probedURL, sibling)
 	finding.Tool = "apiversion"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

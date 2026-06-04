@@ -198,9 +198,7 @@ func formBody(kv map[string]string) string {
 }
 
 func buildFinding(target, kind string, baseStatus, probeStatus int) *core.Finding {
-	finding := core.NewFinding("Authentication Type-Juggling Bypass", core.SeverityCritical)
-	finding.URL = target
-	finding.Parameter = kind
+	finding := core.NewFinding("Authentication Type-Juggling Bypass", core.SeverityCritical).At(target, kind)
 	finding.Tool = "typejuggling"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

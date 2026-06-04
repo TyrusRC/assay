@@ -233,9 +233,7 @@ func (d *Detector) hasJNDIError(body string) bool {
 
 // createFinding creates a Finding from a detected JNDI injection.
 func (d *Detector) createFinding(target, injPoint, injType, payload string, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("JNDI Injection (Log4Shell)", core.SeverityCritical)
-	finding.URL = target
-	finding.Parameter = injPoint
+	finding := core.NewFinding("JNDI Injection (Log4Shell)", core.SeverityCritical).At(target, injPoint)
 	finding.Description = fmt.Sprintf(
 		"JNDI Injection (Log4Shell) detected via %s '%s'. "+
 			"The application processes JNDI lookup expressions from user input, "+

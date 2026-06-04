@@ -9,6 +9,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	internalctx "github.com/TyrusRC/assay/internal/detection/context"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/xss"
 )
@@ -311,15 +312,7 @@ func (d *Detector) htmlDecode(s string) string {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []xss.Payload) []xss.Payload {
-	seen := make(map[string]bool)
-	var unique []xss.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p xss.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful XSS test.
@@ -329,9 +322,7 @@ func (d *Detector) createFinding(target, param string, payload xss.Payload, resp
 		severity = core.SeverityCritical
 	}
 
-	finding := core.NewFinding("Cross-Site Scripting (XSS)", severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Cross-Site Scripting (XSS)", severity).At(target, param)
 	finding.Description = fmt.Sprintf("%s XSS vulnerability in '%s' parameter (%s context)",
 		payload.Type, param, payload.Context)
 	finding.Evidence = payload.Value

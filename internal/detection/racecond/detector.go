@@ -244,9 +244,7 @@ func (d *Detector) buildFinding(target, param, method string, baseline, burst []
 		title = "Race Condition (Confirmed Double-Effect)"
 	}
 
-	finding := core.NewFinding(title, severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding(title, severity).At(target, param)
 	finding.Tool = "racecond-detector"
 
 	finding.Description = fmt.Sprintf(

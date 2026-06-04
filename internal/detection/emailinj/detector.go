@@ -136,9 +136,7 @@ func (d *Detector) hasHeaderInjection(body, baselineBody string, payload emailin
 
 // createFinding creates a Finding from a successful email header injection test.
 func (d *Detector) createFinding(target, param string, payload emailinj.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("Email Header Injection", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Email Header Injection", core.SeverityMedium).At(target, param)
 	finding.Description = fmt.Sprintf("Email Header Injection vulnerability in '%s' parameter: CRLF sequences processed as additional email headers",
 		param)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s\nMarker found: %s",

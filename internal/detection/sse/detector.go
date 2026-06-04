@@ -120,9 +120,7 @@ func isSSEResponse(contentType, body string) bool {
 }
 
 func buildFinding(probedURL, path string, resp *assayhttp.Response) *core.Finding {
-	finding := core.NewFinding("Unauthenticated Server-Sent Events Stream", core.SeverityHigh)
-	finding.URL = probedURL
-	finding.Parameter = path
+	finding := core.NewFinding("Unauthenticated Server-Sent Events Stream", core.SeverityHigh).At(probedURL, path)
 	finding.Tool = "sse"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = "The endpoint returned a text/event-stream response to an unauthenticated GET. SSE channels typically push state updates that the application's UI gates behind login, so an unauthenticated subscriber can listen to every event the server emits."

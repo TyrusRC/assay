@@ -69,9 +69,7 @@ func (d *Detector) sendJSON(ctx context.Context, target, method string, body map
 // newFinding centralizes the OWASP / metadata boilerplate so every probe
 // emits a consistent Finding shape.
 func newFinding(sev core.Severity, target, field, description, evidence string) *core.Finding {
-	f := core.NewFinding("OpenAPI Semantic Bypass", sev)
-	f.URL = target
-	f.Parameter = field
+	f := core.NewFinding("OpenAPI Semantic Bypass", sev).At(target, field)
 	f.Description = description
 	f.Evidence = evidence
 	f.Tool = detectorTool

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/cmdi"
 )
@@ -225,22 +226,12 @@ func (d *Detector) hasCommandOutput(body, baseline string, payload cmdi.Payload)
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []cmdi.Payload) []cmdi.Payload {
-	seen := make(map[string]bool)
-	var unique []cmdi.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p cmdi.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful CMDI test.
 func (d *Detector) createFinding(target, param string, payload cmdi.Payload, resp *http.Response, detectionType string) *core.Finding {
-	finding := core.NewFinding("Command Injection", core.SeverityCritical)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Command Injection", core.SeverityCritical).At(target, param)
 	finding.Description = fmt.Sprintf("%s Command Injection vulnerability in '%s' parameter (Platform: %s, Type: %s)",
 		detectionType, param, payload.Platform, payload.Type)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s", payload.Value, payload.Description)

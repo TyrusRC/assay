@@ -235,9 +235,7 @@ func (d *Detector) createFinding(
 	resp *http.Response,
 ) *core.Finding {
 	vulnType, severity := findingTypeAndSeverity(strategy.Name)
-	finding := core.NewFinding(vulnType, severity)
-	finding.URL = targetURL
-	finding.Parameter = point.Field
+	finding := core.NewFinding(vulnType, severity).At(targetURL, point.Field)
 	finding.Tool = "secondorder-detector"
 	finding.Confidence = core.ConfidenceMedium
 

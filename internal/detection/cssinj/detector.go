@@ -136,9 +136,7 @@ func (d *Detector) isReflected(body, baselineBody string, payload cssinj.Payload
 
 // createFinding creates a Finding from a successful CSS injection test.
 func (d *Detector) createFinding(target, param string, payload cssinj.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("CSS Injection", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("CSS Injection", core.SeverityMedium).At(target, param)
 	finding.Description = fmt.Sprintf("CSS Injection vulnerability in '%s' parameter: injected CSS payload reflected unfiltered in response",
 		param)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s\nMarker found in response: %s",

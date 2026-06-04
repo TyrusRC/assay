@@ -171,9 +171,7 @@ func setQueryParam(u *url.URL, name, value string) string {
 }
 
 func buildFinding(targetURL, param, payloadDesc string, base, payload time.Duration) *core.Finding {
-	finding := core.NewFinding("Regular Expression Denial of Service (ReDoS)", core.SeverityMedium)
-	finding.URL = targetURL
-	finding.Parameter = param
+	finding := core.NewFinding("Regular Expression Denial of Service (ReDoS)", core.SeverityMedium).At(targetURL, param)
 	finding.Tool = "redos"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

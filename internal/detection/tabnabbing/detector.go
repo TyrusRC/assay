@@ -125,9 +125,7 @@ func evaluateAnchor(n *html.Node) (string, bool) {
 }
 
 func buildFinding(targetURL, href string) *core.Finding {
-	finding := core.NewFinding("Reverse Tabnabbing (target=_blank without rel=noopener)", core.SeverityLow)
-	finding.URL = targetURL
-	finding.Parameter = href
+	finding := core.NewFinding("Reverse Tabnabbing (target=_blank without rel=noopener)", core.SeverityLow).At(targetURL, href)
 	finding.Tool = "tabnabbing"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

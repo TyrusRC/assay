@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/crlf"
 )
@@ -336,15 +337,7 @@ func (d *Detector) hasReflectedCRLFPatterns(body string, payload crlf.Payload) b
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []crlf.Payload) []crlf.Payload {
-	seen := make(map[string]bool)
-	var unique []crlf.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p crlf.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful CRLF injection.
@@ -358,9 +351,7 @@ func (d *Detector) createFinding(target, param string, payload crlf.Payload, res
 		severity = core.SeverityHigh
 	}
 
-	finding := core.NewFinding("CRLF Injection", severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("CRLF Injection", severity).At(target, param)
 	finding.Description = fmt.Sprintf("CRLF Injection vulnerability in '%s' parameter", param)
 
 	if payload.InjectionType == crlf.InjectionHeader {

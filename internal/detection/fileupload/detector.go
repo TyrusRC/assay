@@ -297,9 +297,7 @@ func (d *Detector) isUploadAccepted(resp *http.Response, filename string) bool {
 
 // createFinding creates a Finding from a successful file upload test.
 func (d *Detector) createFinding(target, param, filename, mimeType string, resp *http.Response, detectionType string) *core.Finding {
-	finding := core.NewFinding("File Upload Vulnerability", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("File Upload Vulnerability", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf("%s file upload vulnerability detected: server accepted '%s' with content type '%s'",
 		detectionType, filename, mimeType)
 	finding.Evidence = fmt.Sprintf("Filename: %s\nMIME Type: %s\nDetection: %s\nStatus Code: %d",

@@ -140,9 +140,7 @@ func isSafeForUndocProbe(v string) bool {
 }
 
 func buildAuthBypassFinding(url string, ep Endpoint, resp *assayhttp.Response) *core.Finding {
-	finding := core.NewFinding("Spec-Documented Auth Not Enforced", core.SeverityCritical)
-	finding.URL = url
-	finding.Parameter = ep.Path
+	finding := core.NewFinding("Spec-Documented Auth Not Enforced", core.SeverityCritical).At(url, ep.Path)
 	finding.Tool = "apispec"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(
@@ -162,9 +160,7 @@ func buildAuthBypassFinding(url string, ep Endpoint, resp *assayhttp.Response) *
 }
 
 func buildUndocVerbFinding(url string, ep Endpoint, verb string, status int) *core.Finding {
-	finding := core.NewFinding("Undocumented HTTP Verb Accepted", core.SeverityMedium)
-	finding.URL = url
-	finding.Parameter = verb
+	finding := core.NewFinding("Undocumented HTTP Verb Accepted", core.SeverityMedium).At(url, verb)
 	finding.Tool = "apispec"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

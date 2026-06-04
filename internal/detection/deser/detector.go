@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/deser"
 )
@@ -252,15 +253,7 @@ func (d *Detector) collectPayloads(opts DetectOptions) []deserPayload {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []deserPayload) []deserPayload {
-	seen := make(map[string]bool)
-	var unique []deserPayload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p deserPayload) string { return p.Value })
 }
 
 // hasStatusCodeChange checks if the response status code indicates deserialization processing.
@@ -274,9 +267,7 @@ func (d *Detector) hasStatusCodeChange(baseline, current int) bool {
 
 // createFinding creates a Finding from a successful deserialization test.
 func (d *Detector) createFinding(target, param string, payload deserPayload, resp *http.Response, detectionType string) *core.Finding {
-	finding := core.NewFinding("Insecure Deserialization", core.SeverityCritical)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Insecure Deserialization", core.SeverityCritical).At(target, param)
 	finding.Description = fmt.Sprintf("%s Insecure Deserialization vulnerability in '%s' parameter (Platform: %s, Technique: %s)",
 		detectionType, param, payload.Variant, payload.Technique)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s", payload.Value, payload.Description)

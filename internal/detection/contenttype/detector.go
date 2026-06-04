@@ -139,9 +139,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 }
 
 func buildFinding(target string, alt alternativeParser, resp *assayhttp.Response) *core.Finding {
-	finding := core.NewFinding("Content-Type Confusion", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = alt.contentType
+	finding := core.NewFinding("Content-Type Confusion", core.SeverityMedium).At(target, alt.contentType)
 	finding.Tool = "contenttype"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

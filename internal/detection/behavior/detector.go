@@ -411,9 +411,7 @@ func (d *Detector) CreateFinding(target, param string, anomaly *Anomaly) *core.F
 		severity = core.SeverityMedium
 	}
 
-	finding := core.NewFinding(fmt.Sprintf("Behavioral Anomaly: %s", anomaly.Type), severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding(fmt.Sprintf("Behavioral Anomaly: %s", anomaly.Type), severity).At(target, param)
 	finding.Description = anomaly.Description
 	finding.Evidence = fmt.Sprintf("Payload: %s\n%s", anomaly.Payload, anomaly.Evidence)
 	finding.Confidence = anomaly.Confidence

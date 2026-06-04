@@ -99,6 +99,21 @@ func (f *Finding) WithOWASPMapping(wstg, top10, cwe []string) *Finding {
 	return f
 }
 
+// At sets the URL and parameter the finding was discovered at and returns the
+// finding for fluent chaining.
+func (f *Finding) At(url, parameter string) *Finding {
+	f.URL = url
+	f.Parameter = parameter
+	return f
+}
+
+// ByTool records the detector or tool that produced the finding and returns
+// the finding for fluent chaining.
+func (f *Finding) ByTool(tool string) *Finding {
+	f.Tool = tool
+	return f
+}
+
 // SetEvidence sets the evidence details for the finding.
 func (f *Finding) SetEvidence(evidence, request, response string) *Finding {
 	f.Evidence = evidence

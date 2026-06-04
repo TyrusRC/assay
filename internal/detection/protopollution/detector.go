@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/protopollution"
 )
@@ -171,22 +172,12 @@ func (d *Detector) analyzeResponse(baseline, injected, payload string) bool {
 
 // deduplicatePayloads removes duplicate payloads by value.
 func (d *Detector) deduplicatePayloads(payloads []protopollution.Payload) []protopollution.Payload {
-	seen := make(map[string]bool)
-	var unique []protopollution.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p protopollution.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a successful prototype pollution test.
 func (d *Detector) createFinding(target, param string, payload protopollution.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("Prototype Pollution", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Prototype Pollution", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf("Prototype Pollution vulnerability in '%s' parameter (Technique: %s)",
 		param, payload.Technique)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s", payload.Value, payload.Description)

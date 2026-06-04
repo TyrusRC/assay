@@ -231,9 +231,7 @@ func (d *Detector) extractHSTSMaxAge(value string) int {
 func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck, target string) *core.Finding {
 	severity := d.mapSeverity(check.Severity)
 
-	finding := core.NewFinding("Missing Security Header", severity)
-	finding.URL = target
-	finding.Parameter = check.Name
+	finding := core.NewFinding("Missing Security Header", severity).At(target, check.Name)
 	finding.Description = fmt.Sprintf("Security header '%s' is missing. %s", check.Name, check.Description)
 	finding.Evidence = fmt.Sprintf("Header '%s' was not present in the response", check.Name)
 	finding.Tool = "secheaders-detector"
@@ -255,9 +253,7 @@ func (d *Detector) createMissingHeaderFinding(check secheaders.HeaderCheck, targ
 func (d *Detector) createInsecureHeaderFinding(check secheaders.HeaderCheck, value, target string) *core.Finding {
 	severity := d.mapSeverity(check.Severity)
 
-	finding := core.NewFinding("Insecure Security Header", severity)
-	finding.URL = target
-	finding.Parameter = check.Name
+	finding := core.NewFinding("Insecure Security Header", severity).At(target, check.Name)
 	finding.Description = fmt.Sprintf("Security header '%s' has an insecure configuration. %s", check.Name, check.Description)
 	finding.Evidence = fmt.Sprintf("Header: %s: %s", check.Name, value)
 	finding.Tool = "secheaders-detector"
@@ -279,9 +275,7 @@ func (d *Detector) createInsecureHeaderFinding(check secheaders.HeaderCheck, val
 func (d *Detector) createInfoDisclosureFinding(ih secheaders.InsecureHeader, value, target string) *core.Finding {
 	severity := d.mapSeverity(ih.Severity)
 
-	finding := core.NewFinding("Information Disclosure Header", severity)
-	finding.URL = target
-	finding.Parameter = ih.Name
+	finding := core.NewFinding("Information Disclosure Header", severity).At(target, ih.Name)
 	finding.Description = fmt.Sprintf("Header '%s' reveals sensitive information. %s", ih.Name, ih.Description)
 	finding.Evidence = fmt.Sprintf("Header: %s: %s", ih.Name, value)
 	finding.Tool = "secheaders-detector"

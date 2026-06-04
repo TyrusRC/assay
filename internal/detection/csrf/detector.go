@@ -152,9 +152,7 @@ func pathLooksStateChange(path string) bool {
 }
 
 func buildFinding(targetURL, method string, status int) *core.Finding {
-	finding := core.NewFinding("Cross-Site Request Forgery (Missing Origin Check)", core.SeverityHigh)
-	finding.URL = targetURL
-	finding.Parameter = method
+	finding := core.NewFinding("Cross-Site Request Forgery (Missing Origin Check)", core.SeverityHigh).At(targetURL, method)
 	finding.Tool = "csrf"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

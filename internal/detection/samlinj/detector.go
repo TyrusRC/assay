@@ -155,9 +155,7 @@ func (d *Detector) probe(ctx context.Context, target, payload string) (bool, cor
 }
 
 func buildFinding(target, path, kind string, severity core.Severity) *core.Finding {
-	finding := core.NewFinding("SAML Validator Bypass Surface ("+kind+")", severity)
-	finding.URL = target
-	finding.Parameter = path
+	finding := core.NewFinding("SAML Validator Bypass Surface ("+kind+")", severity).At(target, path)
 	finding.Tool = "samlinj"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

@@ -137,9 +137,7 @@ func (d *Detector) isReflected(body, baseline string, payload htmlinj.Payload) b
 
 // createFinding creates a Finding from a successful HTML injection test.
 func (d *Detector) createFinding(target, param string, payload htmlinj.Payload, resp *http.Response) *core.Finding {
-	finding := core.NewFinding("HTML Injection", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("HTML Injection", core.SeverityMedium).At(target, param)
 	finding.Description = fmt.Sprintf("HTML Injection vulnerability in '%s' parameter: injected HTML tag reflected unencoded in response",
 		param)
 	finding.Evidence = fmt.Sprintf("Payload: %s\nDescription: %s\nMarker found in response: %s",

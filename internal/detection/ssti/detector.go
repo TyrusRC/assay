@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/ssti"
 )
@@ -217,13 +218,5 @@ func (d *Detector) establishBaseline(ctx context.Context, target, param, method 
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []ssti.Payload) []ssti.Payload {
-	seen := make(map[string]bool)
-	var unique []ssti.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p ssti.Payload) string { return p.Value })
 }

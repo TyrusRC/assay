@@ -319,9 +319,7 @@ func (d *Detector) checkSessionFixation(ctx context.Context, target, cookieName 
 
 // createFinding builds a core.Finding with the standard fields populated.
 func (d *Detector) createFinding(target, param string, sev core.Severity, desc, evidence, tool string) *core.Finding {
-	f := core.NewFinding("Cookie/Session Misconfiguration", sev)
-	f.URL = target
-	f.Parameter = param
+	f := core.NewFinding("Cookie/Session Misconfiguration", sev).At(target, param)
 	f.Description = desc
 	f.Evidence = evidence
 	f.Tool = "storage-detector/" + tool

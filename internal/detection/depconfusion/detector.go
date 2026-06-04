@@ -193,9 +193,7 @@ func buildFinding(target, path, ecosystem string, vulnerable []string, severity 
 	if len(vulnerable) > 0 {
 		title = "Dependency Confusion Candidate (" + ecosystem + ")"
 	}
-	finding := core.NewFinding(title, severity)
-	finding.URL = target
-	finding.Parameter = path
+	finding := core.NewFinding(title, severity).At(target, path)
 	finding.Tool = "depconfusion"
 	finding.Confidence = core.ConfidenceHigh
 	if len(vulnerable) > 0 {

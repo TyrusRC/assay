@@ -187,9 +187,7 @@ func (d *Detector) Detect(ctx context.Context, targetURL string) (*Result, error
 }
 
 func buildFinding(probedURL, path, note string, severity core.Severity, resp *assayhttp.Response) *core.Finding {
-	finding := core.NewFinding("Reachable Admin / Debug Endpoint", severity)
-	finding.URL = probedURL
-	finding.Parameter = path
+	finding := core.NewFinding("Reachable Admin / Debug Endpoint", severity).At(probedURL, path)
 	finding.Tool = "adminpath"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

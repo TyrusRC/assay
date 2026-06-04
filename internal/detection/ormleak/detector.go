@@ -184,9 +184,7 @@ func looksJSON(contentType, body string) bool {
 }
 
 func buildFinding(target, paramName, value string, newKeys []string, resp *assayhttp.Response) *core.Finding {
-	finding := core.NewFinding("ORM Over-Fetch via Expansion Parameter", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = paramName
+	finding := core.NewFinding("ORM Over-Fetch via Expansion Parameter", core.SeverityHigh).At(target, paramName)
 	finding.Tool = "ormleak"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = fmt.Sprintf(

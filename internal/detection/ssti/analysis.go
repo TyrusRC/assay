@@ -150,9 +150,7 @@ func (d *Detector) createFinding(target, param string, payload ssti.Payload, res
 		engineName = "unknown"
 	}
 
-	finding := core.NewFinding("Server-Side Template Injection (SSTI)", severity)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("Server-Side Template Injection (SSTI)", severity).At(target, param)
 	finding.Description = fmt.Sprintf("SSTI vulnerability in '%s' parameter (detected engine: %s, payload type: %s)",
 		param, engineName, payload.Type)
 	finding.Evidence = payload.Value

@@ -204,9 +204,7 @@ func extractEmbeddedTokens(body string) map[string]string {
 }
 
 func buildFinding(target, name, value, source, reason string) *core.Finding {
-	finding := core.NewFinding("Insecure-Randomness Token", core.SeverityMedium)
-	finding.URL = target
-	finding.Parameter = name
+	finding := core.NewFinding("Insecure-Randomness Token", core.SeverityMedium).At(target, name)
 	finding.Tool = "tokenentropy"
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(

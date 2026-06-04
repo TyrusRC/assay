@@ -139,9 +139,7 @@ func extractServiceNames(body string) []string {
 }
 
 func buildFinding(probedURL, path string, resp *assayhttp.Response, services []string) *core.Finding {
-	finding := core.NewFinding("gRPC Server Reflection Exposed", core.SeverityMedium)
-	finding.URL = probedURL
-	finding.Parameter = path
+	finding := core.NewFinding("gRPC Server Reflection Exposed", core.SeverityMedium).At(probedURL, path)
 	finding.Tool = "grpcreflect"
 	finding.Confidence = core.ConfidenceHigh
 	finding.Description = "The server responded to a gRPC reflection list_services call, exposing the full set of internal service definitions to any caller. An attacker can use this to map every method and message type the server understands."

@@ -43,9 +43,7 @@ func (d *Detector) createFinding(targetURL string, param IDParameter, evidence *
 		severity = core.SeverityCritical
 	}
 
-	finding := core.NewFinding("Insecure Direct Object Reference (IDOR)", severity)
-	finding.URL = targetURL
-	finding.Parameter = param.Name
+	finding := core.NewFinding("Insecure Direct Object Reference (IDOR)", severity).At(targetURL, param.Name)
 	finding.Tool = "idor-detector"
 	finding.Confidence = d.calculateConfidence(evidence)
 

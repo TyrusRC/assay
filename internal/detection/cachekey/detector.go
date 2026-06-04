@@ -199,7 +199,6 @@ func (d *Detector) probeEncodedSlash(ctx context.Context, u *url.URL, opts Detec
 	return baseline.Body != probe.Body || baseline.StatusCode != probe.StatusCode
 }
 
-
 // firstParam returns the name and value of the first query parameter
 // in u, plus an ok flag.
 func firstParam(u *url.URL) (string, string, bool) {

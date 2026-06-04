@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/dedup"
 	"github.com/TyrusRC/assay/internal/http"
 	"github.com/TyrusRC/assay/internal/payloads/xpath"
 )
@@ -142,22 +143,12 @@ func (d *Detector) hasSignificantChange(resp, baseline *http.Response) bool {
 
 // deduplicatePayloads removes duplicate payloads.
 func (d *Detector) deduplicatePayloads(payloads []xpath.Payload) []xpath.Payload {
-	seen := make(map[string]bool)
-	var unique []xpath.Payload
-	for _, p := range payloads {
-		if !seen[p.Value] {
-			seen[p.Value] = true
-			unique = append(unique, p)
-		}
-	}
-	return unique
+	return dedup.ByKey(payloads, func(p xpath.Payload) string { return p.Value })
 }
 
 // createFinding creates a Finding from a detected XPath injection.
 func (d *Detector) createFinding(target, param string, payload xpath.Payload, resp *http.Response, detType string) *core.Finding {
-	finding := core.NewFinding("XPath Injection", core.SeverityHigh)
-	finding.URL = target
-	finding.Parameter = param
+	finding := core.NewFinding("XPath Injection", core.SeverityHigh).At(target, param)
 	finding.Description = fmt.Sprintf(
 		"XPath Injection detected in parameter '%s' via %s detection. "+
 			"The application constructs XPath queries using unsanitized user input, "+
