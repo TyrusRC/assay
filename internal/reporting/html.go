@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/scoring"
 )
 
 type htmlFinding struct {
@@ -48,18 +49,20 @@ type htmlOWASP struct {
 }
 
 type htmlData struct {
-	Tool         string
-	Version      string
-	GeneratedAt  string
-	Duration     string
-	Targets      []string
-	Technologies []string
-	ToolsRun     int
-	ToolsSkipped int
-	Total        int
-	BySeverity   []htmlSevCount
-	OWASP        []htmlOWASP
-	Groups       []htmlSeverityGroup
+	Tool          string
+	Version       string
+	GeneratedAt   string
+	Duration      string
+	Targets       []string
+	Technologies  []string
+	ToolsRun      int
+	ToolsSkipped  int
+	Total         int
+	HighestCVSS   float64
+	HighestRating string
+	BySeverity    []htmlSevCount
+	OWASP         []htmlOWASP
+	Groups        []htmlSeverityGroup
 }
 
 // capitalizeSeverity returns the severity label with the first letter
@@ -84,6 +87,8 @@ func severityClass(s core.Severity) string {
 		return "medium"
 	case core.SeverityLow:
 		return "low"
+	case core.SeverityInfo:
+		return "info"
 	default:
 		return "info"
 	}
@@ -96,15 +101,17 @@ func (r *Report) WriteHTML(w io.Writer) error {
 	st := computeStats(res.Findings)
 
 	data := htmlData{
-		Tool:         r.Tool,
-		Version:      r.Version,
-		GeneratedAt:  r.GeneratedAt.Format(time.RFC3339),
-		Duration:     res.Duration.Round(time.Second).String(),
-		Targets:      res.Targets,
-		Technologies: res.Technologies,
-		ToolsRun:     res.ToolsRun,
-		ToolsSkipped: res.ToolsSkipped,
-		Total:        st.Total,
+		Tool:          r.Tool,
+		Version:       r.Version,
+		GeneratedAt:   r.GeneratedAt.Format(time.RFC3339),
+		Duration:      res.Duration.Round(time.Second).String(),
+		Targets:       res.Targets,
+		Technologies:  res.Technologies,
+		ToolsRun:      res.ToolsRun,
+		ToolsSkipped:  res.ToolsSkipped,
+		Total:         st.Total,
+		HighestCVSS:   st.HighestCVSS,
+		HighestRating: scoring.Rating(st.HighestCVSS),
 	}
 	for _, sev := range severityOrder {
 		count := st.BySeverity[sev]
@@ -181,6 +188,7 @@ details{margin-top:8px}summary{cursor:pointer;font-size:13px;color:#11243b}
 <div class="dash">
 {{range .BySeverity}}<div class="card"><div class="n">{{.Count}}</div><span class="badge {{.Class}}">{{.Severity}}</span></div>{{end}}
 <div class="card"><div class="n">{{.Total}}</div>Total</div>
+{{if gt .HighestCVSS 0.0}}<div class="card"><div class="n">{{printf "%.1f" .HighestCVSS}}</div>Highest CVSS ({{.HighestRating}})</div>{{end}}
 </div>
 <div class="bar">
 {{range .BySeverity}}{{if .Count}}<div class="seg {{.Class}}" style="width:{{.Pct}}%"></div>{{end}}{{end}}

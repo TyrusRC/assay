@@ -27,7 +27,7 @@ func TestWriteHTML_RichReport(t *testing.T) {
 		t.Fatalf("WriteHTML error: %v", err)
 	}
 	out := buf.String()
-	for _, want := range []string{"<!DOCTYPE html>", "assay", "SQL Injection", "Critical", "CWE-89", "9.8"} {
+	for _, want := range []string{"<!DOCTYPE html>", "assay", "SQL Injection", "Critical", "CWE-89", "9.8", "Highest CVSS"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("HTML missing %q", want)
 		}
