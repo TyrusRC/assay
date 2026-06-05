@@ -32,6 +32,13 @@ type fileConfig struct {
 	CrawlPages  int      `yaml:"crawl_max_pages"`
 	NucleiTags  string   `yaml:"nuclei_tags"`
 	NucleiSev   string   `yaml:"nuclei_severity"`
+
+	LoginURL       string `yaml:"login_url"`
+	LoginUser      string `yaml:"login_user"`
+	LoginPass      string `yaml:"login_pass"`
+	LoginUserField string `yaml:"login_user_field"`
+	LoginPassField string `yaml:"login_pass_field"`
+	LoginSuccess   string `yaml:"login_success"`
 }
 
 // defaultConfigFiles are auto-detected in the working directory when --config
@@ -123,6 +130,13 @@ func applyFileConfig(cmd *cobra.Command, fc *fileConfig) error {
 	crawlPages = pickInt(changed("crawl-max-pages"), crawlPages, fc.CrawlPages)
 	nucleiTags = pickString(changed("nuclei-tags"), nucleiTags, fc.NucleiTags)
 	nucleiSev = pickString(changed("nuclei-severity"), nucleiSev, fc.NucleiSev)
+
+	loginURL = pickString(changed("login-url"), loginURL, fc.LoginURL)
+	loginUser = pickString(changed("login-user"), loginUser, fc.LoginUser)
+	loginPass = pickString(changed("login-pass"), loginPass, fc.LoginPass)
+	loginUserField = pickString(changed("login-user-field"), loginUserField, fc.LoginUserField)
+	loginPassField = pickString(changed("login-pass-field"), loginPassField, fc.LoginPassField)
+	loginSuccess = pickString(changed("login-success"), loginSuccess, fc.LoginSuccess)
 
 	if !changed("header") && len(headers) == 0 {
 		headers = fc.Headers

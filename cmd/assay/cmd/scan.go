@@ -68,6 +68,12 @@ func init() {
 	scanCmd.Flags().StringVar(&outputDir, "output-dir", "", "Directory to write report files (required for multiple formats)")
 	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero (code 2) if any finding is at or above this severity: critical,high,medium,low (default: never fail)")
 	scanCmd.Flags().StringVar(&configPath, "config", "", "Path to a YAML config file (auto-detects assay.yaml in the working dir); CLI flags override file values")
+	scanCmd.Flags().StringVar(&loginURL, "login-url", "", "URL of an HTML login form; assay logs in and scans with the captured session")
+	scanCmd.Flags().StringVar(&loginUser, "login-user", "", "Username to submit to the login form")
+	scanCmd.Flags().StringVar(&loginPass, "login-pass", "", "Password to submit to the login form")
+	scanCmd.Flags().StringVar(&loginUserField, "login-user-field", "", "Login form username field name (auto-detected if empty)")
+	scanCmd.Flags().StringVar(&loginPassField, "login-pass-field", "", "Login form password field name (auto-detected if empty)")
+	scanCmd.Flags().StringVar(&loginSuccess, "login-success", "", "Substring expected in the post-login response to confirm success")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -162,12 +168,26 @@ func runScan(cmd *cobra.Command, args []string) error {
 	s := scanner.New()
 	defer s.Close()
 
+	sessionCookies := cookies
+	if loginURL != "" {
+		loginCtx, loginCancel := context.WithTimeout(context.Background(), 60*time.Second)
+		got, lerr := performLogin(loginCtx)
+		loginCancel()
+		if lerr != nil {
+			return fmt.Errorf("login failed: %w", lerr)
+		}
+		sessionCookies = mergeCookies(cookies, got)
+		if verbose {
+			fmt.Fprintln(os.Stderr, "[*] Authenticated: scanning with captured session")
+		}
+	}
+
 	config := &scanner.Config{
 		Timeout:     timeout,
 		Concurrency: concurrency,
 		Verbose:     verbose,
 		Headers:     headerMap,
-		Cookies:     cookies,
+		Cookies:     sessionCookies,
 		UserAgent:   userAgent,
 		Data:        data,
 		Method:      method,

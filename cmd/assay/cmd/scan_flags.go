@@ -36,6 +36,12 @@ var (
 	crawlPages     int
 	configPath     string
 	cfgFileTargets []string
+	loginURL       string
+	loginUser      string
+	loginPass      string
+	loginUserField string
+	loginPassField string
+	loginSuccess   string
 	targetList     string
 	templateDir    string
 	profile        string
