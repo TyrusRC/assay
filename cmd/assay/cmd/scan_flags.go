@@ -60,6 +60,7 @@ var (
 	h2ResetOpt     bool
 	noCSRF         bool
 	noTabnab       bool
+	noCSPT         bool
 	redosOpt       bool
 	noPromptInj    bool
 	noXSLT         bool
@@ -157,6 +158,9 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	}
 	if noTabnab {
 		internalConfig.EnableTabnabbing = false
+	}
+	if noCSPT {
+		internalConfig.EnableCSPT = false
 	}
 	if redosOpt {
 		internalConfig.EnableReDoS = true

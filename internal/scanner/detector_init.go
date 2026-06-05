@@ -19,6 +19,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/contenttype"
 	"github.com/TyrusRC/assay/internal/detection/cors"
 	"github.com/TyrusRC/assay/internal/detection/crlf"
+	"github.com/TyrusRC/assay/internal/detection/cspt"
 	"github.com/TyrusRC/assay/internal/detection/csrf"
 	"github.com/TyrusRC/assay/internal/detection/cssinj"
 	"github.com/TyrusRC/assay/internal/detection/csti"
@@ -178,6 +179,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.h2ResetDetector = h2reset.New()
 	s.csrfDetector = csrf.New(httpClient)
 	s.tabnabbingDetector = tabnabbing.New(httpClient)
+	s.csptDetector = cspt.New(httpClient)
 	s.redosDetector = redos.New(httpClient)
 	s.promptInjDetector = promptinjection.New(httpClient)
 	s.xsltDetector = xslt.New(httpClient)

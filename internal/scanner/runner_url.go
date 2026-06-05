@@ -171,6 +171,7 @@ func (s *InternalScanner) launchURLModern(ctx context.Context, wg *sync.WaitGrou
 	c := s.config
 	s.launchIf(wg, c.EnableCSRF, func() { emit(ctx, findingsChan, s.testCSRF(ctx, targetURL, scanCfg)) })
 	s.launchIf(wg, c.EnableTabnabbing, func() { emit(ctx, findingsChan, s.testTabnabbing(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableCSPT, func() { emit(ctx, findingsChan, s.testCSPT(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableReDoS, func() { emit(ctx, findingsChan, s.testReDoS(ctx, targetURL)) })
 	s.launchIf(wg, c.EnablePromptInj, func() { emit(ctx, findingsChan, s.testPromptInjection(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableXSLT, func() { emit(ctx, findingsChan, s.testXSLT(ctx, targetURL)) })

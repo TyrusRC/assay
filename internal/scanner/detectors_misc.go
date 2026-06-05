@@ -146,6 +146,22 @@ func (s *InternalScanner) testTabnabbing(ctx context.Context, targetURL string) 
 	return res.Findings
 }
 
+// testCSPT scans the page's inline and linked JavaScript for client-side
+// path-traversal sinks (tainted input concatenated into a fetch/XHR path).
+func (s *InternalScanner) testCSPT(ctx context.Context, targetURL string) []*core.Finding {
+	if s.csptDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Scanning JavaScript for client-side path traversal on '%s'...\n", targetURL)
+	}
+	res, err := s.csptDetector.Detect(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testReDoS times pathological-input requests against regex-shaped
 // query parameters (OWASP A04, API4). Off by default — adds latency.
 func (s *InternalScanner) testReDoS(ctx context.Context, targetURL string) []*core.Finding {

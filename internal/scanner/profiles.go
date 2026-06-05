@@ -32,6 +32,7 @@ func QuickProfile() *Profile {
 	config.EnablePHPInject = false
 	config.EnableESI = false
 	config.EnableRSCInject = false // posts Server-Action bodies; skip for quick
+	config.EnableCSPT = false      // fetches linked scripts; skip for quick
 	return &Profile{Name: "quick", Description: "Fast scan with reduced payloads and heavy per-param runners disabled", Config: config}
 }
 
@@ -107,6 +108,7 @@ func PassiveProfile() *Profile {
 	config.EnableOAuth = false
 	config.EnableCSRF = false
 	config.EnableTabnabbing = false
+	config.EnableCSPT = false
 	config.EnableReDoS = false
 	config.EnablePromptInj = false
 	config.EnableXSLT = false

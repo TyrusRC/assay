@@ -20,6 +20,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/contenttype"
 	"github.com/TyrusRC/assay/internal/detection/cors"
 	"github.com/TyrusRC/assay/internal/detection/crlf"
+	"github.com/TyrusRC/assay/internal/detection/cspt"
 	"github.com/TyrusRC/assay/internal/detection/csrf"
 	"github.com/TyrusRC/assay/internal/detection/cssinj"
 	"github.com/TyrusRC/assay/internal/detection/csti"
@@ -190,6 +191,7 @@ type InternalScanner struct {
 	h2ResetDetector        *h2reset.Detector
 	csrfDetector           *csrf.Detector
 	tabnabbingDetector     *tabnabbing.Detector
+	csptDetector           *cspt.Detector
 	redosDetector          *redos.Detector
 	promptInjDetector      *promptinjection.Detector
 	xsltDetector           *xslt.Detector

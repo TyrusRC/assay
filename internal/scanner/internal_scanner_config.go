@@ -61,6 +61,7 @@ type InternalScanConfig struct {
 	EnableH2Reset      bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
 	EnableCSRF         bool   // Cross-Site Request Forgery probe
 	EnableTabnabbing   bool   // Static HTML scan for target=_blank without rel=noopener
+	EnableCSPT         bool   // Client-side path traversal: JS source→sink scan of inline/linked scripts
 	EnableReDoS        bool   // Pathological-input timing probe for ReDoS surfaces
 	EnablePromptInj    bool   // LLM prompt-injection probe
 	EnableXSLT         bool   // XSLT injection probe
@@ -253,6 +254,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableH2Reset:         false, // off by default — sends raw H/2 frames
 		EnableCSRF:            true,
 		EnableTabnabbing:      true,
+		EnableCSPT:            true, // read-only: fetches page + linked scripts, static JS analysis
 		EnableReDoS:           false, // off by default — adds latency on every regex-shaped param
 		EnablePromptInj:       true,
 		EnableXSLT:            true,
