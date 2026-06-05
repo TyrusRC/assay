@@ -8,6 +8,8 @@
 //   - CL.TE: Front-end uses Content-Length, back-end uses Transfer-Encoding
 //   - TE.CL: Front-end uses Transfer-Encoding, back-end uses Content-Length
 //   - TE.TE: Both use Transfer-Encoding but process obfuscation differently
+//   - CL.0:  Back-end ignores Content-Length, parsing the body as a new request
+//     (detected structurally via a double response on one connection)
 //
 // Detection uses timing differentials and response comparison since standard
 // http.Client normalizes headers, making raw socket communication necessary.
@@ -78,6 +80,9 @@ func (d *Detector) Detect(ctx context.Context, target string, path string) []*Re
 
 	teteResult := d.DetectTETE(ctx, target, path)
 	results = append(results, teteResult)
+
+	cl0Result := d.DetectCL0(ctx, target, path)
+	results = append(results, cl0Result)
 
 	return results
 }

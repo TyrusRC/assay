@@ -17,6 +17,13 @@ const (
 	TypeTECL
 	// TypeTETE indicates TE.TE vulnerability (obfuscated Transfer-Encoding).
 	TypeTETE
+	// TypeCL0 indicates CL.0 vulnerability: the back-end ignores the
+	// Content-Length and treats the request body as the start of a new
+	// request on the same connection (the 2024–25 single-server desync class).
+	TypeCL0
+	// Type0CL indicates 0.CL vulnerability: the front-end treats the request
+	// as having no body (CL=0) while the back-end reads the body.
+	Type0CL
 )
 
 // String returns the string representation of SmugglingType.
@@ -28,6 +35,10 @@ func (s SmugglingType) String() string {
 		return "TE.CL"
 	case TypeTETE:
 		return "TE.TE"
+	case TypeCL0:
+		return "CL.0"
+	case Type0CL:
+		return "0.CL"
 	default:
 		return "Unknown"
 	}
