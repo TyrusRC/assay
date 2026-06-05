@@ -93,6 +93,7 @@ var (
 	idorURL        string
 	noPostMsg      bool
 	verifyFindings bool
+	complianceSpec string
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
