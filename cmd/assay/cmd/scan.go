@@ -64,7 +64,7 @@ func init() {
 	scanCmd.Flags().IntVar(&risk, "risk", 1, "Risk level (1-3)")
 	scanCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	scanCmd.Flags().BoolVar(&htmlOutput, "html", false, "Output results as HTML report")
-	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md,sarif,junit")
+	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md,sarif,junit,gitlab")
 	scanCmd.Flags().StringVar(&outputDir, "output-dir", "", "Directory to write report files (required for multiple formats)")
 	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero (code 2) if any finding is at or above this severity: critical,high,medium,low (default: never fail)")
 	scanCmd.Flags().StringVar(&configPath, "config", "", "Path to a YAML config file (auto-detects assay.yaml in the working dir); CLI flags override file values")

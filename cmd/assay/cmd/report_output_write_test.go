@@ -22,13 +22,13 @@ func TestWriteReports_FilesPerFormat(t *testing.T) {
 	})
 
 	dir := t.TempDir()
-	if err := writeReports(report, []string{"html", "csv", "md", "sarif", "junit"}, dir); err != nil {
+	if err := writeReports(report, []string{"html", "csv", "md", "sarif", "junit", "gitlab"}, dir); err != nil {
 		t.Fatalf("writeReports error: %v", err)
 	}
 
 	for _, name := range []string{
 		"assay-report.html", "assay-report.csv", "assay-report.md",
-		"assay-report.sarif", "assay-report.xml",
+		"assay-report.sarif", "assay-report.xml", "assay-report.gitlab.json",
 	} {
 		info, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
