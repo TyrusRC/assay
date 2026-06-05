@@ -89,6 +89,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
 	scanCmd.Flags().StringVar(&chromePath, "chrome-path", "", "Explicit Chrome/Chromium binary path for headless testing")
 	scanCmd.Flags().BoolVar(&crawl, "crawl", false, "Crawl same-origin SPA routes via headless browser and scan them too (requires Chrome)")
+	scanCmd.Flags().BoolVar(&crawlStates, "crawl-states", false, "State-aware HTTP crawl (no browser): expand scan targets by following links/forms, deduping by page-state fingerprint")
 	scanCmd.Flags().IntVar(&crawlDepth, "crawl-depth", 1, "Max BFS depth from each seed when --crawl is set (0 = seed page only)")
 	scanCmd.Flags().IntVar(&crawlPages, "crawl-max-pages", 25, "Max pages to navigate when --crawl is set")
 	scanCmd.Flags().StringVarP(&targetList, "list", "l", "", "File containing target URLs (one per line)")

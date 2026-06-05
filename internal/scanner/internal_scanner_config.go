@@ -176,9 +176,10 @@ type InternalScanConfig struct {
 	// SPA crawling (needs Chrome). When EnableSPACrawl is set the scanner
 	// drives a headless browser to discover same-origin routes from each
 	// seed target and scans them too.
-	EnableSPACrawl bool // Crawl SPA routes via headless browser (default false)
-	CrawlMaxDepth  int  // BFS depth from each seed (0 = seed page only)
-	CrawlMaxPages  int  // Cap on navigated pages (0 = built-in safety limit)
+	EnableSPACrawl   bool // Crawl SPA routes via headless browser (default false)
+	EnableStateCrawl bool // State-aware HTTP crawl (no browser); dedups by page-state fingerprint
+	CrawlMaxDepth    int  // BFS depth from each seed (0 = seed page only)
+	CrawlMaxPages    int  // Cap on navigated pages (0 = built-in safety limit)
 
 	// Additional configuration for specific detectors
 	Subdomains []subtakeover.SubdomainInfo // Subdomain list for takeover detection

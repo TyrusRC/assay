@@ -32,6 +32,7 @@ var (
 	storageInj     bool
 	chromePath     string
 	crawl          bool
+	crawlStates    bool
 	crawlDepth     int
 	crawlPages     int
 	configPath     string
@@ -132,6 +133,12 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 		internalConfig.EnableSPACrawl = true
 		internalConfig.CrawlMaxDepth = crawlDepth
 		internalConfig.CrawlMaxPages = crawlPages
+	}
+	if crawlStates {
+		internalConfig.EnableStateCrawl = true
+		if crawlPages > 0 {
+			internalConfig.CrawlMaxPages = crawlPages
+		}
 	}
 	if noJSDep {
 		internalConfig.EnableJSDep = false
