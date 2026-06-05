@@ -78,6 +78,11 @@ func init() {
 	scanCmd.Flags().BoolVar(&failOnNew, "fail-on-new", false, "With --baseline and --fail-on, gate only on findings new since the baseline")
 	scanCmd.Flags().BoolVar(&verifyFindings, "verify", false, "Safely re-exercise findings to confirm them, upgrading reproduced findings to 'confirmed' (proof-based scanning)")
 	scanCmd.Flags().StringVar(&complianceSpec, "compliance", "", "Emit a compliance assessment mapping findings to controls: pci-dss,hipaa,iso-27001 (comma-separated or 'all'). Written to --output-dir or stdout")
+	scanCmd.Flags().StringVar(&githubRepo, "github-repo", "", "File findings as GitHub issues in owner/name (token from GITHUB_TOKEN)")
+	scanCmd.Flags().StringVar(&jiraURL, "jira-url", "", "File findings as Jira issues at this site URL (auth from JIRA_EMAIL/JIRA_TOKEN)")
+	scanCmd.Flags().StringVar(&jiraProject, "jira-project", "", "Jira project key for --jira-url (e.g. SEC)")
+	scanCmd.Flags().StringVar(&exportMinSev, "export-min-severity", "high", "Minimum severity to export as issues: critical,high,medium,low")
+	scanCmd.Flags().BoolVar(&exportDryRun, "export-dry-run", false, "Preview the issues that would be filed without sending them")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -281,6 +286,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 		if err := runCompliance(result.Findings, complianceSpec, outputDir); err != nil {
 			return err
 		}
+	}
+
+	if err := runExport(ctx, result.Findings); err != nil {
+		return err
 	}
 
 	gateFindings := result.Findings

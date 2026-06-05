@@ -94,6 +94,11 @@ var (
 	noPostMsg      bool
 	verifyFindings bool
 	complianceSpec string
+	githubRepo     string
+	jiraURL        string
+	jiraProject    string
+	exportMinSev   string
+	exportDryRun   bool
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
