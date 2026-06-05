@@ -301,5 +301,5 @@ func (s *InternalScanner) initHeadless(config *InternalScanConfig) {
 func (c *InternalScanConfig) needsHeadless() bool {
 	return c.EnableStorageInj || c.EnableDOMXSS ||
 		c.EnableProtoPoll || c.EnableDOMRedirect ||
-		c.EnablePostMsg
+		c.EnablePostMsg || c.EnableSPACrawl
 }

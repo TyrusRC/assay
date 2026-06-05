@@ -169,6 +169,13 @@ type InternalScanConfig struct {
 	HeadlessMaxBrowsers int    // Max browser contexts (default 3)
 	ChromePath          string // Explicit Chrome binary path
 
+	// SPA crawling (needs Chrome). When EnableSPACrawl is set the scanner
+	// drives a headless browser to discover same-origin routes from each
+	// seed target and scans them too.
+	EnableSPACrawl bool // Crawl SPA routes via headless browser (default false)
+	CrawlMaxDepth  int  // BFS depth from each seed (0 = seed page only)
+	CrawlMaxPages  int  // Cap on navigated pages (0 = built-in safety limit)
+
 	// Additional configuration for specific detectors
 	Subdomains []subtakeover.SubdomainInfo // Subdomain list for takeover detection
 	LoginURL   string                      // Login URL for auth testing

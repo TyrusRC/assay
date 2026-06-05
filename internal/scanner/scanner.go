@@ -294,7 +294,9 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 					return
 				}
 
-				for _, target := range targets {
+				scanTargets := expandWithCrawl(scanCtx, internalScanner, targets, config.Verbose, errorsChan)
+
+				for _, target := range scanTargets {
 					select {
 					case <-scanCtx.Done():
 						return
