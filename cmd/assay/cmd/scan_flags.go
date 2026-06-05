@@ -59,6 +59,8 @@ var (
 	noSSE          bool
 	noGRPCRefl     bool
 	h2ResetOpt     bool
+	h2ContinueOpt  bool
+	h2MadeResetOpt bool
 	noCSRF         bool
 	noTabnab       bool
 	noCSPT         bool
@@ -160,6 +162,12 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	}
 	if h2ResetOpt {
 		internalConfig.EnableH2Reset = true
+	}
+	if h2ContinueOpt {
+		internalConfig.EnableH2Continue = true
+	}
+	if h2MadeResetOpt {
+		internalConfig.EnableH2MadeReset = true
 	}
 	if noCSRF {
 		internalConfig.EnableCSRF = false

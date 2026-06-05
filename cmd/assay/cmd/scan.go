@@ -105,6 +105,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&noSSE, "no-sse", false, "Disable SSE / event-stream auth probe")
 	scanCmd.Flags().BoolVar(&noGRPCRefl, "no-grpc-reflect", false, "Disable gRPC reflection probe")
 	scanCmd.Flags().BoolVar(&h2ResetOpt, "h2-reset", false, "Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default — sends raw HTTP/2 frames")
+	scanCmd.Flags().BoolVar(&h2ContinueOpt, "h2-continuation", false, "Probe HTTP/2 CONTINUATION flood (CVE-2024 class); off by default — sends a bounded CONTINUATION-frame burst that stresses the target")
+	scanCmd.Flags().BoolVar(&h2MadeResetOpt, "h2-madeyoureset", false, "Probe HTTP/2 MadeYouReset (2025); off by default — induces a bounded burst of server-side stream resets")
 	scanCmd.Flags().BoolVar(&noCSRF, "no-csrf", false, "Disable CSRF probe")
 	scanCmd.Flags().BoolVar(&noTabnab, "no-tabnabbing", false, "Disable reverse-tabnabbing HTML scan")
 	scanCmd.Flags().BoolVar(&noCSPT, "no-cspt", false, "Disable client-side path traversal (CSPT) JavaScript scan")

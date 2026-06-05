@@ -258,7 +258,7 @@ func (w *inlineWriter) Write(p []byte) (int, error) {
 func buildFinding(targetURL, host string, saw pushbackKind) *core.Finding {
 	finding := core.NewFinding("HTTP/2 Rapid Reset Exposure (CVE-2023-44487)", core.SeverityMedium)
 	finding.URL = targetURL
-	finding.Tool = "h2reset"
+	finding.Tool = toolName
 	finding.Confidence = core.ConfidenceMedium
 	finding.Description = fmt.Sprintf(
 		"The server accepted %d HEADERS+RST_STREAM cycles on a single HTTP/2 connection without pushing back via GOAWAY, ENHANCE_YOUR_CALM, or SETTINGS_MAX_CONCURRENT_STREAMS. That is the canonical exposure pattern for CVE-2023-44487 (HTTP/2 Rapid Reset DDoS).",

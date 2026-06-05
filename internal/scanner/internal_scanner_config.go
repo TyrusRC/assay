@@ -60,6 +60,8 @@ type InternalScanConfig struct {
 	EnableSSE          bool   // Probe text/event-stream endpoints for missing auth
 	EnableGRPCReflect  bool   // Probe gRPC reflection service exposure
 	EnableH2Reset      bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
+	EnableH2Continue   bool   // Probe HTTP/2 CONTINUATION flood (CVE-2024 class); off by default
+	EnableH2MadeReset  bool   // Probe HTTP/2 MadeYouReset (2025); off by default
 	EnableCSRF         bool   // Cross-Site Request Forgery probe
 	EnableTabnabbing   bool   // Static HTML scan for target=_blank without rel=noopener
 	EnableCSPT         bool   // Client-side path traversal: JS source→sink scan of inline/linked scripts
@@ -254,6 +256,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableSSE:             true,
 		EnableGRPCReflect:     true,
 		EnableH2Reset:         false, // off by default — sends raw H/2 frames
+		EnableH2Continue:      false, // off by default — bounded CONTINUATION-frame burst
+		EnableH2MadeReset:     false, // off by default — bounded server-reset burst
 		EnableCSRF:            true,
 		EnableTabnabbing:      true,
 		EnableCSPT:            true, // read-only: fetches page + linked scripts, static JS analysis

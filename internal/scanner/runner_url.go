@@ -131,6 +131,8 @@ func (s *InternalScanner) launchURLNetwork(ctx context.Context, wg *sync.WaitGro
 	s.launchIf(wg, c.EnableSSE, func() { emit(ctx, findingsChan, s.testSSE(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableGRPCReflect, func() { emit(ctx, findingsChan, s.testGRPCReflect(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableH2Reset, func() { emit(ctx, findingsChan, s.testH2Reset(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableH2Continue, func() { emit(ctx, findingsChan, s.testH2Continuation(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableH2MadeReset, func() { emit(ctx, findingsChan, s.testH2MadeYouReset(ctx, targetURL)) })
 }
 
 // launchURLDOM dispatches headless-browser-backed probes: storage

@@ -227,6 +227,40 @@ func (s *InternalScanner) testH2Reset(ctx context.Context, targetURL string) []*
 	return res.Findings
 }
 
+// testH2Continuation probes for HTTP/2 CONTINUATION-flood exposure (CVE-2024
+// class, OWASP API4). Off by default; opt-in via --h2-continuation — sends a
+// bounded burst of CONTINUATION frames.
+func (s *InternalScanner) testH2Continuation(ctx context.Context, targetURL string) []*core.Finding {
+	if s.h2ResetDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing HTTP/2 CONTINUATION flood on '%s'...\n", targetURL)
+	}
+	res, err := s.h2ResetDetector.DetectContinuationFlood(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
+// testH2MadeYouReset probes for the HTTP/2 MadeYouReset DoS class (2025, OWASP
+// API4). Off by default; opt-in via --h2-madeyoureset — induces a bounded burst
+// of server-side stream resets.
+func (s *InternalScanner) testH2MadeYouReset(ctx context.Context, targetURL string) []*core.Finding {
+	if s.h2ResetDetector == nil {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Probing HTTP/2 MadeYouReset on '%s'...\n", targetURL)
+	}
+	res, err := s.h2ResetDetector.DetectMadeYouReset(ctx, targetURL)
+	if err != nil || res == nil {
+		return nil
+	}
+	return res.Findings
+}
+
 // testContentType probes a JSON endpoint for content-type confusion
 // (OWASP API3 / API8). No-op when EnableContentType is off.
 func (s *InternalScanner) testContentType(ctx context.Context, targetURL string) []*core.Finding {
