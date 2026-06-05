@@ -89,6 +89,19 @@ func writeReports(report *reporting.Report, formats []string, outputDir string) 
 	return nil
 }
 
+// printDelta writes a one-line baseline-diff summary plus the new findings to
+// stderr, so CI logs surface what changed since the last scan.
+func printDelta(d reporting.Delta) {
+	fmt.Fprintf(os.Stderr, "[*] Baseline diff: %d new, %d fixed, %d unchanged\n",
+		len(d.New), len(d.Fixed), len(d.Existing))
+	for _, f := range d.New {
+		fmt.Fprintf(os.Stderr, "    + NEW  [%s] %s %s\n", f.Severity, f.Type, f.URL)
+	}
+	for _, f := range d.Fixed {
+		fmt.Fprintf(os.Stderr, "    - FIXED [%s] %s %s\n", f.Severity, f.Type, f.URL)
+	}
+}
+
 func writeOne(report *reporting.Report, format string, w *os.File) error {
 	switch format {
 	case "json":

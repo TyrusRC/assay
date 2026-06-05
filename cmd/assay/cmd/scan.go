@@ -74,6 +74,8 @@ func init() {
 	scanCmd.Flags().StringVar(&loginUserField, "login-user-field", "", "Login form username field name (auto-detected if empty)")
 	scanCmd.Flags().StringVar(&loginPassField, "login-pass-field", "", "Login form password field name (auto-detected if empty)")
 	scanCmd.Flags().StringVar(&loginSuccess, "login-success", "", "Substring expected in the post-login response to confirm success")
+	scanCmd.Flags().StringVar(&baselinePath, "baseline", "", "Prior assay JSON report to diff against; prints new/fixed findings")
+	scanCmd.Flags().BoolVar(&failOnNew, "fail-on-new", false, "With --baseline and --fail-on, gate only on findings new since the baseline")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -267,7 +269,20 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fail, count, gerr := evaluateGate(result.Findings, failOn)
+	gateFindings := result.Findings
+	if baselinePath != "" {
+		baseline, berr := reporting.LoadBaselineFindings(baselinePath)
+		if berr != nil {
+			return berr
+		}
+		delta := reporting.DiffFindings(baseline, result.Findings)
+		printDelta(delta)
+		if failOnNew {
+			gateFindings = delta.New
+		}
+	}
+
+	fail, count, gerr := evaluateGate(gateFindings, failOn)
 	if gerr != nil {
 		return gerr
 	}

@@ -42,6 +42,8 @@ var (
 	loginUserField string
 	loginPassField string
 	loginSuccess   string
+	baselinePath   string
+	failOnNew      bool
 	targetList     string
 	templateDir    string
 	profile        string
