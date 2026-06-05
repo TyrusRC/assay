@@ -90,6 +90,7 @@ var (
 	authBHdr       []string
 	idorURL        string
 	noPostMsg      bool
+	verifyFindings bool
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
