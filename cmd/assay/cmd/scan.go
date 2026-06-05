@@ -67,6 +67,7 @@ func init() {
 	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md,sarif,junit")
 	scanCmd.Flags().StringVar(&outputDir, "output-dir", "", "Directory to write report files (required for multiple formats)")
 	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero (code 2) if any finding is at or above this severity: critical,high,medium,low (default: never fail)")
+	scanCmd.Flags().StringVar(&configPath, "config", "", "Path to a YAML config file (auto-detects assay.yaml in the working dir); CLI flags override file values")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -123,6 +124,10 @@ func init() {
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
+	if err := applyConfigFile(cmd); err != nil {
+		return err
+	}
+
 	targets, err := collectTargets(args)
 	if err != nil {
 		return err

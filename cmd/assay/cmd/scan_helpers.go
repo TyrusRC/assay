@@ -39,7 +39,11 @@ func collectTargets(args []string) ([]string, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no targets provided: specify a URL argument, use --list, or pipe URLs via stdin")
+	if len(cfgFileTargets) > 0 {
+		return cfgFileTargets, nil
+	}
+
+	return nil, fmt.Errorf("no targets provided: specify a URL argument, use --list, --config, or pipe URLs via stdin")
 }
 
 // readTargetsFromReader reads URLs from an io.Reader, one per line.
