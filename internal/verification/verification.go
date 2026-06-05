@@ -59,6 +59,11 @@ func NewEngine(client *httpx.Client) *Engine {
 	}
 	e.Register("Open Redirect", openRedirectVerifier{})
 	e.Register("Cross-Site Scripting (XSS)", reflectedXSSVerifier{})
+	e.Register("Server-Side Template Injection (SSTI)", sstiVerifier{})
+	e.Register("Local File Inclusion / Path Traversal", lfiVerifier{})
+	e.Register("CRLF Injection", crlfVerifier{})
+	e.Register("SQL Injection", sqliBooleanVerifier{})
+	e.Register("SQL Injection (boolean-blind)", sqliBooleanVerifier{})
 	return e
 }
 
