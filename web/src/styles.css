@@ -1,0 +1,64 @@
+:root {
+  --critical: #b00020; --high: #e65100; --medium: #f9a825; --low: #0277bd; --info: #607d8b;
+  --bg: #f5f6f8; --panel: #fff; --ink: #1a1a1a; --navy: #11243b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+header { background: var(--navy); color: #fff; padding: 16px 28px; display: flex; align-items: baseline; gap: 12px; }
+header h1 { margin: 0; font-size: 22px; letter-spacing: 0.5px; }
+header .tagline { font-size: 13px; opacity: 0.8; }
+
+main { display: grid; grid-template-columns: 380px 1fr; gap: 20px; padding: 20px 28px; align-items: start; }
+.card { background: var(--panel); border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+.newscan h2 { margin: 0 0 12px; font-size: 16px; }
+.newscan input, .newscan select { width: 100%; padding: 8px 10px; border: 1px solid #cfd4da; border-radius: 7px; font-size: 14px; }
+.newscan label { display: block; font-size: 13px; color: #555; margin: 10px 0; }
+.newscan label select { margin-top: 4px; }
+.newscan button { margin-top: 12px; width: 100%; padding: 9px; border: 0; border-radius: 7px; background: var(--navy); color: #fff; font-weight: 600; cursor: pointer; }
+.newscan button:disabled { opacity: 0.6; cursor: default; }
+
+.scanlist { list-style: none; margin: 16px 0 0; padding: 0; }
+.scanlist li { background: var(--panel); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.06); border: 2px solid transparent; }
+.scanlist li.active { border-color: var(--navy); }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.row.small { margin-top: 6px; font-size: 12px; }
+.target { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.right { min-height: 200px; }
+.detail { background: var(--panel); border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.detail-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.detail-head h2 { margin: 0; font-size: 18px; word-break: break-all; }
+
+.summary { display: flex; gap: 10px; margin: 16px 0; }
+.summary .stat { flex: 1; text-align: center; border-radius: 8px; padding: 10px; color: #fff; }
+.summary .stat .n { font-size: 24px; font-weight: 700; }
+.summary .stat .lbl { font-size: 11px; text-transform: uppercase; opacity: 0.9; }
+
+.downloads { font-size: 13px; color: #555; margin: 8px 0 16px; }
+.downloads a { margin-left: 8px; color: var(--navy); text-decoration: none; border-bottom: 1px dotted; }
+
+table.findings { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.findings th, table.findings td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #eee; }
+table.findings .url { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.badge, .chip, .status { display: inline-block; border-radius: 10px; color: #fff; font-size: 11px; font-weight: 600; padding: 2px 8px; }
+.chip { min-width: 18px; text-align: center; margin-left: 4px; }
+.badge.critical, .chip.critical, .stat.critical { background: var(--critical); }
+.badge.high, .chip.high, .stat.high { background: var(--high); }
+.badge.medium, .chip.medium, .stat.medium { background: var(--medium); }
+.badge.low, .chip.low, .stat.low { background: var(--low); }
+.badge.info, .chip.info, .stat.info { background: var(--info); }
+
+.status { background: #888; text-transform: capitalize; }
+.status.completed { background: #2e7d32; }
+.status.running { background: #1565c0; }
+.status.queued { background: #6a1b9a; }
+.status.failed { background: var(--critical); }
+
+.muted { color: #777; }
+.small { font-size: 12px; }
+.error { background: #fdecea; color: #611a15; padding: 10px 12px; border-radius: 8px; margin: 12px 0; font-size: 13px; cursor: pointer; }
+.empty { background: var(--panel); border-radius: 10px; padding: 40px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08); }

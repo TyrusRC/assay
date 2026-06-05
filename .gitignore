@@ -39,6 +39,15 @@ Thumbs.db
 
 # Build artifacts
 dist/
+# ...but the web dashboard's built assets are embedded into the Go binary and
+# must be committed.
+!internal/webui/dist/
+!internal/webui/dist/**
+
+# Node / frontend
+node_modules/
+web/node_modules/
+.vite/
 
 # Scanner output
 reports/
