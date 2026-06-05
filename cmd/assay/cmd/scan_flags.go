@@ -42,6 +42,7 @@ var (
 	loginUserField string
 	loginPassField string
 	loginSuccess   string
+	loginHeadless  bool
 	baselinePath   string
 	failOnNew      bool
 	targetList     string

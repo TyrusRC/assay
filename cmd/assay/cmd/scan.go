@@ -74,6 +74,7 @@ func init() {
 	scanCmd.Flags().StringVar(&loginUserField, "login-user-field", "", "Login form username field name (auto-detected if empty)")
 	scanCmd.Flags().StringVar(&loginPassField, "login-pass-field", "", "Login form password field name (auto-detected if empty)")
 	scanCmd.Flags().StringVar(&loginSuccess, "login-success", "", "Substring expected in the post-login response to confirm success")
+	scanCmd.Flags().BoolVar(&loginHeadless, "login-headless", false, "Log in via a real browser (for SPA/JS logins); --login-user-field/--login-pass-field act as CSS selectors")
 	scanCmd.Flags().StringVar(&baselinePath, "baseline", "", "Prior assay JSON report to diff against; prints new/fixed findings")
 	scanCmd.Flags().BoolVar(&failOnNew, "fail-on-new", false, "With --baseline and --fail-on, gate only on findings new since the baseline")
 	scanCmd.Flags().BoolVar(&verifyFindings, "verify", false, "Safely re-exercise findings to confirm them, upgrading reproduced findings to 'confirmed' (proof-based scanning)")
