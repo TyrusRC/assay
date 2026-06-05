@@ -26,6 +26,7 @@ var (
 	htmlOutput   bool
 	formatList   string
 	outputDir    string
+	failOn       string
 	disableOOB   bool
 	noDiscovery  bool
 	storageInj   bool

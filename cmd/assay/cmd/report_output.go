@@ -11,6 +11,7 @@ import (
 
 var validFormats = map[string]string{
 	"text": "txt", "json": "json", "html": "html", "csv": "csv", "md": "md",
+	"sarif": "sarif", "junit": "xml",
 }
 
 // resolveFormats parses --format plus the --json/--html back-compat aliases
@@ -25,7 +26,7 @@ func resolveFormats(format string, jsonAlias, htmlAlias bool) ([]string, error) 
 			return nil
 		}
 		if _, ok := validFormats[f]; !ok {
-			return fmt.Errorf("unknown report format %q (valid: text,json,html,csv,md)", f)
+			return fmt.Errorf("unknown report format %q (valid: text,json,html,csv,md,sarif,junit)", f)
 		}
 		if !seen[f] {
 			seen[f] = true
@@ -98,6 +99,10 @@ func writeOne(report *reporting.Report, format string, w *os.File) error {
 		return report.WriteCSV(w)
 	case "md":
 		return report.WriteMarkdown(w)
+	case "sarif":
+		return report.WriteSARIF(w)
+	case "junit":
+		return report.WriteJUnit(w)
 	default:
 		return report.WriteText(w)
 	}

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/reporting"
 	"github.com/TyrusRC/assay/internal/scanner"
 	"github.com/spf13/cobra"
@@ -63,8 +64,9 @@ func init() {
 	scanCmd.Flags().IntVar(&risk, "risk", 1, "Risk level (1-3)")
 	scanCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
 	scanCmd.Flags().BoolVar(&htmlOutput, "html", false, "Output results as HTML report")
-	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md")
+	scanCmd.Flags().StringVar(&formatList, "format", "", "Comma-separated report formats: text,json,html,csv,md,sarif,junit")
 	scanCmd.Flags().StringVar(&outputDir, "output-dir", "", "Directory to write report files (required for multiple formats)")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero (code 2) if any finding is at or above this severity: critical,high,medium,low (default: never fail)")
 	scanCmd.Flags().BoolVar(&disableOOB, "no-oob", false, "Disable Out-of-Band (OOB) testing for blind vulnerabilities")
 	scanCmd.Flags().BoolVar(&noDiscovery, "no-discovery", false, "Disable auto-discovery of injectable parameters")
 	scanCmd.Flags().BoolVar(&storageInj, "storage-inj", false, "Enable client-side storage injection testing (requires Chrome)")
@@ -233,5 +235,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	report := reporting.NewReport(result)
-	return writeReports(report, formats, outputDir)
+	if err := writeReports(report, formats, outputDir); err != nil {
+		return err
+	}
+
+	fail, count, gerr := evaluateGate(result.Findings, failOn)
+	if gerr != nil {
+		return gerr
+	}
+	if fail {
+		threshold, _ := core.ParseSeverity(failOn)
+		return &gateError{Threshold: threshold, Count: count}
+	}
+	return nil
 }
