@@ -20,6 +20,7 @@ type InternalScanConfig struct {
 	EnableNoSQL        bool
 	EnableSSTI         bool
 	EnableIDOR         bool
+	EnableBAC          bool // Function-level broken-access-control differential (needs AuthA)
 	EnableJWT          bool
 	EnableRedirect     bool
 	EnableCORS         bool
@@ -215,6 +216,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableNoSQL:           true,
 		EnableSSTI:            true,
 		EnableIDOR:            true,
+		EnableBAC:             true, // gated at runtime on AuthA being present
 		EnableJWT:             false, // JWT requires token extraction, disable by default
 		EnableRedirect:        true,
 		EnableCORS:            true,

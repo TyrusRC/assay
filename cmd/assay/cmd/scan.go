@@ -101,6 +101,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&noCSRF, "no-csrf", false, "Disable CSRF probe")
 	scanCmd.Flags().BoolVar(&noTabnab, "no-tabnabbing", false, "Disable reverse-tabnabbing HTML scan")
 	scanCmd.Flags().BoolVar(&noCSPT, "no-cspt", false, "Disable client-side path traversal (CSPT) JavaScript scan")
+	scanCmd.Flags().BoolVar(&noBAC, "no-bac", false, "Disable function-level broken-access-control differential (runs when --auth-a-* is set)")
 	scanCmd.Flags().BoolVar(&redosOpt, "redos", false, "Enable ReDoS timing probe (off by default — adds latency on regex-shaped params)")
 	scanCmd.Flags().BoolVar(&noPromptInj, "no-prompt-injection", false, "Disable LLM prompt-injection probe")
 	scanCmd.Flags().BoolVar(&noXSLT, "no-xslt", false, "Disable XSLT injection probe")

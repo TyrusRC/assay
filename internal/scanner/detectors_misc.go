@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/bac"
 	"github.com/TyrusRC/assay/internal/detection/cors"
 	"github.com/TyrusRC/assay/internal/detection/idor"
 	"github.com/TyrusRC/assay/internal/detection/xxe"
@@ -344,6 +345,29 @@ func (s *InternalScanner) testCrossIdentityIDOR(ctx context.Context, targetURL s
 		return nil
 	}
 	return result.Findings
+}
+
+// testBAC runs the function-level broken-access-control differential: it
+// requests targetURL as the privileged identity (AuthA), as the second
+// identity (AuthB, when configured), and anonymously, then flags the endpoint
+// when a lower principal receives content equivalent to AuthA's. Requires AuthA
+// to establish a privileged baseline; anonymous is always included as a
+// comparator so the check is meaningful even with a single identity.
+func (s *InternalScanner) testBAC(ctx context.Context, targetURL string) []*core.Finding {
+	if !s.config.AuthA.HasAuth() || targetURL == "" {
+		return nil
+	}
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing function-level access control on '%s'...\n", targetURL)
+	}
+
+	privileged := bac.Principal{Name: "user-a", Client: buildAuthClient(s.client, s.config.AuthA)}
+	others := []bac.Principal{{Name: "anonymous", Client: buildAuthClient(s.client, AuthState{})}}
+	if s.config.AuthB.HasAuth() {
+		others = append(others, bac.Principal{Name: "user-b", Client: buildAuthClient(s.client, s.config.AuthB)})
+	}
+
+	return bac.New(privileged, others...).Detect(ctx, []string{targetURL})
 }
 
 // testCORS tests for CORS misconfigurations.

@@ -61,6 +61,7 @@ var (
 	noCSRF         bool
 	noTabnab       bool
 	noCSPT         bool
+	noBAC          bool
 	redosOpt       bool
 	noPromptInj    bool
 	noXSLT         bool
@@ -161,6 +162,9 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	}
 	if noCSPT {
 		internalConfig.EnableCSPT = false
+	}
+	if noBAC {
+		internalConfig.EnableBAC = false
 	}
 	if redosOpt {
 		internalConfig.EnableReDoS = true
