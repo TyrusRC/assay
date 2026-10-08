@@ -24,6 +24,11 @@ const (
 	// Type0CL indicates 0.CL vulnerability: the front-end treats the request
 	// as having no body (CL=0) while the back-end reads the body.
 	Type0CL
+	// TypeTE0 indicates TE.0 vulnerability: the front-end honors
+	// Transfer-Encoding: chunked while the back-end ignores it and treats the
+	// request as bodyless, so the chunked body starts a new request on the same
+	// connection (the TE analogue of CL.0, seen on some cloud front-ends).
+	TypeTE0
 )
 
 // String returns the string representation of SmugglingType.
@@ -39,6 +44,8 @@ func (s SmugglingType) String() string {
 		return "CL.0"
 	case Type0CL:
 		return "0.CL"
+	case TypeTE0:
+		return "TE.0"
 	default:
 		return "Unknown"
 	}

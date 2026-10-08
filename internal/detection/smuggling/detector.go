@@ -87,6 +87,9 @@ func (d *Detector) Detect(ctx context.Context, target string, path string) []*Re
 	zeroCLResult := d.Detect0CL(ctx, target, path)
 	results = append(results, zeroCLResult)
 
+	te0Result := d.DetectTE0(ctx, target, path)
+	results = append(results, te0Result)
+
 	return results
 }
 
