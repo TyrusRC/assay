@@ -250,8 +250,6 @@ null-byte bypass).
 SSRF with cloud-metadata for AWS / Azure / GCP / Alibaba / Tencent /
 IBM / Oracle / IPv6, HTTP request smuggling, race conditions
 (H/1 last-byte sync + H/2 single-packet), second-order injection,
-insecure deserialization (Java / PHP / .NET ViewState / Python / Ruby —
-serialized-shape + error-based, benign, no gadget chain),
 HTTP/2 rapid-reset (CVE-2023-44487, opt-in).
 
 ### Auth & access

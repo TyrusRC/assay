@@ -9,7 +9,6 @@ import (
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/auth"
 	"github.com/TyrusRC/assay/internal/detection/cloud"
-	"github.com/TyrusRC/assay/internal/detection/deserialize"
 	"github.com/TyrusRC/assay/internal/detection/exposure"
 	"github.com/TyrusRC/assay/internal/detection/graphql"
 	"github.com/TyrusRC/assay/internal/detection/jndi"
@@ -35,21 +34,6 @@ func (s *InternalScanner) testJNDI(ctx context.Context, targetURL string) []*cor
 		Timeout:          s.config.RequestTimeout,
 		TestHeaders:      true,
 		TestParams:       true,
-	})
-	if err != nil || !result.Vulnerable {
-		return nil
-	}
-	return result.Findings
-}
-
-// testDeserialization tests for insecure deserialization (Java/PHP/.NET/Python/Ruby).
-func (s *InternalScanner) testDeserialization(ctx context.Context, targetURL string) []*core.Finding {
-	if s.config.Verbose {
-		fmt.Fprintf(os.Stderr, "[*] Testing insecure deserialization on '%s'...\n", targetURL)
-	}
-	result, err := s.deserializeDetector.Detect(ctx, targetURL, deserialize.DetectOptions{
-		TestParams: true,
-		Timeout:    s.config.RequestTimeout,
 	})
 	if err != nil || !result.Vulnerable {
 		return nil

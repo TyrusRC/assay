@@ -9,71 +9,70 @@ import (
 // InternalScanConfig configures the internal scanner behavior.
 type InternalScanConfig struct {
 	// Enable/disable specific checks
-	EnableSQLi            bool
-	EnableXSS             bool
-	EnableCMDI            bool
-	EnableSSRF            bool
-	EnableLFI             bool
-	EnableXXE             bool
-	EnableTechScan        bool
-	EnableOOB             bool
-	EnableNoSQL           bool
-	EnableSSTI            bool
-	EnableIDOR            bool
-	EnableBAC             bool // Function-level broken-access-control differential (needs AuthA)
-	EnableJWT             bool
-	EnableRedirect        bool
-	EnableCORS            bool
-	EnableCRLF            bool
-	EnableLDAP            bool
-	EnableXPath           bool
-	EnableHeaderInj       bool
-	EnableCSTI            bool
-	EnableRFI             bool
-	EnableJNDI            bool
-	EnableDeserialization bool
-	EnableSecHeaders      bool
-	EnableExposure        bool
-	EnableCloud           bool
-	EnableSubTakeover     bool
-	EnableTLS             bool
-	EnableAuth            bool
-	EnableGraphQL         bool
-	EnableSmuggling       bool
-	EnableBehavior        bool
-	EnableLogInj          bool
-	EnableFileUpload      bool
-	EnableVerbTamper      bool
-	EnablePathNorm        bool
-	EnableRaceCond        bool
-	EnableCSVInj          bool
-	EnableWS              bool
-	EnableHostHdr         bool
-	EnableOAuth           bool
-	EnableJSDep           bool   // Detect vulnerable JS libraries via NVD lookup
-	NVDAPIKey             string // Optional NVD API key (raises rate limit ~5→50/30s)
-	EnableDataExposure    bool   // Walk JSON responses for sensitive field names (API3:2023)
-	EnableAdminPath       bool   // Probe admin/debug/internal paths (API5:2023, A05:2025)
-	EnableAPIVersion      bool   // Probe sibling API versions (API9:2023)
-	EnableRateLimit       bool   // Burst-probe for missing server-side rate limits (API4:2023)
-	APISpecURL            string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
-	EnableContentType     bool   // Probe JSON endpoints for content-type confusion
-	EnableSSE             bool   // Probe text/event-stream endpoints for missing auth
-	EnableGRPCReflect     bool   // Probe gRPC reflection service exposure
-	EnableH2Reset         bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
-	EnableH2Continue      bool   // Probe HTTP/2 CONTINUATION flood (CVE-2024 class); off by default
-	EnableH2MadeReset     bool   // Probe HTTP/2 MadeYouReset (2025); off by default
-	EnableCSRF            bool   // Cross-Site Request Forgery probe
-	EnableTabnabbing      bool   // Static HTML scan for target=_blank without rel=noopener
-	EnableCSPT            bool   // Client-side path traversal: JS source→sink scan of inline/linked scripts
-	EnableReDoS           bool   // Pathological-input timing probe for ReDoS surfaces
-	EnablePromptInj       bool   // LLM prompt-injection probe
-	EnableXSLT            bool   // XSLT injection probe
-	EnableSAMLInj         bool   // SAML SP malformed-envelope probe
-	EnableORMLeak         bool   // ORM expansion / over-fetch probe
-	EnableTypeJuggling    bool   // PHP loose-equality auth bypass probe (login-shaped paths)
-	EnableDepConfusion    bool   // Internal-package manifest leak probe
-	EnableTokenEntropy    bool   // Statistical entropy on Set-Cookie / CSRF tokens
+	EnableSQLi         bool
+	EnableXSS          bool
+	EnableCMDI         bool
+	EnableSSRF         bool
+	EnableLFI          bool
+	EnableXXE          bool
+	EnableTechScan     bool
+	EnableOOB          bool
+	EnableNoSQL        bool
+	EnableSSTI         bool
+	EnableIDOR         bool
+	EnableBAC          bool // Function-level broken-access-control differential (needs AuthA)
+	EnableJWT          bool
+	EnableRedirect     bool
+	EnableCORS         bool
+	EnableCRLF         bool
+	EnableLDAP         bool
+	EnableXPath        bool
+	EnableHeaderInj    bool
+	EnableCSTI         bool
+	EnableRFI          bool
+	EnableJNDI         bool
+	EnableSecHeaders   bool
+	EnableExposure     bool
+	EnableCloud        bool
+	EnableSubTakeover  bool
+	EnableTLS          bool
+	EnableAuth         bool
+	EnableGraphQL      bool
+	EnableSmuggling    bool
+	EnableBehavior     bool
+	EnableLogInj       bool
+	EnableFileUpload   bool
+	EnableVerbTamper   bool
+	EnablePathNorm     bool
+	EnableRaceCond     bool
+	EnableCSVInj       bool
+	EnableWS           bool
+	EnableHostHdr      bool
+	EnableOAuth        bool
+	EnableJSDep        bool   // Detect vulnerable JS libraries via NVD lookup
+	NVDAPIKey          string // Optional NVD API key (raises rate limit ~5→50/30s)
+	EnableDataExposure bool   // Walk JSON responses for sensitive field names (API3:2023)
+	EnableAdminPath    bool   // Probe admin/debug/internal paths (API5:2023, A05:2025)
+	EnableAPIVersion   bool   // Probe sibling API versions (API9:2023)
+	EnableRateLimit    bool   // Burst-probe for missing server-side rate limits (API4:2023)
+	APISpecURL         string // Optional OpenAPI / Swagger JSON URL; empty disables spec-driven runner
+	EnableContentType  bool   // Probe JSON endpoints for content-type confusion
+	EnableSSE          bool   // Probe text/event-stream endpoints for missing auth
+	EnableGRPCReflect  bool   // Probe gRPC reflection service exposure
+	EnableH2Reset      bool   // Probe HTTP/2 rapid-reset (CVE-2023-44487); off by default
+	EnableH2Continue   bool   // Probe HTTP/2 CONTINUATION flood (CVE-2024 class); off by default
+	EnableH2MadeReset  bool   // Probe HTTP/2 MadeYouReset (2025); off by default
+	EnableCSRF         bool   // Cross-Site Request Forgery probe
+	EnableTabnabbing   bool   // Static HTML scan for target=_blank without rel=noopener
+	EnableCSPT         bool   // Client-side path traversal: JS source→sink scan of inline/linked scripts
+	EnableReDoS        bool   // Pathological-input timing probe for ReDoS surfaces
+	EnablePromptInj    bool   // LLM prompt-injection probe
+	EnableXSLT         bool   // XSLT injection probe
+	EnableSAMLInj      bool   // SAML SP malformed-envelope probe
+	EnableORMLeak      bool   // ORM expansion / over-fetch probe
+	EnableTypeJuggling bool   // PHP loose-equality auth bypass probe (login-shaped paths)
+	EnableDepConfusion bool   // Internal-package manifest leak probe
+	EnableTokenEntropy bool   // Statistical entropy on Set-Cookie / CSRF tokens
 
 	// Wave-G — multi-step / stateful flows + advanced auth, all default-off
 	// because they need explicit URLs (login, refresh, logout, OAuth authorize,
@@ -220,7 +219,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableNoSQL:           true,
 		EnableSSTI:            true,
 		EnableIDOR:            true,
-		EnableBAC:             true,  // gated at runtime on AuthA being present
+		EnableBAC:             true, // gated at runtime on AuthA being present
 		EnableJWT:             false, // JWT requires token extraction, disable by default
 		EnableRedirect:        true,
 		EnableCORS:            true,
@@ -231,7 +230,6 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableCSTI:            true,
 		EnableRFI:             true,
 		EnableJNDI:            true,
-		EnableDeserialization: true,
 		EnableSecHeaders:      true,
 		EnableExposure:        true,
 		EnableCloud:           true,
@@ -263,7 +261,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableH2MadeReset:     false, // off by default — bounded server-reset burst
 		EnableCSRF:            true,
 		EnableTabnabbing:      true,
-		EnableCSPT:            true,  // read-only: fetches page + linked scripts, static JS analysis
+		EnableCSPT:            true, // read-only: fetches page + linked scripts, static JS analysis
 		EnableReDoS:           false, // off by default — adds latency on every regex-shaped param
 		EnablePromptInj:       true,
 		EnableXSLT:            true,
@@ -294,13 +292,13 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableAuthBypass403:   true,  // self-gates on 401/403 baseline; harmless on public URLs
 		EnableHTTP2Race:       false, // off — sends a burst of state-changing requests
 		HTTP2RaceMethod:       "POST",
-		EnableGraphQLDoS:      true,  // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
-		EnableJKUAbuse:        true,  // no-op without JWTAdvancedToken and an OOB client — safe everywhere
-		EnableSameSiteLax:     true,  // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
-		EnableWAFDetect:       true,  // single passive GET, info-severity findings used as context for downstream payload selection
-		EnableXFS:             true,  // single passive GET, computes clickjacking exposure from headers + body
-		EnableIISTilde:        true,  // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
-		EnableSameSiteScript:  true,  // pure DNS lookups; no HTTP cost on the target
+		EnableGraphQLDoS:      true, // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
+		EnableJKUAbuse:        true, // no-op without JWTAdvancedToken and an OOB client — safe everywhere
+		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
+		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
+		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
+		EnableIISTilde:        true, // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
+		EnableSameSiteScript:  true, // pure DNS lookups; no HTTP cost on the target
 		EnableLongPwdDoS:      false, // off by default — sends a 100k-char password POST and may trip account lockouts
 		EnableVHostEnum:       false, // off by default — issues up to 150 requests with rotated Host headers
 		VHostMaxRequests:      150,
