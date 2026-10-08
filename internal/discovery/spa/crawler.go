@@ -139,9 +139,11 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string, opts CrawlOptions)
 	return out, nil
 }
 
-// minePage navigates to pageURL, waits for JS to hydrate routes, and
-// returns the raw URL strings the page surfaced via anchors and via
-// the History API.
+// minePage navigates to pageURL, waits for JS to hydrate routes, and returns the
+// raw URL strings the page surfaced via three channels: XHR/fetch requests (the
+// dynamic API surface), anchors plus document.location, and the History API
+// (pushState/replaceState/popstate). Navigation drives NavigateAndCapture so the
+// network channel is recorded during load and the settle window.
 func (c *Crawler) minePage(ctx context.Context, pageURL string, wait time.Duration) ([]string, error) {
 	page, err := c.pool.Acquire(ctx)
 	if err != nil {
@@ -149,24 +151,17 @@ func (c *Crawler) minePage(ctx context.Context, pageURL string, wait time.Durati
 	}
 	defer c.pool.Release(page)
 
-	if err := page.Navigate(ctx, pageURL); err != nil {
+	// Navigate and capture XHR/fetch requests issued during load + settle.
+	captured, err := page.NavigateAndCapture(ctx, pageURL, wait)
+	if err != nil {
 		return nil, err
 	}
-
-	// Allow JS to hydrate routes. We use a plain sleep gated on ctx
-	// because the headless package exposes no network-idle primitive;
-	// the dwell time is short and bounded by CrawlOptions.WaitFor.
-	select {
-	case <-time.After(wait):
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	out := make([]string, 0, len(captured)+8)
+	for _, cr := range captured {
+		out = append(out, cr.URL)
 	}
 
-	// Harvest in a single JS round-trip: anchor hrefs plus the current
-	// document.location (covers history.pushState the page may have
-	// done during/after hydration). We deliberately capture
-	// location.href as well as anchors so SPA shells that pushState
-	// into a new route are detected.
+	// Harvest anchor hrefs plus the current document.location in one round-trip.
 	expr := `(function() {
 		var out = [];
 		var anchors = document.querySelectorAll('a[href]');
@@ -177,17 +172,19 @@ func (c *Crawler) minePage(ctx context.Context, pageURL string, wait time.Durati
 		try { out.push(String(window.location.href)); } catch(e) {}
 		return JSON.stringify(out);
 	})()`
-	raw, err := page.EvalJS(ctx, expr)
-	if err != nil {
-		return nil, err
-	}
-	var hrefs []string
-	if raw != "" {
-		if err := json.Unmarshal([]byte(raw), &hrefs); err != nil {
-			return nil, fmt.Errorf("spa: parse hrefs: %w", err)
+	if raw, evalErr := page.EvalJS(ctx, expr); evalErr == nil && raw != "" {
+		var hrefs []string
+		if json.Unmarshal([]byte(raw), &hrefs) == nil {
+			out = append(out, hrefs...)
 		}
 	}
-	return hrefs, nil
+
+	// History-API routes the SPA registered (best-effort).
+	if routes, rErr := page.CapturedRoutes(ctx); rErr == nil {
+		out = append(out, routes...)
+	}
+
+	return out, nil
 }
 
 // normalizeURL resolves raw against base, drops empty/anchor/JS URLs,

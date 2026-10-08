@@ -64,6 +64,60 @@ func spaHandler() http.Handler {
 	})
 }
 
+// xhrHandler serves an SPA shell that issues a fetch() to a dynamic API
+// endpoint which appears nowhere in the static HTML — the surface a static
+// crawl misses.
+func xhrHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/", "/index.html":
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<!DOCTYPE html><html><head><title>SPA</title></head>
+<body><div id="root"></div>
+<script>
+fetch('/api/v2/secret-data?token=abc').then(function(r){ return r.json(); }).catch(function(){});
+</script>
+</body></html>`)
+		case "/api/v2/secret-data":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"ok":true}`)
+		default:
+			fmt.Fprintf(w, "<!DOCTYPE html><html><body>%s</body></html>", r.URL.Path)
+		}
+	})
+}
+
+func TestCrawl_CapturesXHRFetchEndpoints(t *testing.T) {
+	pool := skipIfPoolUnavailable(t)
+	defer pool.Close()
+
+	ts := httptest.NewServer(xhrHandler())
+	defer ts.Close()
+
+	c := NewCrawler(pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	urls, err := c.Crawl(ctx, ts.URL, CrawlOptions{
+		MaxDepth:       0,
+		MaxPages:       5,
+		SameOriginOnly: true,
+		WaitFor:        time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Crawl() error = %v", err)
+	}
+	var found bool
+	for _, u := range urls {
+		if strings.Contains(u, "/api/v2/secret-data") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("crawl did not capture the XHR/fetch endpoint /api/v2/secret-data; got %v", urls)
+	}
+}
+
 func TestNewCrawler(t *testing.T) {
 	c := NewCrawler(nil)
 	if c == nil {

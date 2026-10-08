@@ -4,10 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 )
+
+// CapturedRequest is one XHR or fetch a page issued while loading.
+type CapturedRequest struct {
+	URL    string `json:"url"`
+	Method string `json:"method"`
+	Type   string `json:"type"` // "XHR" or "Fetch"
+}
 
 // Page wraps a single Rod page. Public API mirrors the chromedp-backed
 // version it replaces, so detectors compose unchanged.
@@ -37,6 +46,87 @@ func (p *Page) Navigate(ctx context.Context, url string) error {
 		return err
 	}
 	return page.WaitLoad()
+}
+
+// NavigateAndCapture loads url and records the XHR/fetch requests the page
+// issues while loading and for a short settle window after. It surfaces the
+// dynamic API endpoints that never appear in the static HTML — the modern
+// SPA/API attack surface a static crawl misses. Results are deduped by
+// method+URL. The listener is bound to a child context and torn down on return.
+func (p *Page) NavigateAndCapture(ctx context.Context, url string, settle time.Duration) ([]CapturedRequest, error) {
+	if p == nil || p.page == nil {
+		return nil, fmt.Errorf("headless: page not initialised")
+	}
+	if settle <= 0 {
+		settle = 2 * time.Second
+	}
+	capCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var mu sync.Mutex
+	seen := make(map[string]bool)
+	var out []CapturedRequest
+
+	// Listen for request events before navigating so load-time XHR/fetch is
+	// caught. The goroutine returns when capCtx is cancelled.
+	go p.page.Context(capCtx).EachEvent(func(e *proto.NetworkRequestWillBeSent) {
+		if e.Request == nil {
+			return
+		}
+		if e.Type != proto.NetworkResourceTypeXHR && e.Type != proto.NetworkResourceTypeFetch {
+			return
+		}
+		key := e.Request.Method + " " + e.Request.URL
+		mu.Lock()
+		if !seen[key] {
+			seen[key] = true
+			out = append(out, CapturedRequest{URL: e.Request.URL, Method: e.Request.Method, Type: string(e.Type)})
+		}
+		mu.Unlock()
+	})()
+
+	timeout := p.navigateTimeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	navPage := p.page.Timeout(timeout).Context(capCtx)
+	if err := navPage.Navigate(url); err != nil {
+		return nil, err
+	}
+	_ = navPage.WaitLoad()
+
+	// Let late (post-load) XHR/fetch fire.
+	select {
+	case <-time.After(settle):
+	case <-ctx.Done():
+	}
+	cancel()
+
+	mu.Lock()
+	defer mu.Unlock()
+	result := make([]CapturedRequest, len(out))
+	copy(result, out)
+	return result, nil
+}
+
+// CapturedRoutes returns the client-side routes the page registered through the
+// History API (pushState/replaceState/popstate), recorded by the page init
+// script. Values may be relative — the caller resolves them against the page.
+func (p *Page) CapturedRoutes(ctx context.Context) ([]string, error) {
+	if p == nil || p.page == nil {
+		return nil, fmt.Errorf("headless: page not initialised")
+	}
+	raw, err := p.EvalJS(ctx, `JSON.stringify(window.__assayRoutes || [])`)
+	if err != nil {
+		return nil, err
+	}
+	var routes []string
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &routes); err != nil {
+			return nil, err
+		}
+	}
+	return routes, nil
 }
 
 // EvalJS evaluates a JavaScript expression in the page and returns the

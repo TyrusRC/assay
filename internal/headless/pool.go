@@ -70,6 +70,25 @@ if (orig) {
     ? Promise.resolve({state: Notification.permission})
     : orig(p);
 }
+// Record client-side routes the SPA registers through the History API, so a
+// crawl discovers routes that never appear as anchors. Installed before page
+// scripts run, it captures pushState/replaceState/popstate into a global the
+// crawler reads back after settle.
+(function(){
+  try {
+    window.__assayRoutes = window.__assayRoutes || [];
+    var rec = function(u){ try { if (u) window.__assayRoutes.push(String(u)); } catch(e){} };
+    if (history.pushState) {
+      var _ps = history.pushState;
+      history.pushState = function(s, t, u){ rec(u); return _ps.apply(this, arguments); };
+    }
+    if (history.replaceState) {
+      var _rs = history.replaceState;
+      history.replaceState = function(s, t, u){ rec(u); return _rs.apply(this, arguments); };
+    }
+    window.addEventListener('popstate', function(){ rec(location.href); });
+  } catch(e){}
+})();
 `
 
 // NewPool launches a Rod-managed browser and returns a Pool. If
