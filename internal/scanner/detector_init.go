@@ -261,10 +261,10 @@ func (s *InternalScanner) initDiscovery(httpClient *http.Client) {
 	pipeline.Register(discovery.NewXMLBodyDiscoverer())
 	pipeline.Register(discovery.NewRobotsSitemapDiscoverer().WithClient(httpClient))
 	pipeline.Register(discovery.NewHTMLCommentDiscoverer())
-	pipeline.Register(discovery.NewJSRouteDiscoverer())
+	pipeline.Register(discovery.NewJSRouteDiscoverer().WithClient(httpClient))
 	pipeline.Register(discovery.NewMultipartDiscoverer())
 	pipeline.Register(discovery.NewOpenAPIDiscoverer().WithClient(httpClient))
-	pipeline.Register(discovery.NewGraphQLIntrospectionDiscoverer())
+	pipeline.Register(discovery.NewGraphQLIntrospectionDiscoverer().WithClient(httpClient))
 	s.discoveryPipeline = pipeline
 }
 

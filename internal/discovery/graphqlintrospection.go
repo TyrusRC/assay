@@ -9,11 +9,19 @@ import (
 )
 
 // GraphQLIntrospectionDiscoverer extracts field and argument names from GraphQL introspection responses.
-type GraphQLIntrospectionDiscoverer struct{}
+type GraphQLIntrospectionDiscoverer struct{ client *http.Client }
 
 // NewGraphQLIntrospectionDiscoverer creates a new GraphQLIntrospectionDiscoverer.
 func NewGraphQLIntrospectionDiscoverer() *GraphQLIntrospectionDiscoverer {
 	return &GraphQLIntrospectionDiscoverer{}
+}
+
+// WithClient lets the discoverer POST an introspection query itself (to the
+// target and to /graphql at the host root), instead of only parsing a handed
+// response. The client carries the scan's scope and rate limit.
+func (g *GraphQLIntrospectionDiscoverer) WithClient(c *http.Client) *GraphQLIntrospectionDiscoverer {
+	g.client = c
+	return g
 }
 
 // Name returns the discoverer identifier.
@@ -21,25 +29,53 @@ func (g *GraphQLIntrospectionDiscoverer) Name() string {
 	return "graphql-introspection"
 }
 
-// Discover extracts parameters from GraphQL introspection responses.
-func (g *GraphQLIntrospectionDiscoverer) Discover(_ context.Context, _ string, resp *http.Response) ([]core.Parameter, error) {
-	if resp == nil || resp.Body == "" {
+// introspectionQuery is a minimal introspection body: enough to list types,
+// their fields, and each field's argument names.
+const introspectionQuery = `{"query":"query{__schema{types{name fields{name args{name}}}}}"}`
+
+// Discover extracts parameters from GraphQL introspection. It first parses the
+// handed response, then (with a client) POSTs an introspection query to the
+// target and to /graphql at the host root.
+func (g *GraphQLIntrospectionDiscoverer) Discover(ctx context.Context, targetURL string, resp *http.Response) ([]core.Parameter, error) {
+	if resp != nil && resp.Body != "" {
+		if params := g.parseBody(resp.Body); len(params) > 0 {
+			return params, nil
+		}
+	}
+	if g.client == nil {
 		return nil, nil
 	}
+	candidates := []string{targetURL}
+	if gqlURL, ok := hostRootURL(targetURL, "/graphql"); ok && gqlURL != targetURL {
+		candidates = append(candidates, gqlURL)
+	}
+	for _, u := range candidates {
+		rr, err := g.client.PostJSON(ctx, u, introspectionQuery)
+		if err != nil || rr == nil {
+			continue
+		}
+		if params := g.parseBody(rr.Body); len(params) > 0 {
+			return params, nil
+		}
+	}
+	return nil, nil
+}
 
+// parseBody extracts field/argument names from a GraphQL introspection response.
+func (g *GraphQLIntrospectionDiscoverer) parseBody(body string) []core.Parameter {
 	var doc map[string]interface{}
-	if err := json.Unmarshal([]byte(resp.Body), &doc); err != nil {
-		return nil, nil
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		return nil
 	}
 
 	dataRaw, ok := doc["data"]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	data, ok := dataRaw.(map[string]interface{})
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	seen := make(map[string]bool)
@@ -61,11 +97,7 @@ func (g *GraphQLIntrospectionDiscoverer) Discover(_ context.Context, _ string, r
 		}
 	}
 
-	if len(params) == 0 {
-		return nil, nil
-	}
-
-	return params, nil
+	return params
 }
 
 // extractFromTypes extracts fields from schema types array.

@@ -72,6 +72,77 @@ func TestOpenAPIDiscoverer_SelfFetch(t *testing.T) {
 	}
 }
 
+// With a client, the GraphQL discoverer POSTs an introspection query to /graphql
+// and extracts field + argument names.
+func TestGraphQLIntrospectionDiscoverer_SelfFetch(t *testing.T) {
+	introspection := `{"data":{"__schema":{"types":[{"name":"Query","fields":[` +
+		`{"name":"user","args":[{"name":"userId"}]}]}]}}}`
+	srv := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		if r.URL.Path == "/graphql" && r.Method == nethttp.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(introspection))
+			return
+		}
+		w.Write([]byte("<html>home</html>"))
+	}))
+	defer srv.Close()
+
+	d := NewGraphQLIntrospectionDiscoverer().WithClient(assayhttp.NewClient())
+	params, err := d.Discover(context.Background(), srv.URL, &assayhttp.Response{Body: "<html>home</html>"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawField, sawArg bool
+	for _, p := range params {
+		if p.Name == "user" {
+			sawField = true
+		}
+		if p.Name == "userId" {
+			sawArg = true
+		}
+	}
+	if !sawField || !sawArg {
+		t.Errorf("expected field 'user' + arg 'userId' from introspection, got %+v", params)
+	}
+}
+
+// With a client, the JSRoute discoverer fetches the page's <script src> files
+// and extracts query params from URL literals inside them.
+func TestJSRouteDiscoverer_SelfFetch(t *testing.T) {
+	srv := httptest.NewServer(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		if r.URL.Path == "/app.js" {
+			w.Header().Set("Content-Type", "application/javascript")
+			w.Write([]byte(`fetch("/api/data?token=abc&id=1");`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<html><head><script src="/app.js"></script></head></html>`))
+	}))
+	defer srv.Close()
+
+	d := NewJSRouteDiscoverer().WithClient(assayhttp.NewClient())
+	page := &assayhttp.Response{
+		Body:        `<html><head><script src="/app.js"></script></head></html>`,
+		ContentType: "text/html",
+	}
+	params, err := d.Discover(context.Background(), srv.URL, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawToken, sawID bool
+	for _, p := range params {
+		if p.Name == "token" {
+			sawToken = true
+		}
+		if p.Name == "id" {
+			sawID = true
+		}
+	}
+	if !sawToken || !sawID {
+		t.Errorf("expected token+id params from fetched script, got %+v", params)
+	}
+}
+
 // Without a client, the discoverers keep the old behavior: parse only the handed
 // response, fetch nothing.
 func TestDiscoverers_NoClientNoFetch(t *testing.T) {
