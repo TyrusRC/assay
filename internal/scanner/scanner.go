@@ -3,10 +3,12 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/TyrusRC/assay/internal/checkpoint"
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/tools"
 )
@@ -31,6 +33,13 @@ type Config struct {
 
 	// Output settings
 	OutputDir string
+
+	// Resume settings. CheckpointPath, when set, records scan progress per
+	// target so an interrupted scan can resume. ResumePath, when set, loads a
+	// prior checkpoint: already-scanned targets are skipped and their findings
+	// are carried forward. They are usually the same path.
+	CheckpointPath string
+	ResumePath     string
 }
 
 // DefaultConfig returns the default scanner configuration.
@@ -296,11 +305,30 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 
 				scanTargets := expandWithCrawl(scanCtx, internalScanner, targets, config.Verbose, errorsChan)
 
+				// Resume: load a prior checkpoint, carry its findings forward, and
+				// skip targets already scanned. CheckpointPath records progress as
+				// each target completes so an interrupted scan can resume.
+				cp, cpErr := checkpoint.Load(config.ResumePath)
+				if cpErr != nil {
+					errorsChan <- fmt.Sprintf("checkpoint: %v", cpErr)
+					cp, _ = checkpoint.Load("")
+				}
+				for _, f := range cp.Findings {
+					findingsChan <- f
+				}
+
 				for _, target := range scanTargets {
 					select {
 					case <-scanCtx.Done():
 						return
 					default:
+					}
+
+					if cp.Done(target.URL()) {
+						if config.Verbose {
+							fmt.Fprintf(os.Stderr, "[*] resume: skipping already-scanned %s\n", target.URL())
+						}
+						continue
 					}
 
 					internalResult, err := internalScanner.Scan(scanCtx, target, config)
@@ -311,6 +339,14 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 
 					for _, finding := range internalResult.Findings {
 						findingsChan <- finding
+					}
+
+					// Record this target complete (with its findings) so a resume
+					// skips it. Best-effort: a write error must not fail the scan.
+					if config.CheckpointPath != "" {
+						if err := cp.Record(config.CheckpointPath, target.URL(), internalResult.Findings); err != nil {
+							errorsChan <- fmt.Sprintf("checkpoint: %v", err)
+						}
 					}
 
 					// Add technology findings with security implications

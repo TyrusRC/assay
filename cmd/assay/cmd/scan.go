@@ -152,6 +152,8 @@ func init() {
 	scanCmd.Flags().Float64Var(&ratePerSec, "rate", 0, "Cap outbound requests per second across the whole scan (0 = unlimited). Use it to stay within a target's rate limits")
 	scanCmd.Flags().StringVar(&sessionCheckURL, "session-check-url", "", "Authenticated-only URL polled during the scan to detect logout and re-authenticate (defaults to the first target when --login-* is used). --login-success is the authenticated marker")
 	scanCmd.Flags().DurationVar(&sessionCheckInterval, "session-check-interval", 60*time.Second, "How often to poll --session-check-url for logout")
+	scanCmd.Flags().StringVar(&checkpointPath, "checkpoint", "", "Record scan progress per target to this file so an interrupted scan can resume")
+	scanCmd.Flags().StringVar(&resumePath, "resume", "", "Resume from a checkpoint file: skip already-scanned targets and carry their findings forward (usually the same path as --checkpoint)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -208,17 +210,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	config := &scanner.Config{
-		Timeout:     timeout,
-		Concurrency: concurrency,
-		Verbose:     verbose,
-		Headers:     headerMap,
-		Cookies:     sessionCookies,
-		UserAgent:   userAgent,
-		Data:        data,
-		Method:      method,
-		ProxyURL:    proxy,
-		Insecure:    insecure,
-		OutputDir:   output,
+		Timeout:        timeout,
+		Concurrency:    concurrency,
+		Verbose:        verbose,
+		Headers:        headerMap,
+		Cookies:        sessionCookies,
+		UserAgent:      userAgent,
+		Data:           data,
+		Method:         method,
+		ProxyURL:       proxy,
+		Insecure:       insecure,
+		OutputDir:      output,
+		CheckpointPath: checkpointPath,
+		ResumePath:     resumePath,
 	}
 	s.SetConfig(config)
 

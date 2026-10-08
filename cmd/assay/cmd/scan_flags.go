@@ -110,6 +110,8 @@ var (
 	ratePerSec           float64
 	sessionCheckURL      string
 	sessionCheckInterval time.Duration
+	checkpointPath       string
+	resumePath           string
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
