@@ -77,6 +77,7 @@ func (s *InternalScanner) launchURLClassic(ctx context.Context, wg *sync.WaitGro
 		func() { emit(ctx, findingsChan, s.testBAC(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableCORS, func() { emit(ctx, findingsChan, s.testCORS(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableJNDI, func() { emit(ctx, findingsChan, s.testJNDI(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableDeserialization, func() { emit(ctx, findingsChan, s.testDeserialization(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableSecHeaders, func() { emit(ctx, findingsChan, s.testSecHeaders(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableWAFDetect, func() { emit(ctx, findingsChan, s.testWAFDetect(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableXFS, func() { emit(ctx, findingsChan, s.testXFS(ctx, targetURL)) })

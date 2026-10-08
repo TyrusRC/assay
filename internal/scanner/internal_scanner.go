@@ -18,8 +18,10 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/cloud"
 	"github.com/TyrusRC/assay/internal/detection/cmdi"
 	"github.com/TyrusRC/assay/internal/detection/contenttype"
+	"github.com/TyrusRC/assay/internal/detection/cookietoss"
 	"github.com/TyrusRC/assay/internal/detection/cors"
 	"github.com/TyrusRC/assay/internal/detection/crlf"
+	"github.com/TyrusRC/assay/internal/detection/cspaudit"
 	"github.com/TyrusRC/assay/internal/detection/cspt"
 	"github.com/TyrusRC/assay/internal/detection/csrf"
 	"github.com/TyrusRC/assay/internal/detection/cssinj"
@@ -28,6 +30,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/dataexposure"
 	"github.com/TyrusRC/assay/internal/detection/depconfusion"
 	"github.com/TyrusRC/assay/internal/detection/deser"
+	"github.com/TyrusRC/assay/internal/detection/deserialize"
 	"github.com/TyrusRC/assay/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/assay/internal/detection/domclobber"
 	"github.com/TyrusRC/assay/internal/detection/emailinj"
@@ -46,6 +49,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/http2desync"
 	"github.com/TyrusRC/assay/internal/detection/http2race"
 	"github.com/TyrusRC/assay/internal/detection/idor"
+	"github.com/TyrusRC/assay/internal/detection/iistilde"
 	"github.com/TyrusRC/assay/internal/detection/injection"
 	"github.com/TyrusRC/assay/internal/detection/jkuabuse"
 	"github.com/TyrusRC/assay/internal/detection/jndi"
@@ -55,6 +59,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/ldap"
 	"github.com/TyrusRC/assay/internal/detection/lfi"
 	"github.com/TyrusRC/assay/internal/detection/loginj"
+	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/massassign"
 	"github.com/TyrusRC/assay/internal/detection/mfabypass"
 	"github.com/TyrusRC/assay/internal/detection/nosql"
@@ -75,26 +80,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/redos"
 	"github.com/TyrusRC/assay/internal/detection/rfi"
 	"github.com/TyrusRC/assay/internal/detection/samesitelax"
-	"github.com/TyrusRC/assay/internal/detection/cookietoss"
-	"github.com/TyrusRC/assay/internal/detection/cspaudit"
-	"github.com/TyrusRC/assay/internal/detection/iistilde"
-	"github.com/TyrusRC/assay/internal/detection/webhooksig"
-	"github.com/TyrusRC/assay/internal/detection/longpwd"
 	"github.com/TyrusRC/assay/internal/detection/samesitescript"
-	"github.com/TyrusRC/assay/internal/detection/wafdetect"
-	"github.com/TyrusRC/assay/internal/detection/xfs"
-	"github.com/TyrusRC/assay/internal/payloads/arginject"
-	"github.com/TyrusRC/assay/internal/payloads/esi"
-	"github.com/TyrusRC/assay/internal/payloads/fileops"
-	"github.com/TyrusRC/assay/internal/payloads/http3desync"
-	"github.com/TyrusRC/assay/internal/payloads/javareflect"
-	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
-	"github.com/TyrusRC/assay/internal/payloads/paraminject"
-	"github.com/TyrusRC/assay/internal/payloads/phpinject"
-	"github.com/TyrusRC/assay/internal/payloads/rscinject"
-	"github.com/TyrusRC/assay/internal/payloads/solrinject"
-	"github.com/TyrusRC/assay/internal/payloads/webauthn"
-	"github.com/TyrusRC/assay/internal/payloads/vhost"
 	"github.com/TyrusRC/assay/internal/detection/samlinj"
 	"github.com/TyrusRC/assay/internal/detection/secheaders"
 	"github.com/TyrusRC/assay/internal/detection/secondorder"
@@ -115,7 +101,10 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/tokenentropy"
 	"github.com/TyrusRC/assay/internal/detection/typejuggling"
 	"github.com/TyrusRC/assay/internal/detection/verbtamper"
+	"github.com/TyrusRC/assay/internal/detection/wafdetect"
+	"github.com/TyrusRC/assay/internal/detection/webhooksig"
 	"github.com/TyrusRC/assay/internal/detection/ws"
+	"github.com/TyrusRC/assay/internal/detection/xfs"
 	"github.com/TyrusRC/assay/internal/detection/xpath"
 	"github.com/TyrusRC/assay/internal/detection/xsleaks"
 	"github.com/TyrusRC/assay/internal/detection/xslt"
@@ -124,6 +113,18 @@ import (
 	"github.com/TyrusRC/assay/internal/discovery"
 	"github.com/TyrusRC/assay/internal/headless"
 	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/arginject"
+	"github.com/TyrusRC/assay/internal/payloads/esi"
+	"github.com/TyrusRC/assay/internal/payloads/fileops"
+	"github.com/TyrusRC/assay/internal/payloads/http3desync"
+	"github.com/TyrusRC/assay/internal/payloads/javareflect"
+	"github.com/TyrusRC/assay/internal/payloads/nodejsinject"
+	"github.com/TyrusRC/assay/internal/payloads/paraminject"
+	"github.com/TyrusRC/assay/internal/payloads/phpinject"
+	"github.com/TyrusRC/assay/internal/payloads/rscinject"
+	"github.com/TyrusRC/assay/internal/payloads/solrinject"
+	"github.com/TyrusRC/assay/internal/payloads/vhost"
+	"github.com/TyrusRC/assay/internal/payloads/webauthn"
 )
 
 // TechHint captures technology names detected during scanning.
@@ -159,6 +160,7 @@ type InternalScanner struct {
 	headerInjDetector      *headerinj.Detector
 	cstiDetector           *csti.Detector
 	rfiDetector            *rfi.Detector
+	deserializeDetector    *deserialize.Detector
 	jndiDetector           *jndi.Detector
 	secHeadersDetector     *secheaders.Detector
 	exposureDetector       *exposure.Detector
@@ -269,7 +271,7 @@ type InternalScanner struct {
 	// start of every Scan call; nil is safe (detectors fall through to
 	// uncached fetch).
 	baselineCache *paraminject.Cache
-	mu                      sync.Mutex
+	mu            sync.Mutex
 }
 
 // NewInternalScanner creates a new internal scanner. The constructor
