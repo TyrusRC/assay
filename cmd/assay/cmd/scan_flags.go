@@ -47,7 +47,7 @@ var (
 	baselinePath         string
 	failOnNew            bool
 	targetList           string
-	templateDir          string
+	templateDirs         []string
 	profile              string
 	noJSDep              bool
 	nvdAPIKey            string
@@ -123,9 +123,9 @@ var (
 // flag and writes one config field. Splitting it further would obscure
 // the 1:1 flag→config mapping that's the only thing readers want.
 func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
-	if templateDir != "" {
+	if len(templateDirs) > 0 {
 		internalConfig.EnableTemplates = true
-		internalConfig.TemplatePaths = []string{templateDir}
+		internalConfig.TemplatePaths = templateDirs
 	}
 	if disableOOB {
 		internalConfig.EnableOOB = false

@@ -95,7 +95,7 @@ func init() {
 	scanCmd.Flags().IntVar(&crawlDepth, "crawl-depth", 1, "Max BFS depth from each seed when --crawl is set (0 = seed page only)")
 	scanCmd.Flags().IntVar(&crawlPages, "crawl-max-pages", 25, "Max pages to navigate when --crawl is set")
 	scanCmd.Flags().StringVarP(&targetList, "list", "l", "", "File containing target URLs (one per line)")
-	scanCmd.Flags().StringVar(&templateDir, "templates", "", "Path to nuclei-style template directory")
+	scanCmd.Flags().StringArrayVar(&templateDirs, "templates", nil, "Nuclei-style template directory or file (repeatable: pass once per path to load the default store + your custom templates together, e.g. --templates ~/nuclei-templates --templates ~/custom-nuclei-templates)")
 	scanCmd.Flags().StringVar(&profile, "profile", "", "Scan profile (quick, normal, thorough, passive)")
 	scanCmd.Flags().BoolVar(&noJSDep, "no-jsdep", false, "Disable JS dependency / NVD CVE lookup")
 	scanCmd.Flags().StringVar(&nvdAPIKey, "nvd-api-key", "", "NVD CVE API key (raises rate limit ~5→50 req/30s; falls back to NVD_API_KEY env)")

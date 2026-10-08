@@ -167,7 +167,7 @@ assay scan [target URL] [flags]
 | `--profile NAME` | Scan profile (`quick`, `normal`, `thorough`) | |
 | `--level 1-5` | SQLMap-style level | `1` |
 | `--risk 1-3` | SQLMap-style risk | `1` |
-| `--templates DIR` | Nuclei-style template directory | |
+| `--templates DIR` | Nuclei-style template dir/file; **repeatable** — pass once per path to load the default store and custom templates together (e.g. `--templates ~/nuclei-templates --templates ~/custom-nuclei-templates`) | |
 | `--api-spec URL` | OpenAPI/Swagger JSON; runner exercises every endpoint | |
 
 ### Scope & rate (DAST)
