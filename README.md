@@ -170,6 +170,41 @@ assay scan [target URL] [flags]
 | `--templates DIR` | Nuclei-style template directory | |
 | `--api-spec URL` | OpenAPI/Swagger JSON; runner exercises every endpoint | |
 
+### Scope & rate (DAST)
+
+Scope is opt-in: without a scope flag every URL is requested (cross-host
+detectors like cloud / subdomain-takeover / SSRF-metadata and OOB callbacks
+still reach their infrastructure). With any scope flag, every outbound request is
+gated at the HTTP client and out-of-scope redirects are returned unfollowed.
+
+| Flag | Description | Default |
+|---|---|---|
+| `--scope-host HOST` | Restrict traffic to these hosts (repeatable; `*.example.com`) | |
+| `--include-path RE` | Only request paths matching one of these regexps (repeatable) | |
+| `--exclude-path RE` | Never request paths matching these regexps (exclude wins) | |
+| `--no-default-excludes` | Keep session-destroying paths (`/logout`, `/delete-account`, …) in scope | off |
+| `--rate N` | Cap outbound requests per second across the whole scan | unlimited |
+
+### Session keep-alive
+
+When a login is performed (`--login-*`), the session is polled during the scan
+and re-authenticated on logout, so authenticated probes do not silently become
+unauthenticated.
+
+| Flag | Description | Default |
+|---|---|---|
+| `--session-check-url URL` | Authenticated-only URL polled for logout | first target |
+| `--session-check-interval D` | Poll cadence | `1m` |
+
+`--login-success` doubles as the authenticated marker.
+
+### Resume
+
+| Flag | Description |
+|---|---|
+| `--checkpoint FILE` | Record per-target progress so an interrupted scan can resume |
+| `--resume FILE` | Skip already-scanned targets and carry their findings forward |
+
 ### Output
 
 | Flag | Description |
@@ -204,6 +239,10 @@ assay scan [target URL] [flags]
 | `--chrome-path PATH` | Explicit Chrome/Chromium binary |
 | `--storage-inj` | Enable client-side storage injection probes |
 | `--no-postmessage` | Disable the postMessage origin-validation probe |
+
+The SPA crawl captures XHR/fetch endpoints (via CDP network events) and
+client-side routes registered through the History API (pushState/replaceState/
+popstate), not just static anchors — so dynamic API surface is discovered.
 
 ### Per-detector toggles
 
