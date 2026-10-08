@@ -2,11 +2,23 @@ package discovery
 
 import (
 	"context"
+	"net/url"
 	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/http"
 )
+
+// hostRootURL returns scheme://host + path for targetURL, so a discoverer can
+// fetch a well-known resource (robots.txt, an OpenAPI spec) at the host root.
+// The second return is false when targetURL does not parse or has no host.
+func hostRootURL(targetURL, path string) (string, bool) {
+	u, err := url.Parse(targetURL)
+	if err != nil || u.Host == "" {
+		return "", false
+	}
+	return u.Scheme + "://" + u.Host + path, true
+}
 
 // Discoverer finds injectable parameters from a specific source.
 type Discoverer interface {

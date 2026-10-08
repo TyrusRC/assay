@@ -11,11 +11,19 @@ import (
 )
 
 // OpenAPIDiscoverer extracts parameters from OpenAPI/Swagger JSON specs.
-type OpenAPIDiscoverer struct{}
+type OpenAPIDiscoverer struct{ client *http.Client }
 
 // NewOpenAPIDiscoverer creates a new OpenAPIDiscoverer.
 func NewOpenAPIDiscoverer() *OpenAPIDiscoverer {
 	return &OpenAPIDiscoverer{}
+}
+
+// WithClient lets the discoverer fetch the spec from its conventional locations
+// itself, instead of only parsing the scanned URL's response. The client carries
+// the scan's scope and rate limit.
+func (o *OpenAPIDiscoverer) WithClient(c *http.Client) *OpenAPIDiscoverer {
+	o.client = c
+	return o
 }
 
 // Name returns the discoverer identifier.
@@ -25,26 +33,57 @@ func (o *OpenAPIDiscoverer) Name() string {
 
 var pathVarRegex = regexp.MustCompile(`\{(\w+)\}`)
 
-// Discover extracts parameters from OpenAPI/Swagger specifications.
-func (o *OpenAPIDiscoverer) Discover(_ context.Context, _ string, resp *http.Response) ([]core.Parameter, error) {
-	if resp == nil || resp.Body == "" {
+// commonSpecPaths are the conventional locations of an OpenAPI/Swagger document.
+var commonSpecPaths = []string{
+	"/openapi.json", "/swagger.json", "/v3/api-docs", "/api-docs",
+	"/swagger/v1/swagger.json", "/openapi/v3",
+}
+
+// Discover extracts parameters from OpenAPI/Swagger specifications. It first
+// parses the response it was handed (the scanned URL may be a spec), then, with
+// a client set, fetches each conventional spec path at the host root.
+func (o *OpenAPIDiscoverer) Discover(ctx context.Context, targetURL string, resp *http.Response) ([]core.Parameter, error) {
+	if resp != nil {
+		if params := o.parseBody(resp.Body); len(params) > 0 {
+			return params, nil
+		}
+	}
+	if o.client == nil {
 		return nil, nil
 	}
+	for _, sp := range commonSpecPaths {
+		specURL, ok := hostRootURL(targetURL, sp)
+		if !ok {
+			break
+		}
+		rr, err := o.client.Get(ctx, specURL)
+		if err != nil || rr == nil {
+			continue
+		}
+		if params := o.parseBody(rr.Body); len(params) > 0 {
+			return params, nil
+		}
+	}
+	return nil, nil
+}
 
-	if !strings.Contains(strings.ToLower(resp.ContentType), "application/json") {
-		return nil, nil
+// parseBody parses an OpenAPI/Swagger JSON document into parameters. It returns
+// nil when body is not a spec.
+func (o *OpenAPIDiscoverer) parseBody(body string) []core.Parameter {
+	if strings.TrimSpace(body) == "" {
+		return nil
 	}
 
 	var doc map[string]interface{}
-	if err := json.Unmarshal([]byte(resp.Body), &doc); err != nil {
-		return nil, nil
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		return nil
 	}
 
 	// Check if it's an OpenAPI/Swagger doc
 	_, hasSwagger := doc["swagger"]
 	_, hasOpenAPI := doc["openapi"]
 	if !hasSwagger && !hasOpenAPI {
-		return nil, nil
+		return nil
 	}
 
 	seen := make(map[string]bool)
@@ -52,12 +91,12 @@ func (o *OpenAPIDiscoverer) Discover(_ context.Context, _ string, resp *http.Res
 
 	pathsRaw, ok := doc["paths"]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	paths, ok := pathsRaw.(map[string]interface{})
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	for pathStr, methodsRaw := range paths {
@@ -118,10 +157,10 @@ func (o *OpenAPIDiscoverer) Discover(_ context.Context, _ string, resp *http.Res
 	}
 
 	if len(params) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	return params, nil
+	return params
 }
 
 // mapLocation converts OpenAPI "in" values to core param locations.
