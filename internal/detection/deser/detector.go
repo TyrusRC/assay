@@ -1,12 +1,14 @@
 // Package deser provides insecure deserialization vulnerability detection.
-// It supports detection for Java, PHP, Python, and .NET using serialized
-// object markers, error-based detection, and status code analysis.
+// It supports detection for Java, PHP, Python, .NET, Ruby, and Node.js using
+// serialized object markers, error-based detection, status code analysis, and
+// shape detection of a client value that already carries a serialized object.
 package deser
 
 import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
@@ -53,7 +55,7 @@ func (d *Detector) Name() string {
 
 // Description returns the detector description.
 func (d *Detector) Description() string {
-	return "Insecure Deserialization vulnerability detector using serialized object markers and error-based detection across Java, PHP, Python, and .NET"
+	return "Insecure Deserialization vulnerability detector using serialized object markers and error-based detection across Java, PHP, Python, .NET, Ruby, and Node.js"
 }
 
 // initErrorPatterns initializes platform-specific error patterns.
@@ -88,6 +90,16 @@ func (d *Detector) initErrorPatterns() {
 		regexp.MustCompile(`(?i)BinaryFormatter.*deserializ`),
 		regexp.MustCompile(`(?i)TypeInitializationException.*serializ`),
 		regexp.MustCompile(`(?i)ObjectStateFormatter.*error`),
+
+		// Ruby deserialization errors (Marshal / Psych YAML)
+		regexp.MustCompile(`(?i)Psych::`),
+		regexp.MustCompile(`(?i)marshal data too short`),
+		regexp.MustCompile(`(?i)dump format error`),
+		regexp.MustCompile(`(?i)undefined class/module`),
+
+		// Node.js deserialization errors (node-serialize / funcster)
+		regexp.MustCompile(`(?i)node-serialize`),
+		regexp.MustCompile(`(?i)evalmachine`),
 
 		// Generic deserialization errors
 		regexp.MustCompile(`(?i)deserializ.*error`),
@@ -226,7 +238,7 @@ func (d *Detector) AnalyzeResponse(response string) *AnalysisResult {
 func (d *Detector) collectPayloads(opts DetectOptions) []deserPayload {
 	var payloads []deserPayload
 
-	variants := []deser.Variant{deser.Java, deser.PHP, deser.Python, deser.DotNet, deser.Generic}
+	variants := []deser.Variant{deser.Java, deser.PHP, deser.Python, deser.DotNet, deser.Ruby, deser.NodeJS, deser.Generic}
 	for _, variant := range variants {
 		for _, p := range deser.GetPayloads(variant) {
 			if !opts.IncludeWAFBypass && p.WAFBypass {
@@ -294,6 +306,59 @@ func (d *Detector) createFinding(target, param string, payload deserPayload, res
 		[]string{"CWE-502"},
 	)
 
+	return finding
+}
+
+// phpShapeRe matches a PHP serialized object or array magic prefix.
+var phpShapeRe = regexp.MustCompile(`^(O:\d+:"|a:\d+:\{)`)
+
+// SerializedShape returns the platform whose serialized-object magic prefix the
+// value carries, or "" when the value does not look serialized. It lets the
+// scanner flag a parameter that ALREADY round-trips a serialized blob — a strong
+// deserialization surface — without sending any payload.
+func SerializedShape(name, value string) string {
+	v := strings.TrimSpace(value)
+	switch {
+	case strings.HasPrefix(v, "rO0AB") || strings.HasPrefix(strings.ToLower(v), "aced0005"):
+		return "Java" // base64 of 0xACED0005, or the raw hex header
+	case strings.EqualFold(name, "__VIEWSTATE"):
+		return ".NET"
+	case phpShapeRe.MatchString(v):
+		return "PHP"
+	case strings.HasPrefix(v, "BAh"): // Ruby Marshal 0x0408, base64
+		return "Ruby"
+	case strings.HasPrefix(v, "gA") && len(v) > 8: // Python pickle proto 2+ (0x80 0x02)
+		return "Python"
+	case strings.Contains(v, "_$$ND_FUNC$$_"): // node-serialize function marker
+		return "Node.js"
+	}
+	return ""
+}
+
+// CheckShape returns a finding when a parameter's existing value already carries
+// a serialized object, or nil. It sends no request — reaching a deserializer with
+// an attacker-controlled serialized value is the finding.
+func (d *Detector) CheckShape(target, param, value string) *core.Finding {
+	stack := SerializedShape(param, value)
+	if stack == "" {
+		return nil
+	}
+	finding := core.NewFinding("Insecure Deserialization", core.SeverityHigh).At(target, param)
+	finding.Description = fmt.Sprintf(
+		"Parameter '%s' carries a %s serialized object. If the server deserializes it "+
+			"without an allowlist, a gadget chain reaches an RCE sink.", param, stack)
+	finding.Evidence = fmt.Sprintf("serialized-%s shape in '%s'", stack, param)
+	finding.Confidence = core.ConfidenceMedium
+	finding.Tool = "deser-detector"
+	finding.Remediation = "Never deserialize untrusted data. " +
+		"Use safe serialization formats like JSON instead of native serialization. " +
+		"If deserialization is required, use allowlists for permitted classes. " +
+		"Implement integrity checks (digital signatures) on serialized data."
+	finding.WithOWASPMapping(
+		[]string{"WSTG-INPV-11"},
+		[]string{"A08:2025"},
+		[]string{"CWE-502"},
+	)
 	return finding
 }
 

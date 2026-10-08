@@ -9,6 +9,7 @@ import (
 	"time"
 
 	internalhttp "github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/payloads/deser"
 )
 
 func TestDetector_Name(t *testing.T) {
@@ -486,6 +487,67 @@ func TestDetector_DeduplicatePayloads(t *testing.T) {
 	deduped := detector.deduplicatePayloads(payloads)
 	if len(deduped) != 3 {
 		t.Errorf("deduplicatePayloads() returned %d payloads, want 3", len(deduped))
+	}
+}
+
+func TestSerializedShape(t *testing.T) {
+	cases := []struct {
+		name, value, want string
+	}{
+		{"data", "rO0ABXQABHRlc3Q=", "Java"},
+		{"x", "aced0005737200", "Java"},
+		{"__VIEWSTATE", "/wEPDwUKLT...", ".NET"},
+		{"data", `O:8:"stdClass":0:{}`, "PHP"},
+		{"data", "a:1:{i:0;s:3:\"abc\";}", "PHP"},
+		{"m", "BAh7BjoGYUkiBmEGOgZFVA==", "Ruby"},
+		{"p", "gASVBQAAAAAAAACMA2JhZA==", "Python"},
+		{"rce", `_$$ND_FUNC$$_function(){}()`, "Node.js"},
+		{"id", "12345", ""},
+		{"name", "hello world", ""},
+	}
+	for _, c := range cases {
+		if got := SerializedShape(c.name, c.value); got != c.want {
+			t.Errorf("SerializedShape(%q,%q) = %q, want %q", c.name, c.value, got, c.want)
+		}
+	}
+}
+
+func TestDetector_CheckShape(t *testing.T) {
+	d := New(internalhttp.NewClient())
+	// A serialized value yields a finding without any request.
+	f := d.CheckShape("https://t/api", "state", "rO0ABXQABHRlc3Q=")
+	if f == nil {
+		t.Fatal("CheckShape should flag a Java serialized value")
+	}
+	if f.Type != "Insecure Deserialization" || f.Parameter != "state" {
+		t.Errorf("unexpected finding: type=%q param=%q", f.Type, f.Parameter)
+	}
+	if len(f.CWE) == 0 || f.CWE[0] != "CWE-502" {
+		t.Errorf("CheckShape finding missing CWE-502, got %v", f.CWE)
+	}
+	// A plain value yields nothing.
+	if d.CheckShape("https://t/api", "id", "42") != nil {
+		t.Error("CheckShape should not flag a plain value")
+	}
+}
+
+func TestDetector_CollectsRubyAndNodeJS(t *testing.T) {
+	d := New(internalhttp.NewClient())
+	payloads := d.collectPayloads(DetectOptions{MaxPayloads: 500, IncludeWAFBypass: true})
+	var ruby, node bool
+	for _, p := range payloads {
+		switch p.Variant {
+		case deser.Ruby:
+			ruby = true
+		case deser.NodeJS:
+			node = true
+		}
+	}
+	if !ruby {
+		t.Error("collectPayloads should include Ruby payloads")
+	}
+	if !node {
+		t.Error("collectPayloads should include Node.js payloads")
 	}
 }
 

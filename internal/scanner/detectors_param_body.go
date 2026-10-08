@@ -51,13 +51,18 @@ func (s *InternalScanner) testDeser(ctx context.Context, targetURL string, param
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing deserialization on param '%s'...\n", param.Name)
 	}
+	var findings []*core.Finding
+	// Shape check: the parameter's current value already looks serialized.
+	if f := s.deserDetector.CheckShape(targetURL, param.Name, param.Value); f != nil {
+		findings = append(findings, f)
+	}
 	opts := deser.DefaultOptions()
 	opts.Timeout = s.config.RequestTimeout
 	result, err := s.deserDetector.Detect(ctx, targetURL, param.Name, method, opts)
-	if err != nil || result == nil || !result.Vulnerable {
-		return nil
+	if err == nil && result != nil && result.Vulnerable {
+		findings = append(findings, result.Findings...)
 	}
-	return result.Findings
+	return findings
 }
 
 // testDOMClobber probes a parameter for DOM-clobbering injection points.
