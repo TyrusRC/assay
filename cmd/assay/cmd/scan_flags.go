@@ -103,6 +103,7 @@ var (
 	jiraProject          string
 	exportMinSev         string
 	exportDryRun         bool
+	noScope              bool
 	scopeHosts           []string
 	includePaths         []string
 	excludePaths         []string

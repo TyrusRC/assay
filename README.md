@@ -172,14 +172,18 @@ assay scan [target URL] [flags]
 
 ### Scope & rate (DAST)
 
-Scope is opt-in: without a scope flag every URL is requested (cross-host
-detectors like cloud / subdomain-takeover / SSRF-metadata and OOB callbacks
-still reach their infrastructure). With any scope flag, every outbound request is
-gated at the HTTP client and out-of-scope redirects are returned unfollowed.
+Scope is **ON by default**: traffic is restricted to the target host(s) and
+session-destroying paths (`/logout`, `/delete-account`, …) are skipped, so a scan
+never wanders off-target. Every outbound request is gated at the HTTP client and
+out-of-scope redirects are returned unfollowed. Cross-host detectors (cloud,
+subdomain-takeover, the npm registry) and OOB callbacks use a separate unscoped
+client, so they still reach their infrastructure. Use `--no-scope` to disable, or
+`--scope-host` to broaden.
 
 | Flag | Description | Default |
 |---|---|---|
-| `--scope-host HOST` | Restrict traffic to these hosts (repeatable; `*.example.com`) | |
+| `--no-scope` | Disable scope entirely (request any host) | off (scope on) |
+| `--scope-host HOST` | Override the scoped hosts (repeatable; `*.example.com`) | target host(s) |
 | `--include-path RE` | Only request paths matching one of these regexps (repeatable) | |
 | `--exclude-path RE` | Never request paths matching these regexps (exclude wins) | |
 | `--no-default-excludes` | Keep session-destroying paths (`/logout`, `/delete-account`, …) in scope | off |

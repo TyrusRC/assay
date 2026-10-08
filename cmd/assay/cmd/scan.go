@@ -145,7 +145,8 @@ func init() {
 	scanCmd.Flags().StringVar(&idorURL, "idor-url", "", "Override URL for the two-identity IDOR/BOLA probe (defaults to scan target)")
 	scanCmd.Flags().BoolVar(&noPostMsg, "no-postmessage", false, "Disable the postMessage origin-validation probe (requires Chrome)")
 
-	scanCmd.Flags().StringArrayVar(&scopeHosts, "scope-host", nil, "Restrict all traffic to these hosts (repeatable; '*.example.com' wildcard). Also constrains cross-host detectors (cloud, subtakeover) and redirects — add every host you intend to reach")
+	scanCmd.Flags().BoolVar(&noScope, "no-scope", false, "Disable scope entirely (request any host). By default the scan is scoped to the target host(s)")
+	scanCmd.Flags().StringArrayVar(&scopeHosts, "scope-host", nil, "Override the scoped hosts (repeatable; '*.example.com' wildcard). Default is the target host(s). Cross-host detectors (cloud, subdomain-takeover, external APIs) and OOB use a separate unscoped client")
 	scanCmd.Flags().StringArrayVar(&includePaths, "include-path", nil, "When set, only request paths matching one of these regexps (repeatable)")
 	scanCmd.Flags().StringArrayVar(&excludePaths, "exclude-path", nil, "Never request paths matching these regexps (repeatable); exclude always wins over include")
 	scanCmd.Flags().BoolVar(&noDefaultExcludes, "no-default-excludes", false, "Do not auto-exclude session-destroying paths (/logout, /delete-account, ...) when a scope is active")
@@ -234,20 +235,33 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if err := applyCLIFlags(internalConfig); err != nil {
 		return err
 	}
-	// Scope is opt-in: a nil scope keeps the previous allow-all behavior so
-	// cross-host detectors (cloud, subtakeover, SSRF metadata) and OOB callbacks
-	// still reach their infrastructure. When the operator passes any scope flag,
-	// every outbound request is gated and out-of-scope redirects are not followed.
-	if len(scopeHosts) > 0 || len(includePaths) > 0 || len(excludePaths) > 0 {
-		sc, serr := scope.New(scopeHosts, includePaths, excludePaths, !noDefaultExcludes)
+	// Scope is ON by default: restrict traffic to the target host(s) so a scan
+	// never wanders off-target, and skip session-destroying paths. Operators
+	// broaden with --scope-host / --include-path, or disable with --no-scope.
+	// Cross-host detectors (cloud, subdomain-takeover, external APIs) and OOB
+	// callbacks use a separate unscoped client, so this does not block them.
+	if !noScope {
+		hosts := scopeHosts
+		if len(hosts) == 0 {
+			seen := map[string]bool{}
+			for _, t := range targets {
+				if u, e := url.Parse(t); e == nil && u.Hostname() != "" && !seen[u.Hostname()] {
+					seen[u.Hostname()] = true
+					hosts = append(hosts, u.Hostname())
+				}
+			}
+		}
+		sc, serr := scope.New(hosts, includePaths, excludePaths, !noDefaultExcludes)
 		if serr != nil {
 			return fmt.Errorf("invalid scope: %w", serr)
 		}
 		internalConfig.Scope = sc
 		if verbose {
-			fmt.Fprintf(os.Stderr, "[*] Scope active: hosts=%v include=%v exclude=%v default-excludes=%v\n",
-				scopeHosts, includePaths, excludePaths, !noDefaultExcludes)
+			fmt.Fprintf(os.Stderr, "[*] Scope: hosts=%v include=%v exclude=%v default-excludes=%v (--no-scope to disable)\n",
+				hosts, includePaths, excludePaths, !noDefaultExcludes)
 		}
+	} else if verbose {
+		fmt.Fprintln(os.Stderr, "[*] Scope disabled (--no-scope): all hosts allowed")
 	}
 	if ratePerSec > 0 {
 		internalConfig.RateLimitPerSec = ratePerSec

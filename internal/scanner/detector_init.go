@@ -129,6 +129,11 @@ import (
 // here and are lazily replaced per scan in their test* helpers.
 func (s *InternalScanner) initDetectors(httpClient *http.Client, config *InternalScanConfig, techDetector *techstack.Detector) {
 	s.client = httpClient
+	// infraClient is an unscoped clone for the detectors that legitimately reach
+	// hosts other than the scan target — cloud storage buckets, subdomain-takeover
+	// candidates, and the public npm registry. It keeps the shared rate limit and
+	// headers but skips the scope gate, so a default-on scope does not block them.
+	infraClient := httpClient.Clone().WithScope(nil)
 	s.sqliDetector = injection.NewSQLiDetector()
 	s.xssDetector = xss.New(httpClient)
 	s.cmdiDetector = cmdi.New(httpClient)
@@ -151,8 +156,8 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.jndiDetector = jndi.New(httpClient)
 	s.secHeadersDetector = secheaders.New(httpClient)
 	s.exposureDetector = exposure.New(httpClient)
-	s.cloudDetector = cloud.New(httpClient)
-	s.subTakeoverDetector = subtakeover.New(httpClient)
+	s.cloudDetector = cloud.New(infraClient)
+	s.subTakeoverDetector = subtakeover.New(infraClient)
 	s.tlsAnalyzer = tlsdetect.New(httpClient)
 	s.authDetector = auth.New(httpClient)
 	s.graphqlDetector = graphql.New(httpClient)
@@ -186,7 +191,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.samlInjDetector = samlinj.New(httpClient)
 	s.ormLeakDetector = ormleak.New(httpClient)
 	s.typeJugglingDetector = typejuggling.New(httpClient)
-	s.depConfusionDetector = depconfusion.New(httpClient)
+	s.depConfusionDetector = depconfusion.New(infraClient)
 	s.tokenEntropyDetector = tokenentropy.New(httpClient)
 	s.cacheDeceptionDetector = cachedeception.New(httpClient)
 	s.cachePoisoningDetector = cachepoisoning.New(httpClient)

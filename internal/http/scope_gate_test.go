@@ -38,6 +38,25 @@ func TestClient_Do_ScopeGate(t *testing.T) {
 	}
 }
 
+func TestClient_UnscopedClone_BypassesGate(t *testing.T) {
+	// A scoped client blocks an off-scope host; its Clone().WithScope(nil) — the
+	// infra client used by cloud/subtakeover/depconfusion — reaches it, while
+	// still sharing the parent's throttle.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+
+	sc, _ := scope.New([]string{"only.example"}, nil, nil, false)
+	scoped := NewClient().WithScope(sc)
+	if _, err := scoped.Get(context.Background(), srv.URL); !errors.Is(err, ErrOutOfScope) {
+		t.Fatalf("scoped client should block the off-scope test server, got %v", err)
+	}
+
+	infra := scoped.Clone().WithScope(nil)
+	if _, err := infra.Get(context.Background(), srv.URL); err != nil {
+		t.Errorf("unscoped clone should reach the off-scope host, got %v", err)
+	}
+}
+
 func TestClient_Do_NoScopeAllowsAll(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer srv.Close()
