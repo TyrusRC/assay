@@ -65,6 +65,7 @@ type Client struct {
 	userAgent       string
 	insecure        bool
 	scope           *scope.Scope
+	throttle        *throttle
 	mu              sync.Mutex
 }
 
@@ -154,6 +155,7 @@ func (c *Client) Clone() *Client {
 		userAgent:       c.userAgent,
 		insecure:        c.insecure,
 		scope:           c.scope,
+		throttle:        c.throttle,
 	}
 	for k, v := range c.headers {
 		cloned.headers[k] = v
@@ -166,6 +168,14 @@ func (c *Client) Clone() *Client {
 // rejects. A nil scope allows every request (the default).
 func (c *Client) WithScope(s *scope.Scope) *Client {
 	c.scope = s
+	return c
+}
+
+// WithRateLimit paces every request to at most perSecond requests across this
+// client and all clones made from it afterwards. A non-positive value imposes no
+// limit (the default).
+func (c *Client) WithRateLimit(perSecond float64) *Client {
+	c.throttle = newThrottle(perSecond)
 	return c
 }
 
@@ -314,6 +324,9 @@ func (c *Client) PostJSON(ctx context.Context, url, jsonBody string) (*Response,
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 	if c.scope != nil && !c.scope.InScope(req.URL) {
 		return nil, fmt.Errorf("%w: %s", ErrOutOfScope, req.URL)
+	}
+	if err := c.throttle.wait(ctx); err != nil {
+		return nil, err
 	}
 	c.ensureClient()
 	start := time.Now()

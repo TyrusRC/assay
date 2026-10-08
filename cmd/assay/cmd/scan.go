@@ -148,6 +148,7 @@ func init() {
 	scanCmd.Flags().StringArrayVar(&includePaths, "include-path", nil, "When set, only request paths matching one of these regexps (repeatable)")
 	scanCmd.Flags().StringArrayVar(&excludePaths, "exclude-path", nil, "Never request paths matching these regexps (repeatable); exclude always wins over include")
 	scanCmd.Flags().BoolVar(&noDefaultExcludes, "no-default-excludes", false, "Do not auto-exclude session-destroying paths (/logout, /delete-account, ...) when a scope is active")
+	scanCmd.Flags().Float64Var(&ratePerSec, "rate", 0, "Cap outbound requests per second across the whole scan (0 = unlimited). Use it to stay within a target's rate limits")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -239,6 +240,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 		if verbose {
 			fmt.Fprintf(os.Stderr, "[*] Scope active: hosts=%v include=%v exclude=%v default-excludes=%v\n",
 				scopeHosts, includePaths, excludePaths, !noDefaultExcludes)
+		}
+	}
+	if ratePerSec > 0 {
+		internalConfig.RateLimitPerSec = ratePerSec
+		if verbose {
+			fmt.Fprintf(os.Stderr, "[*] Rate limit: %.2f req/s\n", ratePerSec)
 		}
 	}
 	if verbose && internalConfig.EnableJSDep {

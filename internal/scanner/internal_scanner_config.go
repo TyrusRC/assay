@@ -210,6 +210,10 @@ type InternalScanConfig struct {
 	// builds it from --scope-host / --include-path / --exclude-path, defaulting
 	// the host allowlist to the target host.
 	Scope *scope.Scope
+
+	// RateLimitPerSec caps outbound requests per second across the whole scan.
+	// Zero (the default) means unlimited. The CLI sets it from --rate.
+	RateLimitPerSec float64
 }
 
 // DefaultInternalConfig returns a reasonable default configuration.

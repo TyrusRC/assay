@@ -286,6 +286,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	if config.Scope != nil {
 		httpClient = httpClient.WithScope(config.Scope)
 	}
+	if config.RateLimitPerSec > 0 {
+		httpClient = httpClient.WithRateLimit(config.RateLimitPerSec)
+	}
 
 	techDetector, techErr := techstack.NewDetector()
 	if techErr != nil && config.Verbose {

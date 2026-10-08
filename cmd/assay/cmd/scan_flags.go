@@ -107,6 +107,7 @@ var (
 	includePaths      []string
 	excludePaths      []string
 	noDefaultExcludes bool
+	ratePerSec        float64
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
