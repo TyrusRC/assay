@@ -73,6 +73,12 @@ func writeMarkdownFinding(w io.Writer, f *core.Finding) {
 	if f.Evidence != "" {
 		fmt.Fprintf(w, "\n```\n%s\n```\n", f.Evidence)
 	}
+	if f.Request != "" {
+		fmt.Fprintf(w, "\n**Request:**\n\n```http\n%s\n```\n", f.Request)
+	}
+	if f.Response != "" {
+		fmt.Fprintf(w, "\n**Response:**\n\n```http\n%s\n```\n", f.Response)
+	}
 	if f.Remediation != "" {
 		fmt.Fprintf(w, "\n**Remediation:** %s\n", f.Remediation)
 	}

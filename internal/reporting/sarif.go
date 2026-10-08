@@ -152,6 +152,16 @@ func newSARIFResult(id string, f *core.Finding) sarifResult {
 	if f.Confidence != "" {
 		props["confidence"] = string(f.Confidence)
 	}
+	// Carry the proof so a triager can act on the SARIF without the raw session.
+	if f.Evidence != "" {
+		props["evidence"] = f.Evidence
+	}
+	if f.Request != "" {
+		props["request"] = f.Request
+	}
+	if f.Response != "" {
+		props["response"] = f.Response
+	}
 	return sarifResult{
 		RuleID:  id,
 		Level:   sarifLevel(f.Severity),

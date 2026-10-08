@@ -133,6 +133,28 @@ func TestWriteSARIF_ResultDetails(t *testing.T) {
 	}
 }
 
+func TestWriteSARIF_RequestResponseInProperties(t *testing.T) {
+	f := core.NewFinding("SQL Injection", core.SeverityCritical)
+	f.URL = "https://example.com/?id=1"
+	f.SetEvidence("sqli error", "GET /?id=1' HTTP/1.1", "HTTP/1.1 500 pg_query error")
+	r := NewReport(&scanner.ScanResult{Findings: core.Findings{f}})
+
+	var buf bytes.Buffer
+	if err := r.WriteSARIF(&buf); err != nil {
+		t.Fatalf("WriteSARIF error: %v", err)
+	}
+	// Valid JSON, and the proof is carried in result properties.
+	var doc sarifDoc
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("SARIF is not valid JSON: %v", err)
+	}
+	for _, want := range []string{`"request"`, "GET /?id=1'", `"response"`, "pg_query error", `"evidence"`} {
+		if !bytes.Contains(buf.Bytes(), []byte(want)) {
+			t.Errorf("SARIF properties missing %q", want)
+		}
+	}
+}
+
 func TestWriteSARIF_NoFindings(t *testing.T) {
 	r := NewReport(&scanner.ScanResult{Targets: []string{"https://example.com"}})
 	var buf bytes.Buffer
