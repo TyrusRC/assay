@@ -17,7 +17,10 @@ import (
 	"github.com/TyrusRC/assay/internal/webui"
 )
 
-var servePort int
+var (
+	servePort      int
+	serveStateFile string
+)
 
 // scanRunner is the production api.Runner: it drives the real scanner.
 type scanRunner struct{}
@@ -56,6 +59,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
+	serveCmd.Flags().StringVar(&serveStateFile, "state-file", "", "Persist scan jobs to this JSON file so they survive a restart (default: in-memory only)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -99,7 +103,16 @@ func buildServeMux(runner api.Runner) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("web ui: %w", err)
 	}
-	apiServer := api.NewServer(runner)
+	var apiServer *api.Server
+	if serveStateFile != "" {
+		store, serr := api.NewPersistentStore(serveStateFile)
+		if serr != nil {
+			return nil, fmt.Errorf("job store: %w", serr)
+		}
+		apiServer = api.NewServerWithStore(runner, store)
+	} else {
+		apiServer = api.NewServer(runner)
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiServer.Handler())

@@ -32,8 +32,14 @@ type Server struct {
 // NewServer builds a Server backed by runner. The returned Server's Handler
 // also serves any provided static frontend.
 func NewServer(runner Runner) *Server {
+	return NewServerWithStore(runner, NewStore())
+}
+
+// NewServerWithStore builds a Server backed by runner and a caller-provided
+// store — pass a persistent store so jobs survive a restart.
+func NewServerWithStore(runner Runner, store *Store) *Server {
 	s := &Server{
-		store:  NewStore(),
+		store:  store,
 		runner: runner,
 		mux:    http.NewServeMux(),
 	}

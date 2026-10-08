@@ -1,11 +1,54 @@
 package api
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/scanner"
 )
+
+func TestStore_PersistenceSurvivesReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "jobs.json")
+
+	s1, err := NewPersistentStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := s1.Create(ScanRequest{Target: "https://a", Profile: "quick"})
+	b := s1.Create(ScanRequest{Target: "https://b"})
+	s1.setRunning(b.ID)
+
+	// A fresh store from the same path must see both jobs, in order, with state.
+	s2, err := NewPersistentStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := s2.List()
+	if len(list) != 2 {
+		t.Fatalf("reloaded store has %d jobs, want 2", len(list))
+	}
+	if list[0].ID != a.ID || list[1].ID != b.ID {
+		t.Errorf("order not preserved: %s then %s", list[0].ID, list[1].ID)
+	}
+	got, ok := s2.Get(b.ID)
+	if !ok || got.Status != StatusRunning {
+		t.Errorf("reloaded job b = %+v (ok=%v), want status running", got, ok)
+	}
+	if ga, _ := s2.Get(a.ID); ga.Profile != "quick" {
+		t.Errorf("reloaded job a profile = %q, want quick", ga.Profile)
+	}
+}
+
+func TestNewPersistentStore_MissingFileIsEmpty(t *testing.T) {
+	s, err := NewPersistentStore(filepath.Join(t.TempDir(), "none.json"))
+	if err != nil {
+		t.Fatalf("missing file must not error: %v", err)
+	}
+	if len(s.List()) != 0 {
+		t.Error("store from a missing file must be empty")
+	}
+}
 
 func TestStore_CreateGetList(t *testing.T) {
 	s := NewStore()

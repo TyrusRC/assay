@@ -1,6 +1,10 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -50,20 +54,92 @@ func (j *ScanJob) Result() *scanner.ScanResult {
 	return j.result
 }
 
-// Store is a concurrency-safe in-memory registry of scan jobs.
+// Store is a concurrency-safe registry of scan jobs. When path is non-empty the
+// job metadata is persisted to disk after each change, so `assay serve` survives
+// a restart (the in-memory raw result is not persisted — status, summary and
+// listing are).
 type Store struct {
 	mu    sync.RWMutex
 	jobs  map[string]*ScanJob
 	order []string
 	now   func() time.Time
+	path  string
 }
 
-// NewStore creates an empty job store.
+// NewStore creates an empty in-memory job store.
 func NewStore() *Store {
 	return &Store{
 		jobs: make(map[string]*ScanJob),
 		now:  time.Now,
 	}
+}
+
+// NewPersistentStore creates a job store backed by a JSON file at path. Existing
+// jobs are loaded; subsequent changes are written back. A missing file is not an
+// error (a fresh store).
+func NewPersistentStore(path string) (*Store, error) {
+	s := &Store{
+		jobs: make(map[string]*ScanJob),
+		now:  time.Now,
+		path: path,
+	}
+	if err := s.load(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// persisted is the on-disk shape of the store.
+type persisted struct {
+	Order []string            `json:"order"`
+	Jobs  map[string]*ScanJob `json:"jobs"`
+}
+
+// load reads the backing file into the store. A missing file is ignored.
+func (s *Store) load() error {
+	if s.path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("api: read job store %s: %w", s.path, err)
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	var p persisted
+	if err := json.Unmarshal(data, &p); err != nil {
+		return fmt.Errorf("api: parse job store %s: %w", s.path, err)
+	}
+	if p.Jobs != nil {
+		s.jobs = p.Jobs
+	}
+	s.order = p.Order
+	return nil
+}
+
+// persistLocked writes the store to disk atomically. The caller holds s.mu.
+// NOTE: the write happens under the lock, so job mutations serialize on disk IO;
+// fine for serve's job volume. Raise to an async writer if that ever bites.
+func (s *Store) persistLocked() {
+	if s.path == "" {
+		return
+	}
+	data, err := json.MarshalIndent(persisted{Order: s.order, Jobs: s.jobs}, "", "  ")
+	if err != nil {
+		return
+	}
+	tmp := s.path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return
+	}
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, s.path)
 }
 
 // Create registers a new queued job for the request and returns a copy.
@@ -81,6 +157,7 @@ func (s *Store) Create(req ScanRequest) *ScanJob {
 	}
 	s.jobs[job.ID] = job
 	s.order = append(s.order, job.ID)
+	s.persistLocked()
 	return copyJob(job)
 }
 
@@ -113,6 +190,7 @@ func (s *Store) setRunning(id string) {
 	if job, ok := s.jobs[id]; ok {
 		job.Status = StatusRunning
 		job.UpdatedAt = s.now()
+		s.persistLocked()
 	}
 }
 
@@ -126,6 +204,7 @@ func (s *Store) setCompleted(id string, result *scanner.ScanResult) {
 		summary := result.Summary()
 		job.Summary = &summary
 		job.UpdatedAt = s.now()
+		s.persistLocked()
 	}
 }
 
@@ -137,6 +216,7 @@ func (s *Store) setFailed(id, errMsg string) {
 		job.Status = StatusFailed
 		job.Error = errMsg
 		job.UpdatedAt = s.now()
+		s.persistLocked()
 	}
 }
 
