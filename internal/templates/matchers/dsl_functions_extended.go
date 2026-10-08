@@ -99,6 +99,11 @@ func (e *DSLEngine) registerExtendedFunctions() {
 
 	// Debug
 	e.functions["print_debug"] = dslPrintDebug
+
+	// Nuclei-compat helpers missing from the camelCase set
+	e.functions["substr"] = dslSubstr
+	e.functions["to_number"] = dslToNumber
+	e.functions["crc32"] = dslCRC32
 }
 
 // getRegex returns a compiled regex from cache, compiling if necessary.

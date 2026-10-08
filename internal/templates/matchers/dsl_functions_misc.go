@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net"
 	"strconv"
@@ -295,4 +296,65 @@ func dslGenerateDotnetGadget(args []interface{}, ctx map[string]interface{}) int
 // dslPrintDebug is a no-op debug function for nuclei template compatibility.
 func dslPrintDebug(args []interface{}, ctx map[string]interface{}) interface{} {
 	return nil
+}
+
+// dslSubstr implements Nuclei substr(str, start, [end]) over runes, clamped.
+func dslSubstr(args []interface{}, ctx map[string]interface{}) interface{} {
+	if len(args) < 2 {
+		return ""
+	}
+	r := []rune(fmt.Sprintf("%v", args[0]))
+	start := toInt(args[1])
+	end := len(r)
+	if len(args) >= 3 {
+		end = toInt(args[2])
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > len(r) {
+		end = len(r)
+	}
+	if start >= end {
+		return ""
+	}
+	return string(r[start:end])
+}
+
+// dslToNumber parses a string to a number (int when whole, else float).
+func dslToNumber(args []interface{}, ctx map[string]interface{}) interface{} {
+	if len(args) < 1 {
+		return 0
+	}
+	s := strings.TrimSpace(fmt.Sprintf("%v", args[0]))
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f
+	}
+	return 0
+}
+
+// dslCRC32 returns the IEEE CRC32 checksum of the input (Nuclei crc32).
+func dslCRC32(args []interface{}, ctx map[string]interface{}) interface{} {
+	if len(args) < 1 {
+		return 0
+	}
+	return int(crc32.ChecksumIEEE([]byte(fmt.Sprintf("%v", args[0]))))
+}
+
+// toInt coerces a DSL argument to an int (0 on failure).
+func toInt(v interface{}) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		i, _ := strconv.Atoi(strings.TrimSpace(fmt.Sprintf("%v", v)))
+		return i
+	}
 }

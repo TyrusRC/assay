@@ -204,11 +204,35 @@ func (e *DSLEngine) evaluateFunction(expr string, ctx map[string]interface{}) (i
 
 	fn, exists := e.functions[funcName]
 	if !exists {
-		return nil, false
+		// Nuclei templates call DSL helpers in snake_case (url_encode, to_upper,
+		// starts_with); assay registers many under camelCase. Fall back to the
+		// camelCase form so Nuclei-compatible templates resolve either style.
+		if alt := snakeToCamel(funcName); alt != funcName {
+			fn, exists = e.functions[alt]
+		}
+		if !exists {
+			return nil, false
+		}
 	}
 
 	args := e.parseArgs(argsStr, ctx)
 	return fn(args, ctx), true
+}
+
+// snakeToCamel converts a snake_case DSL name to camelCase (url_encode -> urlEncode).
+func snakeToCamel(s string) string {
+	if !strings.Contains(s, "_") {
+		return s
+	}
+	parts := strings.Split(s, "_")
+	out := parts[0]
+	for _, p := range parts[1:] {
+		if p == "" {
+			continue
+		}
+		out += strings.ToUpper(p[:1]) + p[1:]
+	}
+	return out
 }
 
 // parseArgs parses function arguments.
