@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,10 +12,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/TyrusRC/assay/internal/scope"
 )
 
 // DefaultTimeout is the default request timeout.
 const DefaultTimeout = 30 * time.Second
+
+// ErrOutOfScope is returned by Do when a request URL is blocked by the client's
+// scope policy. Callers treat it as "not tested", never as a negative result.
+var ErrOutOfScope = errors.New("request blocked: out of scope")
 
 // MaxResponseBodySize limits response body reads to 10MB to prevent OOM.
 const MaxResponseBodySize = 10 * 1024 * 1024
@@ -57,6 +64,7 @@ type Client struct {
 	followRedirects bool
 	userAgent       string
 	insecure        bool
+	scope           *scope.Scope
 	mu              sync.Mutex
 }
 
@@ -97,11 +105,21 @@ func (c *Client) buildHTTPClient() {
 		Timeout:   c.timeout,
 	}
 
-	// Configure redirect policy
-	if !c.followRedirects {
-		c.httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	// Configure redirect policy. The closure reads c.followRedirects and c.scope
+	// at redirect time, so a scope attached later via WithScope takes effect
+	// without rebuilding the client. An out-of-scope redirect is not followed
+	// (the 3xx response is returned) — note the redirect, do not leave scope.
+	c.httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if !c.followRedirects {
 			return http.ErrUseLastResponse
 		}
+		if c.scope != nil && !c.scope.InScope(req.URL.String()) {
+			return http.ErrUseLastResponse
+		}
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
 	}
 }
 
@@ -135,12 +153,20 @@ func (c *Client) Clone() *Client {
 		followRedirects: c.followRedirects,
 		userAgent:       c.userAgent,
 		insecure:        c.insecure,
+		scope:           c.scope,
 	}
 	for k, v := range c.headers {
 		cloned.headers[k] = v
 	}
 	cloned.buildHTTPClient()
 	return cloned
+}
+
+// WithScope attaches a scope policy. Do blocks any request whose URL the scope
+// rejects. A nil scope allows every request (the default).
+func (c *Client) WithScope(s *scope.Scope) *Client {
+	c.scope = s
+	return c
 }
 
 // WithHeaders sets default headers for all requests.
@@ -286,6 +312,9 @@ func (c *Client) PostJSON(ctx context.Context, url, jsonBody string) (*Response,
 
 // Do performs an HTTP request.
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
+	if c.scope != nil && !c.scope.InScope(req.URL) {
+		return nil, fmt.Errorf("%w: %s", ErrOutOfScope, req.URL)
+	}
 	c.ensureClient()
 	start := time.Now()
 

@@ -283,6 +283,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 	}
 
 	httpClient := http.NewClient().WithTimeout(config.RequestTimeout)
+	if config.Scope != nil {
+		httpClient = httpClient.WithScope(config.Scope)
+	}
 
 	techDetector, techErr := techstack.NewDetector()
 	if techErr != nil && config.Verbose {

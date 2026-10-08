@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
+	"github.com/TyrusRC/assay/internal/scope"
 )
 
 // InternalScanConfig configures the internal scanner behavior.
@@ -203,6 +204,12 @@ type InternalScanConfig struct {
 
 	// Verbosity
 	Verbose bool
+
+	// Scope gates every outbound request at the HTTP client. When nil the
+	// scanner requests any URL it is handed (the previous behavior). The CLI
+	// builds it from --scope-host / --include-path / --exclude-path, defaulting
+	// the host allowlist to the target host.
+	Scope *scope.Scope
 }
 
 // DefaultInternalConfig returns a reasonable default configuration.
