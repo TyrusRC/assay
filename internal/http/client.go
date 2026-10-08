@@ -66,6 +66,7 @@ type Client struct {
 	insecure        bool
 	scope           *scope.Scope
 	throttle        *throttle
+	cookieSrc       func() string
 	mu              sync.Mutex
 }
 
@@ -156,12 +157,22 @@ func (c *Client) Clone() *Client {
 		insecure:        c.insecure,
 		scope:           c.scope,
 		throttle:        c.throttle,
+		cookieSrc:       c.cookieSrc,
 	}
 	for k, v := range c.headers {
 		cloned.headers[k] = v
 	}
 	cloned.buildHTTPClient()
 	return cloned
+}
+
+// WithCookieSource attaches a live cookie provider. When set and it returns a
+// non-empty string, Do uses it for the Cookie header in place of the static
+// cookie — so a session re-authenticated mid-scan is picked up by every client
+// that shares the source, with no rebuild. Shared by pointer through Clone.
+func (c *Client) WithCookieSource(fn func() string) *Client {
+	c.cookieSrc = fn
+	return c
 }
 
 // WithScope attaches a scope policy. Do blocks any request whose URL the scope
@@ -360,9 +371,16 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		httpReq.Header.Set("Content-Type", req.ContentType)
 	}
 
-	// Set cookies
-	if c.cookies != "" {
-		httpReq.Header.Set("Cookie", c.cookies)
+	// Set cookies. A live cookie source (a re-authenticating session) wins over
+	// the static cookie so a mid-scan re-auth is picked up without a rebuild.
+	cookie := c.cookies
+	if c.cookieSrc != nil {
+		if live := c.cookieSrc(); live != "" {
+			cookie = live
+		}
+	}
+	if cookie != "" {
+		httpReq.Header.Set("Cookie", cookie)
 	}
 
 	// Execute request

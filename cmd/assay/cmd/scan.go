@@ -14,6 +14,7 @@ import (
 	"github.com/TyrusRC/assay/internal/reporting"
 	"github.com/TyrusRC/assay/internal/scanner"
 	"github.com/TyrusRC/assay/internal/scope"
+	"github.com/TyrusRC/assay/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -149,6 +150,8 @@ func init() {
 	scanCmd.Flags().StringArrayVar(&excludePaths, "exclude-path", nil, "Never request paths matching these regexps (repeatable); exclude always wins over include")
 	scanCmd.Flags().BoolVar(&noDefaultExcludes, "no-default-excludes", false, "Do not auto-exclude session-destroying paths (/logout, /delete-account, ...) when a scope is active")
 	scanCmd.Flags().Float64Var(&ratePerSec, "rate", 0, "Cap outbound requests per second across the whole scan (0 = unlimited). Use it to stay within a target's rate limits")
+	scanCmd.Flags().StringVar(&sessionCheckURL, "session-check-url", "", "Authenticated-only URL polled during the scan to detect logout and re-authenticate (defaults to the first target when --login-* is used). --login-success is the authenticated marker")
+	scanCmd.Flags().DurationVar(&sessionCheckInterval, "session-check-interval", 60*time.Second, "How often to poll --session-check-url for logout")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -246,6 +249,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 		internalConfig.RateLimitPerSec = ratePerSec
 		if verbose {
 			fmt.Fprintf(os.Stderr, "[*] Rate limit: %.2f req/s\n", ratePerSec)
+		}
+	}
+	// When a login was performed, keep that session alive for the scan: poll a
+	// canary (an authenticated-only URL, default the first target) and re-run the
+	// login on logout. --login-success is the authenticated marker.
+	if loginURL != "" {
+		canary := sessionCheckURL
+		if canary == "" && len(targets) > 0 {
+			canary = targets[0]
+		}
+		internalConfig.Session = session.New(sessionCookies, performLogin, canary, loginSuccess)
+		internalConfig.SessionCheckInterval = sessionCheckInterval
+		if verbose {
+			fmt.Fprintf(os.Stderr, "[*] Session keepalive: canary=%s marker=%q every %s\n",
+				canary, loginSuccess, sessionCheckInterval)
 		}
 	}
 	if verbose && internalConfig.EnableJSDep {

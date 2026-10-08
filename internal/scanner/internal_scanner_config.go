@@ -5,6 +5,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/detection/subtakeover"
 	"github.com/TyrusRC/assay/internal/scope"
+	"github.com/TyrusRC/assay/internal/session"
 )
 
 // InternalScanConfig configures the internal scanner behavior.
@@ -214,6 +215,15 @@ type InternalScanConfig struct {
 	// RateLimitPerSec caps outbound requests per second across the whole scan.
 	// Zero (the default) means unlimited. The CLI sets it from --rate.
 	RateLimitPerSec float64
+
+	// Session, when set, supplies a live cookie to the scan client and is polled
+	// during the scan to detect logout and re-authenticate. The CLI builds it
+	// after login from --session-check-url / --login-success.
+	Session *session.Session
+
+	// SessionCheckInterval is how often the keepalive polls the canary. Zero
+	// uses the session package default.
+	SessionCheckInterval time.Duration
 }
 
 // DefaultInternalConfig returns a reasonable default configuration.
@@ -230,7 +240,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableNoSQL:           true,
 		EnableSSTI:            true,
 		EnableIDOR:            true,
-		EnableBAC:             true, // gated at runtime on AuthA being present
+		EnableBAC:             true,  // gated at runtime on AuthA being present
 		EnableJWT:             false, // JWT requires token extraction, disable by default
 		EnableRedirect:        true,
 		EnableCORS:            true,
@@ -272,7 +282,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableH2MadeReset:     false, // off by default — bounded server-reset burst
 		EnableCSRF:            true,
 		EnableTabnabbing:      true,
-		EnableCSPT:            true, // read-only: fetches page + linked scripts, static JS analysis
+		EnableCSPT:            true,  // read-only: fetches page + linked scripts, static JS analysis
 		EnableReDoS:           false, // off by default — adds latency on every regex-shaped param
 		EnablePromptInj:       true,
 		EnableXSLT:            true,
@@ -303,13 +313,13 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableAuthBypass403:   true,  // self-gates on 401/403 baseline; harmless on public URLs
 		EnableHTTP2Race:       false, // off — sends a burst of state-changing requests
 		HTTP2RaceMethod:       "POST",
-		EnableGraphQLDoS:      true, // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
-		EnableJKUAbuse:        true, // no-op without JWTAdvancedToken and an OOB client — safe everywhere
-		EnableSameSiteLax:     true, // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
-		EnableWAFDetect:       true, // single passive GET, info-severity findings used as context for downstream payload selection
-		EnableXFS:             true, // single passive GET, computes clickjacking exposure from headers + body
-		EnableIISTilde:        true, // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
-		EnableSameSiteScript:  true, // pure DNS lookups; no HTTP cost on the target
+		EnableGraphQLDoS:      true,  // self-gates on GraphQL response shape; harmless on non-GraphQL URLs
+		EnableJKUAbuse:        true,  // no-op without JWTAdvancedToken and an OOB client — safe everywhere
+		EnableSameSiteLax:     true,  // read-only cookie inspection; GET-logout probing stays opt-in via SameSiteLaxProbeGET
+		EnableWAFDetect:       true,  // single passive GET, info-severity findings used as context for downstream payload selection
+		EnableXFS:             true,  // single passive GET, computes clickjacking exposure from headers + body
+		EnableIISTilde:        true,  // 6 cheap GETs; auto no-op on non-IIS hosts via the differential
+		EnableSameSiteScript:  true,  // pure DNS lookups; no HTTP cost on the target
 		EnableLongPwdDoS:      false, // off by default — sends a 100k-char password POST and may trip account lockouts
 		EnableVHostEnum:       false, // off by default — issues up to 150 requests with rotated Host headers
 		VHostMaxRequests:      150,

@@ -68,6 +68,32 @@ func TestClient_CheckRedirect_BlocksOutOfScope(t *testing.T) {
 	}
 }
 
+func TestClient_CookieSource_OverridesStatic(t *testing.T) {
+	got := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got <- r.Header.Get("Cookie")
+	}))
+	defer srv.Close()
+
+	live := "session=fresh"
+	c := NewClient().WithCookies("session=stale").WithCookieSource(func() string { return live })
+	if _, err := c.Get(context.Background(), srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	if sent := <-got; sent != "session=fresh" {
+		t.Errorf("Cookie header = %q, want the live source value session=fresh", sent)
+	}
+
+	// An empty live value falls back to the static cookie.
+	live = ""
+	if _, err := c.Get(context.Background(), srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	if sent := <-got; sent != "session=stale" {
+		t.Errorf("empty live source should fall back to static cookie, got %q", sent)
+	}
+}
+
 func mustHost(t *testing.T, raw string) string {
 	t.Helper()
 	u, err := url.Parse(raw)

@@ -31,6 +31,17 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		fmt.Fprintf(os.Stderr, "[*] OOB initialization started in background...\n")
 	}
 
+	// Keep the authenticated session alive for the scan's duration: poll the
+	// canary and re-authenticate on logout so authed probes do not silently
+	// degrade to unauthenticated. Bound to this scan via a cancel on return.
+	if s.config.Session != nil {
+		sessCtx, sessCancel := context.WithCancel(ctx)
+		defer sessCancel()
+		go s.config.Session.Keepalive(sessCtx, s.client, s.config.SessionCheckInterval, func(note string) {
+			fmt.Fprintf(os.Stderr, "[*] %s\n", note)
+		})
+	}
+
 	// Apply per-scan settings (proxy, headers, cookies, UA, insecure) to
 	// the SHARED client so that EVERY detector inherits them. All
 	// detectors were constructed with s.client; mutating it here is the
