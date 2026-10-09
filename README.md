@@ -170,6 +170,20 @@ assay scan [target URL] [flags]
 | `--templates DIR` | Nuclei-style template dir/file; **repeatable** — pass once per path to load the default store and custom templates together (e.g. `--templates ~/nuclei-templates --templates ~/custom-nuclei-templates`) | |
 | `--api-spec URL` | OpenAPI/Swagger JSON; runner exercises every endpoint | |
 
+### Template decision engine (the Jev pattern)
+
+Rank the loaded templates by relevance to the target's detected tech before the
+run — the "Jev for nuclei" idea. Env-driven, opt-in, two backends:
+
+| Env | Effect |
+|---|---|
+| `ASSAY_DECIDE=1` | Enable the decision engine (deterministic tech-tag ranking, no key). |
+| `AI_GATEWAY_API_KEY` | Use TypeSafe **Jev** via Vercel AI Gateway (`POST /v1/evaluate`, calibrated per-template relevance). Enables the engine on its own; falls back to deterministic on any gateway error. |
+| `ASSAY_DECIDE_TOP=N` | Run only the N most relevant templates (operator cap to cut the firehose). Default `0` = order only, no drop. |
+| `ASSAY_DECISION_MODEL` / `ASSAY_DECISION_BASE_URL` | Override the model id / gateway base URL (defaults `typesafe-ai/jev` / `https://ai-gateway.vercel.sh`). |
+
+Disabled by default — the template set is untouched unless you opt in.
+
 ### Scope & rate (DAST)
 
 Scope is **ON by default**: traffic is restricted to the target host(s) and

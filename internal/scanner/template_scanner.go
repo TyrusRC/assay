@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/decision"
 	"github.com/TyrusRC/assay/internal/detection/oob"
 	"github.com/TyrusRC/assay/internal/headless"
 	"github.com/TyrusRC/assay/internal/templates"
@@ -60,6 +62,13 @@ type TemplateScanConfig struct {
 
 	// HeadlessPool provides browser instances for headless template steps.
 	HeadlessPool *headless.Pool
+
+	// Decision + TechTokens drive the template-relevance decision engine
+	// (the "Jev for nuclei" pattern). When Decision.Enabled, LoadTemplates
+	// ranks the loaded templates by relevance to TechTokens (and caps to
+	// Decision.TopN when >0). Zero value = disabled (no reorder, no drop).
+	Decision   decision.Config
+	TechTokens []string
 }
 
 // DefaultTemplateScanConfig returns sensible defaults.
@@ -139,7 +148,34 @@ func (s *TemplateScanner) LoadTemplates() ([]*templates.Template, error) {
 		allTemplates = parser.FilterTemplatesBySeverity(allTemplates, s.config.Severities)
 	}
 
+	// Decision engine: rank by relevance to the detected tech (and optionally
+	// cap). Opt-in — zero config leaves the set untouched.
+	allTemplates = s.decide(allTemplates)
+
 	return allTemplates, nil
+}
+
+// decide reorders (and optionally caps) templates by relevance to the target's
+// detected technologies, via the decision engine. A no-op unless enabled.
+func (s *TemplateScanner) decide(tmpls []*templates.Template) []*templates.Template {
+	if !s.config.Decision.Enabled || len(tmpls) == 0 {
+		return tmpls
+	}
+	items := make([]decision.Item, len(tmpls))
+	byKey := make(map[string]*templates.Template, len(tmpls))
+	for i, t := range tmpls {
+		key := t.ID + "#" + strconv.Itoa(i) // unique even if two templates share an ID
+		items[i] = decision.Item{Key: key, Text: t.ID + " " + t.Info.Name + " " + t.Info.Tags}
+		byKey[key] = t
+	}
+	ranked := decision.Rank(context.Background(), s.config.Decision, s.config.TechTokens, items)
+	out := make([]*templates.Template, 0, len(ranked))
+	for _, it := range ranked {
+		if t := byKey[it.Key]; t != nil {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // TemplateScanResult contains results from template scanning.

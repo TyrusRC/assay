@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/decision"
 )
 
 // emit forwards findings from a detector goroutine to the shared channel.
@@ -65,6 +66,14 @@ func (s *InternalScanner) runTemplateTests(ctx context.Context, wg *sync.WaitGro
 
 		if len(s.config.TemplateTags) > 0 {
 			tsCfg.IncludeTags = s.config.TemplateTags
+		}
+
+		// Template-relevance decision engine (Jev / deterministic). Env-driven
+		// (ASSAY_DECIDE / AI_GATEWAY_API_KEY / ASSAY_DECIDE_TOP); feeds the
+		// detected tech so the engine ranks templates for THIS target.
+		tsCfg.Decision = decision.FromEnv()
+		if tsCfg.Decision.Enabled && s.techHint != nil {
+			tsCfg.TechTokens = s.techHint.Technologies
 		}
 
 		ts, err := NewTemplateScanner(tsCfg)
