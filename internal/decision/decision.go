@@ -55,7 +55,9 @@ func FromEnv() Config {
 	if key == "" {
 		key = strings.TrimSpace(os.Getenv("ASSAY_DECISION_API_KEY"))
 	}
-	enabled := truthy(os.Getenv("ASSAY_DECIDE")) || key != ""
+	baseEnv := strings.TrimSpace(os.Getenv("ASSAY_DECISION_BASE_URL"))
+	// Enable on an explicit key, ASSAY_DECIDE, or a self-hosted local engine URL.
+	enabled := truthy(os.Getenv("ASSAY_DECIDE")) || key != "" || isLocal(baseEnv)
 	top := 0
 	if v := strings.TrimSpace(os.Getenv("ASSAY_DECIDE_TOP")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -66,7 +68,7 @@ func FromEnv() Config {
 	if model == "" {
 		model = defaultModel
 	}
-	base := strings.TrimSpace(os.Getenv("ASSAY_DECISION_BASE_URL"))
+	base := baseEnv
 	if base == "" {
 		base = defaultBaseURL
 	}
@@ -77,6 +79,18 @@ func truthy(s string) bool {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "1", "true", "yes", "on":
 		return true
+	}
+	return false
+}
+
+// isLocal reports whether a base URL points at a self-hosted loopback engine —
+// which needs no key (the key authenticates a remote hosted gateway only).
+func isLocal(url string) bool {
+	u := strings.ToLower(url)
+	for _, h := range []string{"127.0.0.1", "localhost", "0.0.0.0", "[::1]"} {
+		if strings.Contains(u, h) {
+			return true
+		}
 	}
 	return false
 }
@@ -107,7 +121,9 @@ func Rank(ctx context.Context, cfg Config, techTokens []string, items []Item) []
 // score returns a relevance score per item (same index as items). Jev when a key
 // is set (falling back to deterministic on any error), else deterministic.
 func score(ctx context.Context, cfg Config, techTokens []string, items []Item) []float64 {
-	if cfg.APIKey != "" {
+	// Use the Jev HTTP engine when a hosted key is set OR a self-hosted local
+	// engine is configured (keyless); fall back to deterministic on any error.
+	if cfg.APIKey != "" || isLocal(cfg.BaseURL) {
 		if s, err := jevScore(ctx, cfg, techTokens, items); err == nil {
 			return s
 		}
@@ -180,7 +196,9 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	if cfg.APIKey != "" { // hosted gateway authenticates; a local engine is keyless
+		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

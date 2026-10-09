@@ -179,6 +179,7 @@ run — the "Jev for nuclei" idea. Env-driven, opt-in, two backends:
 |---|---|
 | `ASSAY_DECIDE=1` | Enable the decision engine (deterministic tech-tag ranking, no key). |
 | `AI_GATEWAY_API_KEY` | Use TypeSafe **Jev** via Vercel AI Gateway (`POST /v1/evaluate`, calibrated per-template relevance). Enables the engine on its own; falls back to deterministic on any gateway error. |
+| `ASSAY_DECISION_BASE_URL=http://127.0.0.1:PORT` | Use a **self-hosted** decision engine (e.g. Haruspex / OpenJev) on loopback — same `/v1/evaluate` contract, selected **keyless** (the key authenticates the remote gateway only). Enables the engine on its own. |
 | `ASSAY_DECIDE_TOP=N` | Run only the N most relevant templates (operator cap to cut the firehose). Default `0` = order only, no drop. |
 | `ASSAY_DECISION_MODEL` / `ASSAY_DECISION_BASE_URL` | Override the model id / gateway base URL (defaults `typesafe-ai/jev` / `https://ai-gateway.vercel.sh`). |
 

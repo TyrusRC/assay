@@ -97,7 +97,46 @@ func TestJevErrorFallsBackToDeterministic(t *testing.T) {
 	}
 }
 
+func TestLocalEngineKeylessOmitsAuth(t *testing.T) {
+	var gotAuth string
+	var sawAuth bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, sawAuth = r.Header["Authorization"]
+		var req jevRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		ans := map[string]jevAnswer{}
+		for k := range req.Questions {
+			ans[k] = jevAnswer{Probability: 0.5}
+		}
+		_ = json.NewEncoder(w).Encode(jevResponse{Answers: ans})
+	}))
+	defer srv.Close()
+
+	// local self-hosted engine, no key -> jev path is used, no Authorization header
+	cfg := Config{Enabled: true, Model: defaultModel, BaseURL: srv.URL, APIKey: ""}
+	got := Rank(context.Background(), cfg, []string{"nginx"}, []Item{{Key: "a", Text: "t"}})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(got))
+	}
+	if sawAuth || gotAuth != "" {
+		t.Fatalf("keyless local engine must send no Authorization header, got %q", gotAuth)
+	}
+}
+
+func TestFromEnvLocalBaseEnablesKeyless(t *testing.T) {
+	t.Setenv("AI_GATEWAY_API_KEY", "")
+	t.Setenv("ASSAY_DECISION_API_KEY", "")
+	t.Setenv("ASSAY_DECIDE", "")
+	t.Setenv("ASSAY_DECISION_BASE_URL", "http://127.0.0.1:3000")
+	c := FromEnv()
+	if !c.Enabled || c.APIKey != "" || c.BaseURL != "http://127.0.0.1:3000" {
+		t.Fatalf("local base must enable keyless: %+v", c)
+	}
+}
+
 func TestFromEnv(t *testing.T) {
+	t.Setenv("ASSAY_DECISION_BASE_URL", "")
 	t.Setenv("AI_GATEWAY_API_KEY", "")
 	t.Setenv("ASSAY_DECISION_API_KEY", "")
 	t.Setenv("ASSAY_DECIDE", "")
