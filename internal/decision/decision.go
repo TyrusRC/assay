@@ -161,7 +161,10 @@ type jevQuestion struct {
 }
 
 type jevRequest struct {
-	Model     string                 `json:"model"`
+	Model string `json:"model"`
+	// Domain routes a multi-adapter engine to the right per-domain adapter
+	// (assay is a web DAST -> "web"); a single-adapter engine ignores it.
+	Domain    string                 `json:"domain,omitempty"`
 	State     string                 `json:"state"`
 	Questions map[string]jevQuestion `json:"questions"`
 }
@@ -186,7 +189,7 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 			Instructions: "Is this security template relevant to run against the target? Template: " + it.Text,
 		}
 	}
-	body, err := json.Marshal(jevRequest{Model: cfg.Model, State: state, Questions: qs})
+	body, err := json.Marshal(jevRequest{Model: cfg.Model, Domain: "web", State: state, Questions: qs})
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +247,7 @@ func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]float64, error
 	}}
 	scores := make([]float64, len(items))
 	for i, it := range items {
-		body, err := json.Marshal(jevRequest{Model: cfg.Model, State: it.Text, Questions: q})
+		body, err := json.Marshal(jevRequest{Model: cfg.Model, Domain: "web", State: it.Text, Questions: q})
 		if err != nil {
 			return nil, err
 		}
