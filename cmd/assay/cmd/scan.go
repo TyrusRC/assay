@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/decision"
 	"github.com/TyrusRC/assay/internal/reporting"
 	"github.com/TyrusRC/assay/internal/scanner"
 	"github.com/TyrusRC/assay/internal/scope"
@@ -155,6 +156,48 @@ func init() {
 	scanCmd.Flags().DurationVar(&sessionCheckInterval, "session-check-interval", 60*time.Second, "How often to poll --session-check-url for logout")
 	scanCmd.Flags().StringVar(&checkpointPath, "checkpoint", "", "Record scan progress per target to this file so an interrupted scan can resume")
 	scanCmd.Flags().StringVar(&resumePath, "resume", "", "Resume from a checkpoint file: skip already-scanned targets and carry their findings forward (usually the same path as --checkpoint)")
+}
+
+// adjudicateFindings runs a fail-open Haruspex triage pass over already-produced
+// findings. It records, per finding, the model's "real reportable finding" probability
+// in Metadata["haruspex_real_prob"], and tags unverified low-probability ones
+// Metadata["haruspex_triage"]="review" so a consumer can deprioritize noise. It never
+// removes, reorders, or re-severities a finding — a missed finding is the cardinal harm,
+// so the model can only annotate here, never gate. Engine off / unreachable / any error
+// leaves every finding exactly as emitted.
+func adjudicateFindings(ctx context.Context, findings core.Findings) {
+	cfg := decision.FromEnv()
+	if !cfg.Enabled || len(findings) == 0 {
+		return
+	}
+	items := make([]decision.Item, len(findings))
+	for i, f := range findings {
+		ev := f.Evidence
+		if len(ev) > 400 {
+			ev = ev[:400]
+		}
+		verified := ""
+		if f.Verified {
+			verified = " [verified]"
+		}
+		items[i] = decision.Item{
+			Key:  f.ID,
+			Text: fmt.Sprintf("%s on %s param %q%s: %s", f.Type, f.URL, f.Parameter, verified, ev),
+		}
+	}
+	probs, err := decision.Adjudicate(ctx, cfg, items)
+	if err != nil || probs == nil || len(probs) != len(findings) {
+		return // fail-open: keep every finding untouched
+	}
+	for i, f := range findings {
+		if f.Metadata == nil {
+			f.Metadata = map[string]interface{}{}
+		}
+		f.Metadata["haruspex_real_prob"] = probs[i]
+		if probs[i] < 0.5 && !f.Verified {
+			f.Metadata["haruspex_triage"] = "review"
+		}
+	}
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -344,6 +387,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if verifyFindings {
 		runVerification(ctx, result.Findings, headerMap, sessionCookies)
 	}
+
+	// Haruspex adjudication: a FAIL-OPEN triage pass that annotates each finding with a
+	// "real finding" probability (and flags likely noise for review) AFTER verification.
+	// It only annotates — it never drops or reorders a finding, so it cannot cause a
+	// missed finding. No engine configured / unreachable -> findings untouched.
+	adjudicateFindings(ctx, result.Findings)
 
 	report := reporting.NewReport(result)
 	if err := writeReports(report, formats, outputDir); err != nil {

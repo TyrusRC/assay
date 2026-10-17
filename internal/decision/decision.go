@@ -155,8 +155,9 @@ func deterministicScore(techTokens []string, items []Item) []float64 {
 // --- Jev (TypeSafe via Vercel AI Gateway) ---
 
 type jevQuestion struct {
-	Type         string `json:"type"`
-	Instructions string `json:"instructions"`
+	Type         string            `json:"type"`
+	Instructions string            `json:"instructions"`
+	Criteria     map[string]string `json:"criteria,omitempty"`
 }
 
 type jevRequest struct {
@@ -215,6 +216,67 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 	scores := make([]float64, len(items))
 	for i, qn := range keys {
 		scores[i] = out.Answers[qn].Probability
+	}
+	return scores, nil
+}
+
+// Adjudicate asks the engine, per finding, whether it is a real, reportable finding
+// (not noise or a mere indicator), returning a probability in [0,1] per item at the
+// same index. FAIL-OPEN by contract: a disabled engine, no local/keyed backend, or any
+// transport error returns (nil, err) and the caller MUST keep every finding unchanged —
+// this never suppresses a candidate, it only scores one. Each Item.Text should carry the
+// finding's verified evidence so the model adjudicates on proof, not a lead.
+func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]float64, error) {
+	if !cfg.Enabled || len(items) == 0 {
+		return nil, nil
+	}
+	if cfg.APIKey == "" && !isLocal(cfg.BaseURL) {
+		return nil, nil
+	}
+	// One round trip per finding: the evidence goes in `state` and the question +
+	// true/false `criteria` are fixed — this matches how the model was trained
+	// (observation in the state, not folded into the instruction), which the batched
+	// form does not, and which otherwise degrades noise discrimination.
+	q := map[string]jevQuestion{"q": {
+		Type:         "boolean",
+		Instructions: "Is this a real, reportable security finding?",
+		Criteria:     map[string]string{"true": "a real, exploitable vulnerability", "false": "noise / not reportable alone"},
+	}}
+	scores := make([]float64, len(items))
+	for i, it := range items {
+		body, err := json.Marshal(jevRequest{Model: cfg.Model, State: it.Text, Questions: q})
+		if err != nil {
+			return nil, err
+		}
+		reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost,
+			strings.TrimRight(cfg.BaseURL, "/")+"/v1/evaluate", bytes.NewReader(body))
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		if cfg.APIKey != "" {
+			req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			cancel()
+			return nil, &httpError{resp.StatusCode}
+		}
+		var out jevResponse
+		derr := json.NewDecoder(resp.Body).Decode(&out)
+		resp.Body.Close()
+		cancel()
+		if derr != nil {
+			return nil, derr
+		}
+		scores[i] = out.Answers["q"].Probability
 	}
 	return scores, nil
 }
