@@ -25,8 +25,14 @@ func TestAdjudicateLive(t *testing.T) {
 	if err != nil || probs == nil {
 		t.Skipf("haruspex engine not reachable (%v) — skipping live adjudication test", err)
 	}
-	t.Logf("adjudicate probs: rce=%.3f noise=%.3f safe=%.3f", probs[0], probs[1], probs[2])
-	if probs[0] <= probs[1] || probs[0] <= probs[2] {
-		t.Errorf("expected confirmed finding (%.3f) ranked above noise (%.3f) and safe (%.3f)", probs[0], probs[1], probs[2])
+	for i, p := range probs {
+		if p == nil {
+			t.Fatalf("item %d (%s): engine returned no opinion (nil) on a normal request", i, items[i].Key)
+		}
+	}
+	rce, noise, safe := *probs[0], *probs[1], *probs[2]
+	t.Logf("adjudicate probs: rce=%.3f noise=%.3f safe=%.3f", rce, noise, safe)
+	if rce <= noise || rce <= safe {
+		t.Errorf("expected confirmed finding (%.3f) ranked above noise (%.3f) and safe (%.3f)", rce, noise, safe)
 	}
 }

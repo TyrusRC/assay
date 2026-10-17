@@ -190,11 +190,18 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 		return // fail-open: keep every finding untouched
 	}
 	for i, f := range findings {
+		p := probs[i]
+		if p == nil {
+			// The engine had no opinion for this one item (e.g. an oversized
+			// state it rejected) — leave the finding exactly as it was, never
+			// read this as a confident "not a finding".
+			continue
+		}
 		if f.Metadata == nil {
 			f.Metadata = map[string]interface{}{}
 		}
-		f.Metadata["haruspex_real_prob"] = probs[i]
-		if probs[i] < 0.5 && !f.Verified {
+		f.Metadata["haruspex_real_prob"] = *p
+		if *p < 0.5 && !f.Verified {
 			f.Metadata["haruspex_triage"] = "review"
 		}
 	}

@@ -170,7 +170,10 @@ type jevRequest struct {
 }
 
 type jevAnswer struct {
-	Probability float64 `json:"probability"`
+	// A pointer: the engine omits "probability" entirely on an error response
+	// (oversized state, a malformed row, ...). A plain float64 would silently
+	// decode that as 0.0 — "confirmed not a finding" — instead of "no opinion".
+	Probability *float64 `json:"probability"`
 }
 
 type jevResponse struct {
@@ -218,18 +221,26 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 	}
 	scores := make([]float64, len(items))
 	for i, qn := range keys {
-		scores[i] = out.Answers[qn].Probability
+		// Relevance ranking only (not a suppression signal): a missing probability
+		// sorts last, which is the safe default for this use.
+		if p := out.Answers[qn].Probability; p != nil {
+			scores[i] = *p
+		}
 	}
 	return scores, nil
 }
 
 // Adjudicate asks the engine, per finding, whether it is a real, reportable finding
 // (not noise or a mere indicator), returning a probability in [0,1] per item at the
-// same index. FAIL-OPEN by contract: a disabled engine, no local/keyed backend, or any
-// transport error returns (nil, err) and the caller MUST keep every finding unchanged —
-// this never suppresses a candidate, it only scores one. Each Item.Text should carry the
-// finding's verified evidence so the model adjudicates on proof, not a lead.
-func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]float64, error) {
+// same index, or nil at that index when the engine had no opinion for that one item
+// (e.g. an oversized state rejected by the engine) — the caller MUST treat nil as
+// "no opinion", never as 0.0, or a per-item error becomes a confident false "not a
+// finding" that can wrongly deprioritize a real finding. FAIL-OPEN by contract: a
+// disabled engine, no local/keyed backend, or any transport error returns (nil, err)
+// and the caller MUST keep every finding unchanged — this never suppresses a
+// candidate, it only scores one. Each Item.Text should carry the finding's verified
+// evidence so the model adjudicates on proof, not a lead.
+func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]*float64, error) {
 	if !cfg.Enabled || len(items) == 0 {
 		return nil, nil
 	}
@@ -245,7 +256,7 @@ func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]float64, error
 		Instructions: "Is this a real, reportable security finding?",
 		Criteria:     map[string]string{"true": "a real, exploitable vulnerability", "false": "noise / not reportable alone"},
 	}}
-	scores := make([]float64, len(items))
+	scores := make([]*float64, len(items))
 	for i, it := range items {
 		body, err := json.Marshal(jevRequest{Model: cfg.Model, Domain: "web", State: it.Text, Questions: q})
 		if err != nil {
@@ -285,5 +296,6 @@ func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]float64, error
 }
 
 type httpError struct{ code int }
+
 
 func (e *httpError) Error() string { return "decision gateway HTTP " + strconv.Itoa(e.code) }

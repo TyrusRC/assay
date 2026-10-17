@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+func fp(v float64) *float64 { return &v }
+
 func keys(items []Item) []string {
 	out := make([]string, len(items))
 	for i, it := range items {
@@ -61,9 +63,9 @@ func TestJevBackendRanksAndFallsBack(t *testing.T) {
 		// q0 relevant, q1 not
 		for k := range req.Questions {
 			if k == "q0" {
-				ans[k] = jevAnswer{Probability: 0.95}
+				ans[k] = jevAnswer{Probability: fp(0.95)}
 			} else {
-				ans[k] = jevAnswer{Probability: 0.05}
+				ans[k] = jevAnswer{Probability: fp(0.05)}
 			}
 		}
 		_ = json.NewEncoder(w).Encode(jevResponse{Answers: ans})
@@ -107,7 +109,7 @@ func TestLocalEngineKeylessOmitsAuth(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		ans := map[string]jevAnswer{}
 		for k := range req.Questions {
-			ans[k] = jevAnswer{Probability: 0.5}
+			ans[k] = jevAnswer{Probability: fp(0.5)}
 		}
 		_ = json.NewEncoder(w).Encode(jevResponse{Answers: ans})
 	}))
@@ -148,5 +150,35 @@ func TestFromEnv(t *testing.T) {
 	c := FromEnv()
 	if !c.Enabled || c.TopN != 5 || c.APIKey != "k" || c.Model != defaultModel {
 		t.Fatalf("unexpected config: %+v", c)
+	}
+}
+
+// TestJevAnswerErrorDecodesAsNilProbability is the regression test for the bug:
+// a jevAnswer with no "probability" key (the server's error-path shape,
+// {"error": "..."}) must decode to a nil pointer, never a false 0.0 — a plain
+// float64 field would silently read that as "confirmed not a finding".
+func TestJevAnswerErrorDecodesAsNilProbability(t *testing.T) {
+	var out jevResponse
+	raw := `{"answers":{"q":{"error":"state too large"}}}`
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.Answers["q"].Probability != nil {
+		t.Fatalf("expected nil Probability for an error answer, got %v", *out.Answers["q"].Probability)
+	}
+}
+
+func TestJevAnswerNormalDecodesAsNonNilProbability(t *testing.T) {
+	var out jevResponse
+	raw := `{"answers":{"q":{"probability":0.0,"label":"no"}}}`
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	p := out.Answers["q"].Probability
+	if p == nil {
+		t.Fatal("expected a non-nil Probability for a normal 0.0 answer")
+	}
+	if *p != 0.0 {
+		t.Fatalf("expected 0.0, got %v", *p)
 	}
 }
