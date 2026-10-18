@@ -36,6 +36,7 @@ well.
 - [Detection coverage](#detection-coverage)
 - [Headless / two-identity probes](#headless--two-identity-probes)
 - [External tool integrations](#external-tool-integrations)
+- [CI/CD integration](#cicd-integration)
 - [Architecture](#architecture)
 - [Project layout](#project-layout)
 - [Development](#development)
@@ -409,6 +410,50 @@ opt-in additions for breadth.
 `assay tools list` shows availability and version of each. `assay tools
 check` runs a health check and prints a green/red status. Missing
 binaries are not fatal — the scan proceeds without them.
+
+---
+
+## CI/CD integration
+
+The CLI already carries everything a pipeline needs: distinct exit codes
+(`0` clean, `1` operational error, `2` the `--fail-on` severity gate was
+met), `sarif`/`junit`/`gitlab` report formats, and `--baseline`/
+`--fail-on-new` for incremental (diff-only) scanning. Reports land as
+`<output-dir>/assay-report.<ext>` (`.sarif`, `.xml` for JUnit,
+`.gitlab.json` for GitLab's code-quality format).
+
+**GitHub Actions** — use the packaged action (`action.yml` at the repo
+root). It builds assay from `Dockerfile` on first use (no external image
+registry needed) and uploads the SARIF report to code scanning automatically:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: TyrusRC/assay@main
+  with:
+    target: https://staging.example.com
+    profile: normal
+    fail-on: high
+    format: sarif,junit
+```
+
+**GitLab CI / Jenkins / Azure DevOps** — no plugin needed; call the binary
+directly and point the platform's own report-ingestion step at
+`assay-report.xml` (JUnit) or `assay-report.gitlab.json` (GitLab
+code-quality):
+
+```sh
+assay scan "$TARGET_URL" --format junit --output-dir report --fail-on high
+```
+A non-zero exit (1 or 2) fails the stage the normal way — `sh`/`script`
+steps already propagate it, so no wrapper plugin is required.
+
+**Incremental scanning** (any CI system) — cache the previous run's JSON
+report as a pipeline artifact and gate only on *new* findings:
+
+```sh
+assay scan "$TARGET_URL" --format json,junit --output-dir report \
+  --baseline previous-report/assay-report.json --fail-on-new --fail-on high
+```
 
 ---
 

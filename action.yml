@@ -1,0 +1,111 @@
+name: "assay DAST scan"
+description: "Run the assay web vulnerability scanner against a target and gate the build on severity."
+author: "TyrusRC"
+branding:
+  icon: "shield"
+  color: "red"
+
+inputs:
+  target:
+    description: "Target URL to scan."
+    required: true
+  profile:
+    description: "Scan profile: quick | normal | thorough | passive."
+    required: false
+    default: ""
+  fail-on:
+    description: "Exit non-zero (code 2) if any finding is at or above this severity: critical, high, medium, low. Empty = never fail the step on findings."
+    required: false
+    default: ""
+  format:
+    description: "Comma-separated report formats: text,json,html,csv,md,sarif,junit,gitlab."
+    required: false
+    default: "sarif"
+  output-dir:
+    description: "Directory (inside the workspace) to write report files to."
+    required: false
+    default: "assay-report"
+  timeout:
+    description: "Scan timeout (e.g. 30m, 1h)."
+    required: false
+    default: "30m"
+  compliance:
+    description: "Emit a compliance assessment: pci-dss, hipaa, iso-27001 (comma-separated or 'all')."
+    required: false
+    default: ""
+  baseline:
+    description: "Path to a prior assay JSON report to diff against (incremental scanning)."
+    required: false
+    default: ""
+  fail-on-new:
+    description: "With baseline + fail-on, gate only on findings new since the baseline."
+    required: false
+    default: "false"
+  extra-args:
+    description: "Any additional assay scan flags, passed through verbatim (e.g. '--verify --login-url https://... --login-user admin --login-pass secret')."
+    required: false
+    default: ""
+
+outputs:
+  exit-code:
+    description: "assay's own exit code: 0 clean, 1 operational error, 2 fail-on threshold met."
+    value: ${{ steps.scan.outputs.exit-code }}
+  report-dir:
+    description: "The output-dir report files were written to."
+    value: ${{ inputs.output-dir }}
+
+runs:
+  using: "composite"
+  steps:
+    # A native `using: docker` / `image: Dockerfile` action type cannot read
+    # inputs.output-dir to know which host path to bind-mount for the report
+    # files, and GitHub builds that image fresh on every run with no cache
+    # across jobs anyway — so this builds once via `docker build` (cached by
+    # Docker's own layer cache within a run) and runs it explicitly, which
+    # also lets a single step construct the variable-length flag list below.
+    - name: Build assay image
+      shell: bash
+      run: docker build -t assay-action:local "${{ github.action_path }}"
+
+    - name: Run assay
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        mkdir -p "${{ inputs.output-dir }}"
+        ARGS=(scan "${{ inputs.target }}" \
+          --format "${{ inputs.format }}" \
+          --output-dir "/workspace/${{ inputs.output-dir }}" \
+          --timeout "${{ inputs.timeout }}")
+        [ -n "${{ inputs.profile }}" ] && ARGS+=(--profile "${{ inputs.profile }}")
+        [ -n "${{ inputs.fail-on }}" ] && ARGS+=(--fail-on "${{ inputs.fail-on }}")
+        [ -n "${{ inputs.compliance }}" ] && ARGS+=(--compliance "${{ inputs.compliance }}")
+        [ -n "${{ inputs.baseline }}" ] && ARGS+=(--baseline "/workspace/${{ inputs.baseline }}")
+        [ "${{ inputs.fail-on-new }}" = "true" ] && ARGS+=(--fail-on-new)
+        if [ -n "${{ inputs.extra-args }}" ]; then
+          # shellcheck disable=SC2206
+          EXTRA=(${{ inputs.extra-args }})
+          ARGS+=("${EXTRA[@]}")
+        fi
+        docker run --rm -v "${PWD}:/workspace" -w /workspace \
+          assay-action:local "${ARGS[@]}"
+        code=$?
+        echo "exit-code=${code}" >> "$GITHUB_OUTPUT"
+        if [ "$code" -eq 1 ]; then
+          echo "::error::assay exited with an operational error (see log above)."
+          exit 1
+        fi
+        exit 0
+
+    - name: Upload SARIF
+      if: always() && contains(inputs.format, 'sarif')
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output-dir }}/assay-report.sarif
+
+    - name: Fail the build on the severity gate
+      if: always() && steps.scan.outputs.exit-code == '2'
+      shell: bash
+      run: |
+        echo "::error::assay found findings at or above --fail-on=${{ inputs.fail-on }}."
+        exit 1
