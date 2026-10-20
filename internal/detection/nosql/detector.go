@@ -189,9 +189,21 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			expectedDelay := opts.TimeBasedDelay
 			tolerance := time.Second * 2
 			if elapsed > baselineTime+expectedDelay-tolerance && elapsed < baselineTime+expectedDelay+tolerance*2 {
+				// Confirmation round: send the same probe again to rule
+				// out transient jitter before flagging.
+				start2 := time.Now()
+				_, err2 := d.client.SendPayload(ctx, target, param, payload.Value, method)
+				elapsed2 := time.Since(start2)
+				if err2 != nil {
+					continue
+				}
+				if elapsed2 < baselineTime+expectedDelay-tolerance || elapsed2 > baselineTime+expectedDelay+tolerance*2 {
+					continue
+				}
+
 				finding := d.createFinding(target, param, payload, nil, "time-based")
-				finding.Evidence = fmt.Sprintf("Response delayed by %v (baseline: %v, expected delay: %v)",
-					elapsed, baselineTime, expectedDelay)
+				finding.Evidence = fmt.Sprintf("Response delayed by %v confirmed %v (baseline: %v, expected delay: %v)",
+					elapsed, elapsed2, baselineTime, expectedDelay)
 				result.Findings = append(result.Findings, finding)
 				result.Vulnerable = true
 				result.DetectedDBType = payload.DBType

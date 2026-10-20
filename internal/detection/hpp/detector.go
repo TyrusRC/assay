@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/analysis"
 	internalhttp "github.com/TyrusRC/assay/internal/http"
 	hpppayloads "github.com/TyrusRC/assay/internal/payloads/hpp"
 )
@@ -229,10 +230,15 @@ func (d *Detector) hasResponseDifference(baseline, polluted *internalhttp.Respon
 		}
 	}
 
-	// Direct body content comparison: if the bodies are different at all
-	// and the baseline is small enough to compare meaningfully
-	if baseLen > 0 && baseLen < 4096 && baseline.Body != polluted.Body {
-		return true
+	// Direct body content comparison for small responses. Strip
+	// dynamic content (timestamps, CSRF tokens, session IDs) before
+	// comparing so natural per-request variance doesn't trigger FPs.
+	if baseLen > 0 && baseLen < 4096 {
+		stripped := analysis.StripDynamicContent(baseline.Body)
+		strippedP := analysis.StripDynamicContent(polluted.Body)
+		if stripped != strippedP {
+			return true
+		}
 	}
 
 	return false

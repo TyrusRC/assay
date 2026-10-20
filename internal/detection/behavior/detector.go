@@ -309,17 +309,21 @@ func (d *Detector) checkReflection(resp *http.Response, payload string) *Anomaly
 		}
 	}
 
-	// Check for partial reflection (for XSS detection)
-	dangerousChars := []string{"<", ">", "\"", "'", "&"}
-	for _, char := range dangerousChars {
-		if strings.Contains(payload, char) && strings.Contains(resp.Body, char) {
-			// Further analysis needed
-			return &Anomaly{
-				Type:        BehaviorReflection,
-				Description: "Dangerous characters reflected in response",
-				Confidence:  core.ConfidenceMedium,
-				Payload:     payload,
-				Evidence:    fmt.Sprintf("Character '%s' from payload found in response", char),
+	// Check for partial reflection: only flag when a meaningful,
+	// payload-unique substring (8+ chars) appears in the body, not
+	// just common individual characters like < > " ' & which appear
+	// in virtually every HTML page.
+	if len(payload) >= 8 {
+		for i := 0; i+8 <= len(payload); i++ {
+			fragment := payload[i : i+8]
+			if strings.Contains(resp.Body, fragment) {
+				return &Anomaly{
+					Type:        BehaviorReflection,
+					Description: "Payload fragment reflected in response",
+					Confidence:  core.ConfidenceMedium,
+					Payload:     payload,
+					Evidence:    fmt.Sprintf("Fragment %q from payload found in response", fragment),
+				}
 			}
 		}
 	}

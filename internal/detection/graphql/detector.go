@@ -307,8 +307,12 @@ func (d *Detector) Detect(ctx context.Context, targetURL string, opts DetectOpti
 			default:
 			}
 
-			// Test injection in a common argument
-			injectionQuery := fmt.Sprintf(`query { user(id: "%s") { id } }`, payload.Value)
+			// Test injection in a common argument. Escape double-quotes
+			// so the payload produces valid GraphQL syntax — an unescaped
+			// " would be a parse error, not an injection.
+			escaped := strings.ReplaceAll(payload.Value, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			injectionQuery := fmt.Sprintf(`query { user(id: "%s") { id } }`, escaped)
 			injectionBody, err := d.BuildGraphQLRequest(injectionQuery, nil)
 			if err != nil {
 				return result, fmt.Errorf("building injection test request: %w", err)

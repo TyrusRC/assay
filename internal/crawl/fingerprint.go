@@ -38,12 +38,19 @@ func Fingerprint(htmlBody string) string {
 	sort.Strings(paths)
 	paths = dedupSorted(paths)
 
+	baseHref := extractBaseHref(htmlBody)
 	forms := extractForms(htmlBody)
 	formSigs := make([]string, 0, len(forms))
 	for _, f := range forms {
+		action := f.Action
+		if action == "" {
+			action = "/"
+		} else if baseHref != "" && !strings.Contains(action, "://") {
+			action = strings.TrimRight(baseHref, "/") + "/" + strings.TrimLeft(action, "/")
+		}
 		fields := append([]string(nil), f.Fields...)
 		sort.Strings(fields)
-		formSigs = append(formSigs, f.Method+" "+normalizePath(f.Action)+" ["+strings.Join(fields, ",")+"]")
+		formSigs = append(formSigs, f.Method+" "+normalizePath(action)+" ["+strings.Join(fields, ",")+"]")
 	}
 	sort.Strings(formSigs)
 
@@ -54,7 +61,8 @@ func Fingerprint(htmlBody string) string {
 	return hex.EncodeToString(h.Sum(nil)[:16])
 }
 
-// extractLinks returns the raw href values of anchor tags that have one.
+// extractLinks returns the raw href values of link-bearing elements:
+// <a>, <area>, and <meta http-equiv="refresh"> content URLs.
 func extractLinks(htmlBody string) []string {
 	doc, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
@@ -62,13 +70,60 @@ func extractLinks(htmlBody string) []string {
 	}
 	var links []string
 	walk(doc, func(n *html.Node) {
-		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "a") {
+		if n.Type != html.ElementNode {
+			return
+		}
+		tag := strings.ToLower(n.Data)
+		switch tag {
+		case "a", "area":
 			if href, ok := attrValue(n, "href"); ok && strings.TrimSpace(href) != "" {
 				links = append(links, href)
+			}
+		case "meta":
+			equiv, _ := attrValue(n, "http-equiv")
+			if strings.EqualFold(equiv, "refresh") {
+				if content, ok := attrValue(n, "content"); ok {
+					if u := parseMetaRefreshURL(content); u != "" {
+						links = append(links, u)
+					}
+				}
 			}
 		}
 	})
 	return links
+}
+
+// extractBaseHref returns the href from the first <base> tag, if any.
+func extractBaseHref(htmlBody string) string {
+	doc, err := html.Parse(strings.NewReader(htmlBody))
+	if err != nil {
+		return ""
+	}
+	var base string
+	walk(doc, func(n *html.Node) {
+		if base != "" {
+			return
+		}
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "base") {
+			if href, ok := attrValue(n, "href"); ok {
+				base = href
+			}
+		}
+	})
+	return base
+}
+
+// parseMetaRefreshURL extracts the URL from a meta refresh content value
+// like "5;url=https://example.com".
+func parseMetaRefreshURL(content string) string {
+	lower := strings.ToLower(content)
+	idx := strings.Index(lower, "url=")
+	if idx < 0 {
+		return ""
+	}
+	u := strings.TrimSpace(content[idx+4:])
+	u = strings.Trim(u, "'\"")
+	return u
 }
 
 // extractForms returns the normalized forms in the document.

@@ -130,11 +130,13 @@ func (d *Detector) hasLDAPError(body string) bool {
 
 // hasSignificantChange checks for significant response differences.
 func (d *Detector) hasSignificantChange(resp, baseline *http.Response) bool {
-	// Check for significant content length difference (>3x baseline)
+	// Check for significant content length difference. A wildcard LDAP
+	// injection may only add a few extra entries, so 1.5x catches modest
+	// result-set growth that 3x would miss.
 	baseLen := len(baseline.Body)
 	respLen := len(resp.Body)
 
-	if baseLen > 0 && respLen > baseLen*3 {
+	if baseLen > 0 && respLen > baseLen*3/2 {
 		return true
 	}
 

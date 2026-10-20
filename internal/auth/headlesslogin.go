@@ -42,8 +42,6 @@ type HeadlessLogin struct {
 	WaitMillis int
 }
 
-// defaultLoginWaitMillis is the post-submit settle time when none is configured.
-const defaultLoginWaitMillis = 1500
 
 // Validate checks that the minimum configuration is present.
 func (h HeadlessLogin) Validate() error {
@@ -74,37 +72,76 @@ func (h HeadlessLogin) Do(ctx context.Context, page LoginPage) (*Result, error) 
 			strings.TrimPrefix(out, "missing:"))
 	}
 
-	h.settle()
-
-	if h.Success != "" {
-		body, berr := page.EvalJS(ctx, `(document.body ? document.body.innerText : "")`)
-		if berr == nil && !strings.Contains(body, h.Success) {
-			return nil, fmt.Errorf("headless login: success marker %q not found after submit", h.Success)
-		}
-	}
-
-	cookies, err := page.GetCookies(ctx)
+	// Poll for login completion: check for success marker or cookies
+	// appearing, rather than a fixed sleep that is too short for OAuth
+	// redirects and too long for fast logins.
+	header, err := h.waitForLogin(ctx, page)
 	if err != nil {
-		return nil, fmt.Errorf("read session cookies: %w", err)
-	}
-	header := cookieMapToHeader(cookies)
-	if header == "" {
-		return nil, fmt.Errorf("headless login: no session cookies were set (login likely failed)")
+		return nil, err
 	}
 	return &Result{Cookies: header}, nil
 }
 
-// settle waits for the post-submit login flow to complete.
-func (h HeadlessLogin) settle() {
-	wait := h.WaitMillis
-	if wait < 0 {
-		return
+// waitForLogin polls for the login to complete by checking cookies and the
+// optional success marker. Falls back to a fixed sleep when nothing better
+// is available.
+func (h HeadlessLogin) waitForLogin(ctx context.Context, page LoginPage) (string, error) {
+	maxWait := time.Duration(h.WaitMillis) * time.Millisecond
+	if maxWait <= 0 {
+		maxWait = 10 * time.Second
 	}
-	if wait == 0 {
-		wait = defaultLoginWaitMillis
+
+	deadline := time.Now().Add(maxWait)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-ticker.C:
+		}
+
+		// Check for session cookies.
+		cookies, err := page.GetCookies(ctx)
+		if err == nil && len(cookies) > 0 {
+			header := cookieMapToHeader(cookies)
+			if header != "" {
+				// If a success marker is configured, verify it too.
+				if h.Success != "" {
+					body, berr := page.EvalJS(ctx, `(document.body ? document.body.innerText : "")`)
+					if berr == nil && strings.Contains(body, h.Success) {
+						return header, nil
+					}
+				} else {
+					return header, nil
+				}
+			}
+		}
+
+		if time.Now().After(deadline) {
+			break
+		}
 	}
-	time.Sleep(time.Duration(wait) * time.Millisecond)
+
+	// Final attempt after timeout.
+	cookies, err := page.GetCookies(ctx)
+	if err != nil {
+		return "", fmt.Errorf("read session cookies: %w", err)
+	}
+	header := cookieMapToHeader(cookies)
+	if header == "" {
+		return "", fmt.Errorf("headless login: no session cookies were set (login likely failed)")
+	}
+	if h.Success != "" {
+		body, berr := page.EvalJS(ctx, `(document.body ? document.body.innerText : "")`)
+		if berr == nil && !strings.Contains(body, h.Success) {
+			return "", fmt.Errorf("headless login: success marker %q not found after submit", h.Success)
+		}
+	}
+	return header, nil
 }
+
 
 // buildFillScript returns JS that fills the credential fields, dispatches the
 // input/change events frameworks listen for, and submits the form. It returns
