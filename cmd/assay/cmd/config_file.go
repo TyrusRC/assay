@@ -134,6 +134,10 @@ func applyFileConfig(cmd *cobra.Command, fc *fileConfig) error {
 	loginURL = pickString(changed("login-url"), loginURL, fc.LoginURL)
 	loginUser = pickString(changed("login-user"), loginUser, fc.LoginUser)
 	loginPass = pickString(changed("login-pass"), loginPass, fc.LoginPass)
+
+	if fc.LoginPass != "" || fc.Cookie != "" {
+		fmt.Fprintln(os.Stderr, "[!] Warning: credentials read from config file; prefer ASSAY_LOGIN_PASS env var and keep config files out of version control")
+	}
 	loginUserField = pickString(changed("login-user-field"), loginUserField, fc.LoginUserField)
 	loginPassField = pickString(changed("login-pass-field"), loginPassField, fc.LoginPassField)
 	loginSuccess = pickString(changed("login-success"), loginSuccess, fc.LoginSuccess)

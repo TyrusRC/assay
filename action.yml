@@ -57,34 +57,41 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # A native `using: docker` / `image: Dockerfile` action type cannot read
-    # inputs.output-dir to know which host path to bind-mount for the report
-    # files, and GitHub builds that image fresh on every run with no cache
-    # across jobs anyway — so this builds once via `docker build` (cached by
-    # Docker's own layer cache within a run) and runs it explicitly, which
-    # also lets a single step construct the variable-length flag list below.
     - name: Build assay image
       shell: bash
-      run: docker build -t assay-action:local "${{ github.action_path }}"
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: docker build -t assay-action:local "$ACTION_PATH"
 
     - name: Run assay
       id: scan
       shell: bash
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_COMPLIANCE: ${{ inputs.compliance }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_FAIL_ON_NEW: ${{ inputs.fail-on-new }}
+        INPUT_EXTRA_ARGS: ${{ inputs.extra-args }}
       run: |
         set +e
-        mkdir -p "${{ inputs.output-dir }}"
-        ARGS=(scan "${{ inputs.target }}" \
-          --format "${{ inputs.format }}" \
-          --output-dir "/workspace/${{ inputs.output-dir }}" \
-          --timeout "${{ inputs.timeout }}")
-        [ -n "${{ inputs.profile }}" ] && ARGS+=(--profile "${{ inputs.profile }}")
-        [ -n "${{ inputs.fail-on }}" ] && ARGS+=(--fail-on "${{ inputs.fail-on }}")
-        [ -n "${{ inputs.compliance }}" ] && ARGS+=(--compliance "${{ inputs.compliance }}")
-        [ -n "${{ inputs.baseline }}" ] && ARGS+=(--baseline "/workspace/${{ inputs.baseline }}")
-        [ "${{ inputs.fail-on-new }}" = "true" ] && ARGS+=(--fail-on-new)
-        if [ -n "${{ inputs.extra-args }}" ]; then
+        mkdir -p "$INPUT_OUTPUT_DIR"
+        ARGS=(scan "$INPUT_TARGET" \
+          --format "$INPUT_FORMAT" \
+          --output-dir "/workspace/$INPUT_OUTPUT_DIR" \
+          --timeout "$INPUT_TIMEOUT")
+        [ -n "$INPUT_PROFILE" ] && ARGS+=(--profile "$INPUT_PROFILE")
+        [ -n "$INPUT_FAIL_ON" ] && ARGS+=(--fail-on "$INPUT_FAIL_ON")
+        [ -n "$INPUT_COMPLIANCE" ] && ARGS+=(--compliance "$INPUT_COMPLIANCE")
+        [ -n "$INPUT_BASELINE" ] && ARGS+=(--baseline "/workspace/$INPUT_BASELINE")
+        [ "$INPUT_FAIL_ON_NEW" = "true" ] && ARGS+=(--fail-on-new)
+        if [ -n "$INPUT_EXTRA_ARGS" ]; then
           # shellcheck disable=SC2206
-          EXTRA=(${{ inputs.extra-args }})
+          IFS=' ' read -ra EXTRA <<< "$INPUT_EXTRA_ARGS"
           ARGS+=("${EXTRA[@]}")
         fi
         docker run --rm -v "${PWD}:/workspace" -w /workspace \
@@ -106,6 +113,8 @@ runs:
     - name: Fail the build on the severity gate
       if: always() && steps.scan.outputs.exit-code == '2'
       shell: bash
+      env:
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        echo "::error::assay found findings at or above --fail-on=${{ inputs.fail-on }}."
+        echo "::error::assay found findings at or above --fail-on=$INPUT_FAIL_ON."
         exit 1

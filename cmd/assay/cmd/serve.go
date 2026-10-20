@@ -19,7 +19,9 @@ import (
 
 var (
 	servePort      int
+	serveListen    string
 	serveStateFile string
+	serveAPIKey    string
 )
 
 // scanRunner is the production api.Runner: it drives the real scanner.
@@ -51,7 +53,8 @@ and its JSON API for launching scans and browsing results.
 
 Examples:
   assay serve
-  assay serve --port 9000`,
+  assay serve --port 9000
+  assay serve --listen 0.0.0.0 --api-key my-secret`,
 	Args: cobra.NoArgs,
 	RunE: runServe,
 }
@@ -59,16 +62,23 @@ Examples:
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to listen on")
+	serveCmd.Flags().StringVar(&serveListen, "listen", "127.0.0.1", "Address to bind to (use 0.0.0.0 to expose on all interfaces)")
 	serveCmd.Flags().StringVar(&serveStateFile, "state-file", "", "Persist scan jobs to this JSON file so they survive a restart (default: in-memory only)")
+	serveCmd.Flags().StringVar(&serveAPIKey, "api-key", "", "Bearer token required for API access (also read from ASSAY_API_KEY)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
-	mux, err := buildServeMux(scanRunner{})
+	apiKey := serveAPIKey
+	if apiKey == "" {
+		apiKey = os.Getenv("ASSAY_API_KEY")
+	}
+
+	mux, apiServer, err := buildServeMux(scanRunner{}, api.ServerConfig{APIKey: apiKey})
 	if err != nil {
 		return err
 	}
 
-	addr := fmt.Sprintf(":%d", servePort)
+	addr := fmt.Sprintf("%s:%d", serveListen, servePort)
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
@@ -80,7 +90,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(os.Stderr, "[*] assay dashboard on http://localhost%s\n", addr)
+		fmt.Fprintf(os.Stderr, "[*] assay dashboard on http://%s\n", addr)
+		if apiKey != "" {
+			fmt.Fprintln(os.Stderr, "[*] API authentication enabled (Bearer token required)")
+		} else {
+			fmt.Fprintln(os.Stderr, "[!] No --api-key set; API endpoints are unauthenticated (set ASSAY_API_KEY or pass --api-key)")
+		}
 		if serr := srv.ListenAndServe(); serr != nil && !errors.Is(serr, http.ErrServerClosed) {
 			errCh <- serr
 		}
@@ -91,31 +106,33 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, "\n[*] shutting down...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutdownCtx)
+		err := srv.Shutdown(shutdownCtx)
+		apiServer.WaitIdle()
+		return err
 	case serr := <-errCh:
 		return fmt.Errorf("server error: %w", serr)
 	}
 }
 
 // buildServeMux wires the JSON API under /api/ and the embedded SPA at /.
-func buildServeMux(runner api.Runner) (http.Handler, error) {
+func buildServeMux(runner api.Runner, cfg api.ServerConfig) (http.Handler, *api.Server, error) {
 	ui, err := webui.Handler()
 	if err != nil {
-		return nil, fmt.Errorf("web ui: %w", err)
+		return nil, nil, fmt.Errorf("web ui: %w", err)
 	}
 	var apiServer *api.Server
 	if serveStateFile != "" {
 		store, serr := api.NewPersistentStore(serveStateFile)
 		if serr != nil {
-			return nil, fmt.Errorf("job store: %w", serr)
+			return nil, nil, fmt.Errorf("job store: %w", serr)
 		}
-		apiServer = api.NewServerWithStore(runner, store)
+		apiServer = api.NewServerWithStore(runner, store, cfg)
 	} else {
-		apiServer = api.NewServer(runner)
+		apiServer = api.NewServerWithStore(runner, api.NewStore(), cfg)
 	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiServer.Handler())
 	mux.Handle("/", ui)
-	return mux, nil
+	return mux, apiServer, nil
 }

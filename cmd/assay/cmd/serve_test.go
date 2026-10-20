@@ -18,7 +18,7 @@ func (stubRunner) Run(_ context.Context, req api.ScanRequest) (*scanner.ScanResu
 }
 
 func TestBuildServeMux_RoutesAPIAndUI(t *testing.T) {
-	mux, err := buildServeMux(stubRunner{})
+	mux, _, err := buildServeMux(stubRunner{}, api.ServerConfig{})
 	if err != nil {
 		t.Fatalf("buildServeMux: %v", err)
 	}

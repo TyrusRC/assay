@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/auth"
@@ -86,7 +87,10 @@ func loginTransport() *http.Transport {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecure}, //nolint:gosec // operator opt-in via --insecure
 	}
 	if proxy != "" {
-		if pu, err := url.Parse(proxy); err == nil {
+		pu, err := url.Parse(proxy)
+		if err != nil || pu.Scheme == "" || pu.Host == "" {
+			fmt.Fprintf(os.Stderr, "[!] invalid proxy URL %q; proceeding without proxy\n", proxy)
+		} else {
 			tr.Proxy = http.ProxyURL(pu)
 		}
 	}

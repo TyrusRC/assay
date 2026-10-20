@@ -27,6 +27,9 @@ const (
 	StatusFailed ScanStatus = "failed"
 )
 
+// DefaultMaxJobs is the default upper bound on stored jobs before eviction.
+const DefaultMaxJobs = 1000
+
 // ScanRequest is the payload to start a scan.
 type ScanRequest struct {
 	Target  string `json:"target"`
@@ -59,18 +62,20 @@ func (j *ScanJob) Result() *scanner.ScanResult {
 // a restart (the in-memory raw result is not persisted — status, summary and
 // listing are).
 type Store struct {
-	mu    sync.RWMutex
-	jobs  map[string]*ScanJob
-	order []string
-	now   func() time.Time
-	path  string
+	mu      sync.RWMutex
+	jobs    map[string]*ScanJob
+	order   []string
+	now     func() time.Time
+	path    string
+	maxJobs int
 }
 
 // NewStore creates an empty in-memory job store.
 func NewStore() *Store {
 	return &Store{
-		jobs: make(map[string]*ScanJob),
-		now:  time.Now,
+		jobs:    make(map[string]*ScanJob),
+		now:     time.Now,
+		maxJobs: DefaultMaxJobs,
 	}
 }
 
@@ -79,9 +84,10 @@ func NewStore() *Store {
 // error (a fresh store).
 func NewPersistentStore(path string) (*Store, error) {
 	s := &Store{
-		jobs: make(map[string]*ScanJob),
-		now:  time.Now,
-		path: path,
+		jobs:    make(map[string]*ScanJob),
+		now:     time.Now,
+		path:    path,
+		maxJobs: DefaultMaxJobs,
 	}
 	if err := s.load(); err != nil {
 		return nil, err
@@ -124,22 +130,53 @@ func (s *Store) load() error {
 // persistLocked writes the store to disk atomically. The caller holds s.mu.
 // NOTE: the write happens under the lock, so job mutations serialize on disk IO;
 // fine for serve's job volume. Raise to an async writer if that ever bites.
-func (s *Store) persistLocked() {
+func (s *Store) persistLocked() error {
 	if s.path == "" {
-		return
+		return nil
 	}
 	data, err := json.MarshalIndent(persisted{Order: s.order, Jobs: s.jobs}, "", "  ")
 	if err != nil {
-		return
+		return fmt.Errorf("api: marshal job store: %w", err)
 	}
 	tmp := s.path + ".tmp"
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return
+		return fmt.Errorf("api: create job store dir: %w", err)
 	}
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return
+		return fmt.Errorf("api: write job store tmp: %w", err)
 	}
-	_ = os.Rename(tmp, s.path)
+	if err := os.Rename(tmp, s.path); err != nil {
+		return fmt.Errorf("api: rename job store: %w", err)
+	}
+	return nil
+}
+
+// logPersist calls persistLocked and logs the error to stderr (most callers
+// cannot propagate a persist failure up the call chain).
+func (s *Store) logPersist() {
+	if err := s.persistLocked(); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] %v\n", err)
+	}
+}
+
+// evictLocked removes the oldest completed or failed jobs until the store is
+// within its maxJobs limit. The caller holds s.mu.
+func (s *Store) evictLocked() {
+	for len(s.order) > s.maxJobs {
+		evicted := false
+		for i, id := range s.order {
+			job := s.jobs[id]
+			if job.Status == StatusCompleted || job.Status == StatusFailed {
+				delete(s.jobs, id)
+				s.order = append(s.order[:i], s.order[i+1:]...)
+				evicted = true
+				break
+			}
+		}
+		if !evicted {
+			break // only queued/running jobs remain — don't evict those
+		}
+	}
 }
 
 // Create registers a new queued job for the request and returns a copy.
@@ -157,7 +194,8 @@ func (s *Store) Create(req ScanRequest) *ScanJob {
 	}
 	s.jobs[job.ID] = job
 	s.order = append(s.order, job.ID)
-	s.persistLocked()
+	s.evictLocked()
+	s.logPersist()
 	return copyJob(job)
 }
 
@@ -183,6 +221,24 @@ func (s *Store) List() []*ScanJob {
 	return out
 }
 
+// ListPaged returns a paginated slice of jobs in creation order.
+func (s *Store) ListPaged(offset, limit int) []*ScanJob {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if offset >= len(s.order) {
+		return []*ScanJob{}
+	}
+	end := offset + limit
+	if end > len(s.order) {
+		end = len(s.order)
+	}
+	out := make([]*ScanJob, 0, end-offset)
+	for _, id := range s.order[offset:end] {
+		out = append(out, copyJob(s.jobs[id]))
+	}
+	return out
+}
+
 // setRunning transitions a job to running.
 func (s *Store) setRunning(id string) {
 	s.mu.Lock()
@@ -190,7 +246,7 @@ func (s *Store) setRunning(id string) {
 	if job, ok := s.jobs[id]; ok {
 		job.Status = StatusRunning
 		job.UpdatedAt = s.now()
-		s.persistLocked()
+		s.logPersist()
 	}
 }
 
@@ -204,7 +260,7 @@ func (s *Store) setCompleted(id string, result *scanner.ScanResult) {
 		summary := result.Summary()
 		job.Summary = &summary
 		job.UpdatedAt = s.now()
-		s.persistLocked()
+		s.logPersist()
 	}
 }
 
@@ -216,7 +272,7 @@ func (s *Store) setFailed(id, errMsg string) {
 		job.Status = StatusFailed
 		job.Error = errMsg
 		job.UpdatedAt = s.now()
-		s.persistLocked()
+		s.logPersist()
 	}
 }
 

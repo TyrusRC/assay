@@ -193,8 +193,27 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	if req.Proxy != "" {
 		args = append(args, "-proxy", req.Proxy)
 	}
-	args = append(args, req.CustomArgs...)
+	for _, a := range req.CustomArgs {
+		if isNucleiBlockedFlag(a) {
+			return nil
+		}
+		args = append(args, a)
+	}
 	return args
+}
+
+// nucleiBlockedFlags are flags that enable arbitrary code execution or
+// dangerous capabilities in nuclei.
+var nucleiBlockedFlags = []string{"-code", "-dast", "-signed"}
+
+func isNucleiBlockedFlag(arg string) bool {
+	a := strings.SplitN(arg, "=", 2)[0]
+	for _, b := range nucleiBlockedFlags {
+		if a == b {
+			return true
+		}
+	}
+	return false
 }
 
 // Execute runs Nuclei against the target and parses the JSONL output.

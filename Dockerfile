@@ -7,5 +7,7 @@ RUN CGO_ENABLED=0 go build -o /assay ./cmd/assay
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
+RUN adduser -D -u 1001 assay
 COPY --from=build /assay /usr/local/bin/assay
+USER assay
 ENTRYPOINT ["/usr/local/bin/assay"]

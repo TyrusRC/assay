@@ -20,12 +20,12 @@ export async function createScan(req) {
 }
 
 export async function getReport(id) {
-  const res = await fetch(`/api/scans/${id}/report?format=json`)
+  const res = await fetch(`/api/scans/${encodeURIComponent(id)}/report?format=json`)
   if (!res.ok) throw new Error(`report: ${res.status}`)
   return res.json()
 }
 
 // reportURL builds a download link for a scan report in the given format.
 export function reportURL(id, format) {
-  return `/api/scans/${id}/report?format=${format}`
+  return `/api/scans/${encodeURIComponent(id)}/report?format=${encodeURIComponent(format)}`
 }

@@ -62,8 +62,12 @@ func doJSON(t *testing.T, srv *Server, method, path, body string) *httptest.Resp
 	return rec
 }
 
+func testServer(runner Runner) *Server {
+	return NewServerWithStore(runner, NewStore(), ServerConfig{AllowPrivateTargets: true})
+}
+
 func TestHealth(t *testing.T) {
-	srv := NewServer(fakeRunner{})
+	srv := testServer(fakeRunner{})
 	rec := doJSON(t, srv, http.MethodGet, "/api/health", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("health code = %d, want 200", rec.Code)
@@ -74,7 +78,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestCreateScan_LifecycleCompletes(t *testing.T) {
-	srv := NewServer(fakeRunner{result: sampleResult()})
+	srv := testServer(fakeRunner{result: sampleResult()})
 
 	rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":"https://example.com"}`)
 	if rec.Code != http.StatusAccepted {
@@ -100,7 +104,7 @@ func TestCreateScan_LifecycleCompletes(t *testing.T) {
 }
 
 func TestCreateScan_Validation(t *testing.T) {
-	srv := NewServer(fakeRunner{})
+	srv := testServer(fakeRunner{})
 	if rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":""}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("empty target code = %d, want 400", rec.Code)
 	}
@@ -110,7 +114,7 @@ func TestCreateScan_Validation(t *testing.T) {
 }
 
 func TestCreateScan_RunnerFailure(t *testing.T) {
-	srv := NewServer(fakeRunner{err: errors.New("boom")})
+	srv := testServer(fakeRunner{err: errors.New("boom")})
 	rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":"https://example.com"}`)
 	job := decodeJob(t, rec)
 	srv.WaitIdle()
@@ -121,7 +125,7 @@ func TestCreateScan_RunnerFailure(t *testing.T) {
 }
 
 func TestListAndGetScan(t *testing.T) {
-	srv := NewServer(fakeRunner{result: sampleResult()})
+	srv := testServer(fakeRunner{result: sampleResult()})
 	rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":"https://example.com"}`)
 	job := decodeJob(t, rec)
 	srv.WaitIdle()
@@ -144,7 +148,7 @@ func TestListAndGetScan(t *testing.T) {
 }
 
 func TestGetReport(t *testing.T) {
-	srv := NewServer(fakeRunner{result: sampleResult()})
+	srv := testServer(fakeRunner{result: sampleResult()})
 	rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":"https://example.com"}`)
 	job := decodeJob(t, rec)
 	srv.WaitIdle()
@@ -173,7 +177,7 @@ func TestGetReport(t *testing.T) {
 func TestGetReport_NotCompleted(t *testing.T) {
 	// Block the runner so the scan stays running while we query the report.
 	release := make(chan struct{})
-	srv := NewServer(blockingRunner{release: release})
+	srv := testServer(blockingRunner{release: release})
 	rec := doJSON(t, srv, http.MethodPost, "/api/scans", `{"target":"https://example.com"}`)
 	job := decodeJob(t, rec)
 

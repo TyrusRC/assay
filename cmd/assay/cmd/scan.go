@@ -173,8 +173,8 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 	items := make([]decision.Item, len(findings))
 	for i, f := range findings {
 		ev := f.Evidence
-		if len(ev) > 400 {
-			ev = ev[:400]
+		if len(ev) > 800 {
+			ev = ev[:800]
 		}
 		verified := ""
 		if f.Verified {
@@ -245,6 +245,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	s := scanner.New()
 	defer s.Close()
+
+	// CLI flag wins over env; missing flag falls back to ASSAY_LOGIN_PASS.
+	if loginPass == "" {
+		if env := os.Getenv("ASSAY_LOGIN_PASS"); env != "" {
+			loginPass = env
+		}
+	}
 
 	sessionCookies := cookies
 	if loginURL != "" {

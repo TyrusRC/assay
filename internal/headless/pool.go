@@ -51,6 +51,7 @@ type Pool struct {
 	browser     *rod.Browser // nil if Pool was constructed without a launch (test path)
 	allocCancel context.CancelFunc
 	pages       chan *Page
+	sem         chan struct{}
 	mu          sync.Mutex
 	closed      bool
 }
@@ -143,15 +144,18 @@ func NewPool(config PoolConfig) (*Pool, error) {
 		return nil, ErrBrowserUnavailable
 	}
 
+	sem := make(chan struct{}, config.MaxBrowsers)
 	return &Pool{
 		config:      config,
 		browser:     browser,
 		allocCancel: func() { browser.MustClose(); l.Cleanup() },
 		pages:       make(chan *Page, config.MaxBrowsers),
+		sem:         sem,
 	}, nil
 }
 
 // Acquire returns a Page from the pool, creating one on demand.
+// The semaphore bounds total live pages to MaxBrowsers.
 func (p *Pool) Acquire(ctx context.Context) (*Page, error) {
 	p.mu.Lock()
 	if p.closed {
@@ -160,11 +164,24 @@ func (p *Pool) Acquire(ctx context.Context) (*Page, error) {
 	}
 	p.mu.Unlock()
 
+	// Acquire a concurrency token (blocks if MaxBrowsers pages are live).
+	if p.sem != nil {
+		select {
+		case p.sem <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	select {
 	case page := <-p.pages:
 		return page, nil
 	default:
-		return p.newPage(ctx)
+		pg, err := p.newPage(ctx)
+		if err != nil && p.sem != nil {
+			<-p.sem // release token on failure
+		}
+		return pg, err
 	}
 }
 
@@ -180,6 +197,9 @@ func (p *Pool) Release(page *Page) {
 	if p.closed {
 		p.mu.Unlock()
 		page.close()
+		if p.sem != nil {
+			<-p.sem
+		}
 		return
 	}
 	select {
@@ -188,6 +208,9 @@ func (p *Pool) Release(page *Page) {
 	default:
 		p.mu.Unlock()
 		page.close()
+	}
+	if p.sem != nil {
+		<-p.sem
 	}
 }
 

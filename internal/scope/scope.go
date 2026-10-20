@@ -55,6 +55,9 @@ func New(hosts, include, exclude []string, withDefaultExcludes bool) (*Scope, er
 		}
 	}
 
+	// Go's regexp uses RE2, which guarantees linear-time matching and is
+	// immune to catastrophic backtracking (ReDoS). User-supplied patterns
+	// are safe to evaluate per-request without a complexity check.
 	compile := func(pats []string) ([]*regexp.Regexp, error) {
 		var out []*regexp.Regexp
 		for _, p := range pats {

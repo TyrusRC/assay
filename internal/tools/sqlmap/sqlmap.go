@@ -212,10 +212,34 @@ func (s *SQLMap) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "--random-agent")
 	}
 
-	// Add custom arguments
-	args = append(args, req.CustomArgs...)
+	// Add custom arguments after validating against blocked flags.
+	for _, a := range req.CustomArgs {
+		if isSQLMapBlockedFlag(a) {
+			return nil
+		}
+		args = append(args, a)
+	}
 
 	return args
+}
+
+// sqlmapBlockedFlags are flags that escalate sqlmap beyond passive detection.
+var sqlmapBlockedFlags = []string{
+	"--os-shell", "--os-cmd", "--os-pwn", "--os-bof", "--os-smbrelay",
+	"--file-read", "--file-write", "--file-dest",
+	"--sql-shell", "--sql-query", "--sql-file",
+	"--reg-read", "--reg-add", "--reg-del",
+	"--priv-esc",
+}
+
+func isSQLMapBlockedFlag(arg string) bool {
+	a := strings.SplitN(arg, "=", 2)[0]
+	for _, b := range sqlmapBlockedFlags {
+		if a == b {
+			return true
+		}
+	}
+	return false
 }
 
 // Execute runs SQLMap against the target.

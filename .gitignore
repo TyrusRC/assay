@@ -69,6 +69,7 @@ secrets.yaml
 
 # Binary
 /skws
+/assay
 
 # Plans and docs
 docs/superpowers/
