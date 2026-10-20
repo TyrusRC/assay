@@ -334,32 +334,27 @@ type InternalScanResult struct {
 	Errors       []string
 }
 
-// applyScanConfig returns a clone of the given client with per-scan settings
-// (proxy, headers, cookies, UA, insecure) applied. The original client is
-// never mutated, so concurrent scan goroutines that still hold a reference
-// to it are safe.
-func applyScanConfig(client *http.Client, cfg *Config) *http.Client {
-	if client == nil {
-		return client
-	}
-	c := client.Clone()
-	if cfg == nil {
-		return c
+// applyScanConfigInPlace applies per-scan transport settings to the client
+// in place. All detectors hold a reference to this same client object, so
+// mutating it propagates proxy/headers/cookies/UA to every detector.
+// One-Scanner-per-Scan is the contract.
+func applyScanConfigInPlace(client *http.Client, cfg *Config) {
+	if client == nil || cfg == nil {
+		return
 	}
 	if len(cfg.Headers) > 0 {
-		c.WithHeaders(cfg.Headers)
+		client.WithHeaders(cfg.Headers)
 	}
 	if cfg.Cookies != "" {
-		c.WithCookies(cfg.Cookies)
+		client.WithCookies(cfg.Cookies)
 	}
 	if cfg.UserAgent != "" {
-		c.WithUserAgent(cfg.UserAgent)
+		client.WithUserAgent(cfg.UserAgent)
 	}
 	if cfg.ProxyURL != "" {
-		c.WithProxy(cfg.ProxyURL)
+		client.WithProxy(cfg.ProxyURL)
 	}
 	if cfg.Insecure {
-		c.WithInsecure(true)
+		client.WithInsecure(true)
 	}
-	return c
 }

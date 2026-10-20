@@ -5,6 +5,8 @@
 //   - Context (String, Integer, Comment)
 package sqli
 
+import "strings"
+
 // DBType represents a database type.
 type DBType string
 
@@ -37,22 +39,63 @@ type Payload struct {
 	WAFBypass   bool // Payload includes WAF evasion
 }
 
-// GetPayloads returns payloads for a specific database type.
+// dangerousDescriptions marks payloads that execute destructive commands,
+// modify server configuration, or exfiltrate files. These are only returned
+// when the caller opts in via risk >= 3.
+var dangerousKeywords = []string{
+	"drop", "xp_cmdshell", "sp_configure", "COPY", "PROGRAM",
+	"pg_read_file", "SLAVEOF", "CREATE TABLE",
+}
+
+func isDangerous(p Payload) bool {
+	lower := strings.ToLower(p.Value)
+	for _, kw := range dangerousKeywords {
+		if strings.Contains(lower, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
+func filterByRisk(payloads []Payload, risk int) []Payload {
+	if risk >= 3 {
+		return payloads
+	}
+	safe := make([]Payload, 0, len(payloads))
+	for _, p := range payloads {
+		if !isDangerous(p) {
+			safe = append(safe, p)
+		}
+	}
+	return safe
+}
+
+// GetPayloads returns payloads for a specific database type, excluding
+// destructive/RCE payloads (DROP TABLE, xp_cmdshell, etc.). Use
+// GetPayloadsWithRisk to include them at risk >= 3.
 func GetPayloads(dbType DBType) []Payload {
+	return GetPayloadsWithRisk(dbType, 1)
+}
+
+// GetPayloadsWithRisk returns payloads for a database type, filtered by risk
+// level. Risk 1-2 excludes destructive payloads; risk 3 includes everything.
+func GetPayloadsWithRisk(dbType DBType, risk int) []Payload {
+	var all []Payload
 	switch dbType {
 	case MySQL:
-		return mysqlPayloads
+		all = mysqlPayloads
 	case PostgreSQL:
-		return postgresPayloads
+		all = postgresPayloads
 	case MSSQL:
-		return mssqlPayloads
+		all = mssqlPayloads
 	case Oracle:
-		return oraclePayloads
+		all = oraclePayloads
 	case SQLite:
-		return sqlitePayloads
+		all = sqlitePayloads
 	default:
-		return genericPayloads
+		all = genericPayloads
 	}
+	return filterByRisk(all, risk)
 }
 
 // GetByTechnique returns payloads filtered by technique.
@@ -84,8 +127,14 @@ func GetAuthBypassPayloads() []Payload {
 	return authBypassPayloads
 }
 
-// GetAllPayloads returns all payloads for all database types.
+// GetAllPayloads returns all payloads for all database types, excluding
+// destructive payloads. Use GetAllPayloadsWithRisk for risk-gated access.
 func GetAllPayloads() []Payload {
+	return GetAllPayloadsWithRisk(1)
+}
+
+// GetAllPayloadsWithRisk returns all payloads filtered by risk level.
+func GetAllPayloadsWithRisk(risk int) []Payload {
 	var all []Payload
 	all = append(all, genericPayloads...)
 	all = append(all, mysqlPayloads...)
@@ -95,7 +144,7 @@ func GetAllPayloads() []Payload {
 	all = append(all, sqlitePayloads...)
 	all = append(all, advancedWAFBypassPayloads...)
 	all = append(all, oastExfilPayloads...)
-	return all
+	return filterByRisk(all, risk)
 }
 
 // Generic payloads that work across multiple databases.

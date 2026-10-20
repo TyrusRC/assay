@@ -31,21 +31,26 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		fmt.Fprintf(os.Stderr, "[*] OOB initialization started in background...\n")
 	}
 
+	// Apply per-scan settings (proxy, headers, cookies, UA, insecure) to
+	// the shared client. Detectors hold their own reference to this same
+	// client object, so mutating it propagates settings to every detector.
+	// One-Scanner-per-Scan is the contract — concurrent scans on the same
+	// InternalScanner instance are not supported.
+	applyScanConfigInPlace(s.client, scanConfig)
+	scanClient := s.client
+
 	// Keep the authenticated session alive for the scan's duration: poll the
 	// canary and re-authenticate on logout so authed probes do not silently
-	// degrade to unauthenticated. Bound to this scan via a cancel on return.
+	// degrade to unauthenticated. Uses scanClient (not s.client) so the
+	// keepalive traffic goes through the same proxy and carries the same
+	// auth headers as the actual scan.
 	if s.config.Session != nil {
 		sessCtx, sessCancel := context.WithCancel(ctx)
 		defer sessCancel()
-		go s.config.Session.Keepalive(sessCtx, s.client, s.config.SessionCheckInterval, func(note string) {
+		go s.config.Session.Keepalive(sessCtx, scanClient, s.config.SessionCheckInterval, func(note string) {
 			fmt.Fprintf(os.Stderr, "[*] %s\n", note)
 		})
 	}
-
-	// Clone the shared client and apply per-scan settings (proxy, headers,
-	// cookies, UA, insecure) so every detector inherits them without
-	// mutating the original — safe for concurrent scans.
-	scanClient := applyScanConfig(s.client, scanConfig)
 
 	// Reset the per-scan baseline cache. Each of the 7 bank-driven
 	// parameter-injection detectors fetches the target URL once as its

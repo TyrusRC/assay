@@ -24,11 +24,17 @@ func emit(_ context.Context, ch chan<- *core.Finding, findings []*core.Finding) 
 }
 
 // launch schedules fn to run in its own goroutine under wg. Used by the
-// URL-level runner to keep each detector dispatch a single line.
+// URL-level runner to keep each detector dispatch a single line. A panic
+// in any single detector is caught so it doesn't crash the entire scan.
 func (s *InternalScanner) launch(wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Fprintf(os.Stderr, "[!] detector panic: %v\n", r)
+			}
+		}()
 		fn()
 	}()
 }

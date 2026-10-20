@@ -9,13 +9,21 @@ import (
 )
 
 // runParameterTests launches goroutines for all parameter-level injection
-// tests. Each parameter is reported to prog as tested once its detectors
-// finish, so the progress tracker reflects per-parameter completion.
+// tests, bounded by a semaphore so a target with many parameters doesn't
+// flood the server with hundreds of concurrent requests. Each parameter is
+// reported to prog as tested once its detectors finish.
 func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress) {
+	concurrency := 5
+	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < concurrency {
+		concurrency = s.config.MaxPayloadsPerParam
+	}
+	sem := make(chan struct{}, concurrency)
 	for _, param := range params {
 		wg.Add(1)
 		go func(p core.Parameter) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			s.runParamDetectors(ctx, findingsChan, targetURL, p, method, scanClient)
 			if prog != nil {
 				prog.IncrementTested()

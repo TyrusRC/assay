@@ -30,13 +30,18 @@ func (h *httpFetcher) Fetch(ctx context.Context, url string) (string, error) {
 }
 
 // stateCrawlURLs runs the state-aware HTTP crawler from seed and returns the
-// endpoints it discovered. No-op (nil) when the crawler has no HTTP client.
-func (s *InternalScanner) stateCrawlURLs(ctx context.Context, seed string) []string {
-	if s.client == nil {
+// endpoints it discovered. When scanClient is non-nil it is used for all
+// fetches so the crawl inherits the scan's proxy, auth, and headers.
+func (s *InternalScanner) stateCrawlURLs(ctx context.Context, seed string, scanClient *assayhttp.Client) []string {
+	client := scanClient
+	if client == nil {
+		client = s.client
+	}
+	if client == nil {
 		return nil
 	}
 	cr := &crawl.Crawler{
-		Fetcher:      &httpFetcher{client: s.client},
+		Fetcher:      &httpFetcher{client: client},
 		SameHostOnly: true,
 		MaxRequests:  s.config.CrawlMaxPages,
 	}
@@ -81,10 +86,12 @@ func expandWithCrawl(ctx context.Context, s *InternalScanner, seeds []*core.Targ
 		}
 	}
 
-	// State-aware HTTP crawl — no browser needed.
+	// State-aware HTTP crawl — no browser needed. Uses the scanner's
+	// shared client (expandWithCrawl runs before per-target scan config
+	// is applied; the shared client already carries global proxy/headers).
 	if s.config.EnableStateCrawl {
 		for _, seed := range seeds {
-			discovered = append(discovered, s.stateCrawlURLs(ctx, seed.URL())...)
+			discovered = append(discovered, s.stateCrawlURLs(ctx, seed.URL(), nil)...)
 		}
 	}
 
