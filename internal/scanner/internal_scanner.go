@@ -211,6 +211,7 @@ type InternalScanner struct {
 	massAssignDetector     *massassign.Detector
 	protoPollutionDetector *protopollution.Detector
 	secondOrderDetector    *secondorder.Detector
+	storedXSSDetector      *xss.StoredDetector
 	ssiDetector            *ssi.Detector
 	storageDetector        *storage.Detector
 	postMsgDetector        *postmsg.Detector

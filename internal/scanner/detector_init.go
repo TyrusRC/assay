@@ -204,6 +204,7 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	s.massAssignDetector = massassign.New(httpClient)
 	s.protoPollutionDetector = protopollution.New(httpClient)
 	s.secondOrderDetector = secondorder.New(httpClient)
+	s.storedXSSDetector = xss.NewStoredDetector(httpClient)
 	s.ssiDetector = ssi.New(httpClient)
 	s.storageDetector = storage.New(&nethttp.Client{Timeout: config.RequestTimeout})
 	s.passwordResetDetector = passwordreset.New(httpClient)

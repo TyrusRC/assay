@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/xss"
 	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
 
@@ -175,6 +176,25 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 			proxyURL = scanConfig.ProxyURL
 		}
 		s.runTemplateTests(ctx, &wg, findingsChan, target, proxyURL, scanConfig)
+		wg.Wait()
+	}
+
+	// Phase 1.8: Stored XSS (inject→crawl→match→confirm). Runs after injection
+	// and URL-level phases so discovered parameters are available. Opt-in
+	// because it's slow and noisy — enabled in the thorough profile or via flag.
+	if s.config.EnableStoredXSS && len(params) > 0 && s.storedXSSDetector != nil {
+		prog.SetPhase("stored-xss")
+		fmt.Fprintf(os.Stderr, "[*] Phase 1.8: stored XSS detection...\n")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			opts := xss.DefaultStoredOptions()
+			findings := s.storedXSSDetector.DetectStored(ctx, targetURL, params, method, opts)
+			emit(ctx, findingsChan, findings)
+			if len(findings) > 0 {
+				fmt.Fprintf(os.Stderr, "[+] Stored XSS: %d findings\n", len(findings))
+			}
+		}()
 		wg.Wait()
 	}
 

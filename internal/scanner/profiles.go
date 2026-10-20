@@ -51,6 +51,7 @@ func ThoroughProfile() *Profile {
 	config.IncludeWAFBypass = true
 	config.EnableVHostEnum = true
 	config.EnableLongPwdDoS = true
+	config.EnableStoredXSS = true
 	config.VHostMaxRequests = 500
 	return &Profile{Name: "thorough", Description: "Comprehensive scan with all detectors and recon stages enabled", Config: config}
 }

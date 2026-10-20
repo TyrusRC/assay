@@ -35,6 +35,7 @@ var (
 	crawlStates          bool
 	crawlDepth           int
 	crawlPages           int
+	submitForms          bool
 	configPath           string
 	cfgFileTargets       []string
 	loginURL             string
@@ -85,6 +86,7 @@ var (
 	massAssign           bool
 	protoPollSrv         bool
 	noSecondOrd          bool
+	storedXSSOpt         bool
 	noSSIInj             bool
 	noStorage            bool
 	noNuclei             bool
@@ -149,6 +151,9 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 		if crawlPages > 0 {
 			internalConfig.CrawlMaxPages = crawlPages
 		}
+	}
+	if submitForms {
+		internalConfig.SubmitForms = true
 	}
 	if noJSDep {
 		internalConfig.EnableJSDep = false
@@ -254,6 +259,9 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	}
 	if noSecondOrd {
 		internalConfig.EnableSecondOrder = false
+	}
+	if storedXSSOpt || level >= 3 {
+		internalConfig.EnableStoredXSS = true
 	}
 	if noSSIInj {
 		internalConfig.EnableSSI = false

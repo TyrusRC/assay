@@ -120,6 +120,7 @@ type InternalScanConfig struct {
 	EnableMassAssign      bool   // Mass-assignment with re-fetch verification (param-level)
 	EnableProtoPollServer bool   // Server-side prototype pollution (param-level)
 	EnableSecondOrder     bool   // Second-order injection (inject-then-verify)
+	EnableStoredXSS       bool   // Stored XSS via inject→crawl→match→confirm cycle (slow, opt-in at level >= 3)
 	EnableSSI             bool   // Server-Side Includes injection (param-level)
 	EnableStorage         bool   // Cookie / session management (Secure, HttpOnly, SameSite, entropy)
 	EnablePostMsg         bool   // postMessage origin-validation probe (requires Chrome)
@@ -182,6 +183,7 @@ type InternalScanConfig struct {
 	EnableStateCrawl bool // State-aware HTTP crawl (no browser); dedups by page-state fingerprint
 	CrawlMaxDepth    int  // BFS depth from each seed (0 = seed page only)
 	CrawlMaxPages    int  // Cap on navigated pages (0 = built-in safety limit)
+	SubmitForms      bool // Submit discovered forms with test data during crawl (opt-in)
 
 	// Additional configuration for specific detectors
 	Subdomains []subtakeover.SubdomainInfo // Subdomain list for takeover detection
