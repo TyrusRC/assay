@@ -188,7 +188,8 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 	}
 
 	// Time-based blind SQLi — last resort (slowest, 3s delay per probe).
-	if len(findings) == 0 {
+	// Gated behind EnableTimeBasedSQLi (off in quick profile).
+	if len(findings) == 0 && s.config.EnableTimeBasedSQLi {
 		send := func(ctx context.Context, payload string) (*http.Response, error) {
 			return client.SendPayloadAt(ctx, targetURL, param, payload, method)
 		}
@@ -242,7 +243,7 @@ func (s *InternalScanner) testCMDI(ctx context.Context, targetURL string, param 
 		MaxPayloads:      s.config.MaxPayloadsPerParam,
 		IncludeWAFBypass: s.config.IncludeWAFBypass,
 		Timeout:          s.config.RequestTimeout,
-		EnableTimeBased:  true,
+		EnableTimeBased:  s.config.EnableTimeBasedSQLi,
 		TimeBasedDelay:   5 * time.Second,
 	})
 	if err != nil || !result.Vulnerable {

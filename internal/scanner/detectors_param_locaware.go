@@ -66,7 +66,7 @@ func (s *InternalScanner) testCMDIWithClient(ctx context.Context, targetURL stri
 		MaxPayloads:      s.config.MaxPayloadsPerParam,
 		IncludeWAFBypass: s.config.IncludeWAFBypass,
 		Timeout:          s.config.RequestTimeout,
-		EnableTimeBased:  true,
+		EnableTimeBased:  s.config.EnableTimeBasedSQLi,
 		TimeBasedDelay:   5 * time.Second,
 	})
 	if err != nil || !result.Vulnerable {

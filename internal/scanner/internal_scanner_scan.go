@@ -202,12 +202,33 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 
 	// Phase 1: parameter-injection tests, only when we have params to inject into.
+	// Split into two batches: spec-discovered params (SourceURL set) run first
+	// to completion, then generic built-in headers. This prevents header probes
+	// from starving the API params that carry the real findings.
 	if len(params) > 0 {
 		prog.SetPhase("parameter-injection")
-		fmt.Fprintf(os.Stderr, "[*] Phase 1: parameter-injection tests...\n")
 		ClassifyParameters(scanCtx, scanClient, targetURL, params, method)
-		s.runParameterTests(scanCtx, &wg, findingsChan, params, targetURL, method, scanClient, prog)
-		wg.Wait()
+
+		var specParams, genericParams []core.Parameter
+		for _, p := range params {
+			if p.SourceURL != "" {
+				specParams = append(specParams, p)
+			} else {
+				genericParams = append(genericParams, p)
+			}
+		}
+
+		if len(specParams) > 0 {
+			fmt.Fprintf(os.Stderr, "[*] Phase 1a: spec-discovered params (%d)...\n", len(specParams))
+			s.runParameterTests(scanCtx, &wg, findingsChan, specParams, targetURL, method, scanClient, prog)
+			wg.Wait()
+			flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+		}
+		if len(genericParams) > 0 {
+			fmt.Fprintf(os.Stderr, "[*] Phase 1b: generic header params (%d)...\n", len(genericParams))
+			s.runParameterTests(scanCtx, &wg, findingsChan, genericParams, targetURL, method, scanClient, prog)
+			wg.Wait()
+		}
 	}
 	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 

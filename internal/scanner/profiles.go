@@ -31,9 +31,10 @@ func QuickProfile() *Profile {
 	config.EnableSolrInject = false
 	config.EnablePHPInject = false
 	config.EnableESI = false
-	config.EnableRSCInject = false  // posts Server-Action bodies; skip for quick
-	config.EnableCSPT = false       // fetches linked scripts; skip for quick
-	config.RateLimitPerSec = 10     // conservative for quick scans
+	config.EnableRSCInject = false      // posts Server-Action bodies; skip for quick
+	config.EnableCSPT = false           // fetches linked scripts; skip for quick
+	config.EnableTimeBasedSQLi = false  // 3s+ per probe per param; skip for quick
+	config.RateLimitPerSec = 10         // conservative for quick scans
 	return &Profile{Name: "quick", Description: "Fast scan with reduced payloads and heavy per-param runners disabled", Config: config}
 }
 

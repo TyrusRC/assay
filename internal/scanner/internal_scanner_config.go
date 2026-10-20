@@ -200,8 +200,9 @@ type InternalScanConfig struct {
 	// Scan intensity
 	MaxPayloadsPerParam  int
 	IncludeWAFBypass     bool
-	ParamConcurrency     int // max params tested in parallel (default 10)
-	DetectorConcurrency  int // max detector classes per param in parallel (default 3)
+	ParamConcurrency     int  // max params tested in parallel (default 10)
+	DetectorConcurrency  int  // max detector classes per param in parallel (default 3)
+	EnableTimeBasedSQLi  bool // enable time-based blind SQLi (slow, 3s+ per probe)
 
 	// Timeouts
 	RequestTimeout time.Duration
@@ -367,6 +368,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		IncludeWAFBypass:      true,
 		ParamConcurrency:      10,
 		DetectorConcurrency:   3,
+		EnableTimeBasedSQLi:   true,
 		RequestTimeout:        10 * time.Second,
 		OOBPollTimeout:        10 * time.Second,
 		RateLimitPerSec:       20, // safe default; --rate overrides
