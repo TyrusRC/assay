@@ -120,6 +120,32 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 		}
 	}
 
+	// UNION-based SQLi — runs last (noisier, more requests than error/boolean).
+	if len(findings) == 0 {
+		if unionRes, err := s.sqliDetector.DetectUnion(ctx, client, targetURL, paramName, method); err == nil && unionRes.IsVulnerable {
+			if s.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[+] UNION SQLi FOUND in '%s' (%d columns, reflected col %d)\n",
+					paramName, unionRes.ColumnCount, unionRes.ReflectedColumn+1)
+			}
+			finding := core.NewFinding("SQL Injection (UNION-based)", core.SeverityCritical)
+			finding.URL = targetURL
+			finding.Parameter = paramName
+			finding.Description = fmt.Sprintf(
+				"UNION-based SQL Injection detected in '%s' parameter with %d columns. %s",
+				paramName, unionRes.ColumnCount, unionRes.Evidence,
+			)
+			finding.Evidence = fmt.Sprintf("Payload: %s\n%s", unionRes.Payload, unionRes.Evidence)
+			finding.Tool = "internal-sqli-detector"
+			finding.Remediation = "Use parameterized queries or prepared statements. Never concatenate user input into SQL queries."
+			finding.WithOWASPMapping(
+				[]string{"WSTG-INPV-05"},
+				[]string{"A05:2025"},
+				[]string{"CWE-89"},
+			)
+			findings = append(findings, finding)
+		}
+	}
+
 	return findings
 }
 
