@@ -7,12 +7,14 @@
 [![Issues](https://img.shields.io/github/issues/TyrusRC/assay)](https://github.com/TyrusRC/assay/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-A Go-native, CLI web-application security scanner that combines **80+
-context-aware native detectors**, a **Nuclei-compatible template
-engine**, optional **upstream tool integrations** (Nuclei binary,
-SQLMap), and a **headless-browser pool** for DOM- and origin-aware
-checks. Findings are mapped to OWASP **WSTG**, **Top 10 (2025)**, and
-**API Security Top 10**.
+A Go-native, CLI web-application security scanner that combines **110+
+context-aware native detectors**, a **Nuclei-compatible template engine
+with full protocol parity**, optional **upstream tool integrations**
+(Nuclei binary, SQLMap), a **headless-browser pool** for DOM- and
+origin-aware checks, and a **native SAST engine** (secret scanning, SCA,
+config audits). Findings are mapped to OWASP **WSTG**, **Top 10 (2025)**,
+**API Security Top 10**, and compliance frameworks (**PCI DSS**, **HIPAA**,
+**SOC 2**).
 
 assay focuses on the categories Nuclei templates structurally cannot
 reach — stateful business-logic bugs, two-identity IDOR/BOLA, race
@@ -25,6 +27,17 @@ well.
 > shift between minor versions — pin a tag or commit if you depend on
 > exact behavior.
 
+### Highlights
+
+- **UNION-based SQL injection** — binary-search column detection, multi-DB fingerprinting
+- **Stored XSS** — full inject → crawl → match → confirm workflow
+- **Native SAST** — `assay sast ./src` for secret scanning, dependency CVEs (OSV.dev), and config security
+- **Form auto-submission** — smart crawl discovers pages behind form gates (`--submit-forms`)
+- **Nuclei template parity** — 20 headless actions, file / workflow / code templates, unsafe-raw (smuggling), pipeline (HTTP/2 desync), interactsh OOB polling
+- **AI finding triage** — Haruspex adjudication scores each finding's "real vs noise" probability
+- **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`, `xp_cmdshell`) require `--risk 3`
+- **Authenticated API server** — `assay serve` with bearer-token auth, SSRF protection, concurrent scan limits
+
 ---
 
 ## Table of contents
@@ -33,10 +46,13 @@ well.
 - [Quickstart](#quickstart)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Detection coverage](#detection-coverage)
+- [Detection coverage (DAST)](#detection-coverage-dast)
+- [Static analysis (SAST)](#static-analysis-sast)
+- [API server](#api-server)
 - [Headless / two-identity probes](#headless--two-identity-probes)
 - [External tool integrations](#external-tool-integrations)
 - [CI/CD integration](#cicd-integration)
+- [How assay compares](#how-assay-compares)
 - [Architecture](#architecture)
 - [Project layout](#project-layout)
 - [Development](#development)
@@ -79,44 +95,50 @@ you do not have to choose between the two.
 ## Quickstart
 
 ```sh
-# install Go 1.24+ then:
-git clone https://github.com/TyrusRC/assay.git
-cd assay
-make build
+# install (Go 1.24+)
+go install -v github.com/TyrusRC/assay/cmd/assay@latest
 
-# scan a single URL
-./bin/assay scan https://example.com/page?id=1
+# DAST — scan a single URL
+assay scan https://example.com/page?id=1
 
-# stream multiple targets via stdin
-cat targets.txt | ./bin/assay scan --json > findings.json
+# DAST — thorough scan with stored XSS and form submission
+assay scan --profile thorough --stored-xss --submit-forms https://app.example.com
 
-# two-identity IDOR / BOLA probe
-./bin/assay scan https://app.example.com/account/123 \
+# DAST — authenticated scan with session keep-alive
+assay scan --login-url https://app.example.com/login \
+  --login-user admin --login-pass "$ASSAY_LOGIN_PASS" \
+  --login-success "Dashboard" https://app.example.com/admin
+
+# DAST — two-identity IDOR / BOLA probe
+assay scan https://app.example.com/account/123 \
   --auth-a-header "Authorization: Bearer alice-token" \
   --auth-b-header "Authorization: Bearer bob-token"
 
-# proxy through Burp Suite, scan POST endpoint
-./bin/assay scan -X POST -d "user=admin&pass=test" \
+# DAST — proxy through Burp Suite
+assay scan -X POST -d "user=admin&pass=test" \
   --proxy http://127.0.0.1:8080 -k https://example.com/login
 
-# inspect tool integrations
-./bin/assay tools list
-./bin/assay tools check
+# SAST — scan a codebase for secrets, vulnerable dependencies, config issues
+assay sast ./my-project
+assay sast --sca-only ./  # dependency CVEs only
+
+# API server
+assay serve --api-key "$ASSAY_API_KEY"
+# POST http://127.0.0.1:8080/api/scans  {"target":"https://example.com"}
+
+# CI/CD gate
+assay scan "$TARGET" --format sarif,junit --fail-on high --output-dir report
 ```
 
 ---
 
 ## Installation
 
-### Requirements
+### `go install` (recommended)
 
-- **Go 1.24+** to build from source.
-- *(optional)* a Chromium-based browser for DOM-aware detectors and
-  the postMessage probe — `go-rod` auto-downloads one on first use,
-  or pass `--chrome-path` to use a system binary.
-- *(optional)* `nuclei` and/or `sqlmap` on `PATH` to enable the
-  external-tool wrappers. assay degrades gracefully when they are
-  missing.
+```sh
+go install -v github.com/TyrusRC/assay/cmd/assay@latest
+```
 
 ### From source
 
@@ -127,11 +149,22 @@ make build       # produces ./bin/assay
 make install     # optional: install into $GOBIN
 ```
 
-### `go install`
+### Docker
 
 ```sh
-go install github.com/TyrusRC/assay/cmd/assay@latest
+docker build -t assay .
+docker run --rm assay scan https://example.com
 ```
+
+### Requirements
+
+- **Go 1.24+** to build from source.
+- *(optional)* a Chromium-based browser for DOM-aware detectors and
+  the postMessage probe — `go-rod` auto-downloads one on first use,
+  or pass `--chrome-path` to use a system binary.
+- *(optional)* `nuclei` and/or `sqlmap` on `PATH` to enable the
+  external-tool wrappers. assay degrades gracefully when they are
+  missing.
 
 ---
 
@@ -158,6 +191,11 @@ assay scan [target URL] [flags]
 | `-k, --insecure` | Skip TLS verification (needed when Burp/MitM uses its own CA) |
 | `-d, --data STRING` | POST body (form-urlencoded by default) |
 | `-X, --method METHOD` | HTTP method (default `GET`) |
+| `--login-url URL` | Login page URL for form-based authentication |
+| `--login-user USER` | Login username |
+| `--login-pass PASS` | Login password (prefer `ASSAY_LOGIN_PASS` env var) |
+| `--login-headless` | Use headless browser for login (SPAs, JS-rendered forms) |
+| `--login-success STRING` | Marker string in post-login response confirming success |
 
 ### Scan shaping
 
@@ -170,6 +208,12 @@ assay scan [target URL] [flags]
 | `--risk 1-3` | SQLMap-style risk | `1` |
 | `--templates DIR` | Nuclei-style template dir/file; **repeatable** — pass once per path to load the default store and custom templates together (e.g. `--templates ~/nuclei-templates --templates ~/custom-nuclei-templates`) | |
 | `--api-spec URL` | OpenAPI/Swagger JSON; runner exercises every endpoint | |
+| `--stored-xss` | Enable stored XSS detection (auto at `--level 3+`) | off |
+| `--submit-forms` | Submit discovered forms during crawl to find gated pages | off |
+| `--format LIST` | Output formats: `json`, `html`, `markdown`, `csv`, `sarif`, `junit`, `gitlab` (comma-separated) | `json` |
+| `--fail-on SEVERITY` | Exit code 2 when findings meet or exceed this severity | |
+| `--fail-on-new` | Gate only on findings absent from `--baseline` | off |
+| `--baseline FILE` | Previous scan JSON; diff-only for incremental scanning | |
 
 ### Template decision engine (the Jev pattern)
 
@@ -229,10 +273,12 @@ unauthenticated.
 
 | Flag | Description |
 |---|---|
-| `--json` | JSON to stdout |
-| `--html` | HTML report to stdout |
-| `-o, --output PATH` | Output directory for tool artifacts |
+| `--json` | JSON to stdout (shorthand for `--format json`) |
+| `--html` | HTML report to stdout (shorthand for `--format html`) |
+| `--format LIST` | Comma-separated: `json`, `html`, `markdown`, `csv`, `sarif`, `junit`, `gitlab` |
+| `--output-dir PATH` | Output directory for report files |
 | `-v, --verbose` | Verbose progress on stderr |
+| `--verify` | Re-test each finding to confirm (reduces false positives) |
 
 ### Two-identity IDOR / BOLA
 
@@ -289,17 +335,19 @@ detector.
 
 ---
 
-## Detection coverage
+## Detection coverage (DAST)
 
-Native detectors mapped to OWASP WSTG / Top 10 / API Top 10 / CWE.
-Each finding ships with all four mappings.
+110+ native detectors mapped to OWASP WSTG / Top 10 / API Top 10 / CWE.
+Each finding ships with all four mappings plus CVSS scoring.
 
 ### Injection
-SQLi (error-based + boolean-blind), XSS, CMDi, SSTI (multi-engine —
+SQLi (**error-based + boolean-blind + UNION-based + time-based + stacked
++ out-of-band**), XSS (reflected + **stored** via inject-crawl-confirm +
+DOM-based + blind/OOB), CMDi (error + time + OOB), SSTI (multi-engine —
 Jinja2 / Twig / Freemarker / Velocity / Mako / Smarty / ERB / Java),
-CSTI, NoSQL, LDAP, XPath, XXE (param + URL-level POST), JNDI / Log4Shell,
-SSI, email-header (CRLF in mail headers), CSV / formula, login-form,
-web-storage, XSLT, HTML / CSS / DOM-clobber injection.
+CSTI, NoSQL (error + boolean + time), LDAP, XPath, XXE (error + blind/OOB),
+JNDI / Log4Shell, SSI, XSLT, SAML (XSW + comment injection), email-header,
+CSV / formula, log injection, HTML / CSS / DOM-clobber injection.
 
 ### File handling
 LFI (with PHP wrappers), RFI, file upload (MIME / double-ext /
@@ -307,57 +355,152 @@ null-byte bypass).
 
 ### Server-side
 SSRF with cloud-metadata for AWS / Azure / GCP / Alibaba / Tencent /
-IBM / Oracle / IPv6, HTTP request smuggling, race conditions
-(H/1 last-byte sync + H/2 single-packet), second-order injection,
-HTTP/2 rapid-reset (CVE-2023-44487, opt-in).
+IBM / Oracle / IPv6, HTTP request smuggling, **HTTP/2 desync**,
+**HTTP/2 advanced (CONTINUATION flood)**, **HTTP/3 desync**, race
+conditions (H/1 last-byte sync + H/2 single-packet), HTTP/2 rapid-reset
+(CVE-2023-44487, opt-in), second-order injection, deserialization,
+**padding oracle**.
 
 ### Auth & access
 JWT cryptanalysis (alg=none / RS→HS / embedded JWK / kid traversal /
-lifetime / weak-secret dict), OAuth/OIDC discovery audit, **two-identity
-IDOR / BOLA**, single-identity IDOR with numeric / UUID / hex
-mutation, CORS, mass-assignment with re-fetch verification, path
-normalization, verb tampering, SAML SP envelope (XSW + comment
-injection), PHP type-juggling auth bypass, CSRF.
+lifetime / weak-secret dict), **JKU abuse**, OAuth/OIDC discovery audit,
+**OAuth flow testing**, **two-identity IDOR / BOLA**, single-identity
+IDOR with numeric / UUID / hex mutation, **BAC (broken access control)**,
+**403 bypass** (path normalization + verb tamper + header tricks), CORS,
+mass-assignment with re-fetch verification, CSRF, **session fixation**,
+**session lifecycle** (timeout / concurrent / invalidation), **MFA bypass**,
+**password reset flow audit**, **PHP type-juggling auth bypass**,
+**long-password DoS**, **SameSite cookie analysis**, **cookie tossing**.
 
 ### Cache
 Web cache deception with unauth-replay verification, web cache
-poisoning via unkeyed-header reflection.
+poisoning via unkeyed-header reflection, **cache key manipulation**.
 
 ### Headers / protocol
 Security headers, open redirect, CRLF, header injection,
 host-header reflection, WebSocket (CSWSH / reflection),
 Server-Sent Events auth, gRPC reflection, TLS configuration,
-reverse-tabnabbing.
+reverse-tabnabbing, **XS-Leaks**, **ESI injection**, **X-Frame-Options /
+clickjacking**.
 
 ### Config / exposure
 Sensitive file exposure, cloud misconfig, subdomain takeover,
 DOM clobbering, server-side prototype pollution (opt-in), HPP,
-admin / debug path probe, content-type confusion.
+admin / debug path probe, content-type confusion, stack trace / debug
+info, **data exposure**, **webhook signature validation**.
 
 ### API surfaces
-OpenAPI spec runner (auth-bypass + undocumented verbs), API version
-enumeration, ORM expansion / over-fetch, JSON sensitive-field
-analyzer, rate-limit burst probe (opt-in), GraphQL (introspection /
-alias batching / depth bomb / field suggestion).
+OpenAPI spec runner (auth-bypass + undocumented verbs), **OpenAPI
+semantic analysis**, API version enumeration, ORM expansion / over-fetch,
+rate-limit burst probe (opt-in), GraphQL (introspection / alias batching /
+depth bomb / field suggestion / **advanced injection**).
 
 ### DOM-aware (headless)
 DOM-XSS, client-side prototype pollution, DOM-based open redirect,
-client storage injection, **postMessage origin validation**.
+client storage injection, **postMessage origin validation**,
+**CSPT (client-side path traversal with JS taint tracking)**.
+
+### Supply chain
+JS dependencies parsed from `<script src>` queried against
+[NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities),
+**dependency confusion** manifest leak, **subdomain takeover**.
 
 ### Modern / niche
-LLM prompt injection, ReDoS timing probe (opt-in), dependency-
-confusion manifest leak, insecure-token entropy / sequential-id
-detector.
-
-### Components
-JS dependencies parsed from `<script src>` and queried against the
-[NVD CVE API](https://nvd.nist.gov/developers/vulnerabilities) for
-per-version CVE matches.
+LLM prompt injection, ReDoS timing probe (opt-in), insecure-token
+entropy / sequential-id detector, **DNS rebinding**.
 
 ### Out-of-band
 Blind detection via shared
 [interactsh](https://github.com/projectdiscovery/interactsh) callback
-server — XXE, SSRF, CMDI, RFI, ReDoS, second-order all participate.
+server — XXE, SSRF, CMDI, RFI, XSS (blind), second-order all participate.
+
+---
+
+## Static analysis (SAST)
+
+```sh
+assay sast [path] [flags]
+```
+
+assay includes a native static-analysis engine for source-code and
+configuration auditing. It runs independently of the DAST scanner and
+produces findings in the same unified format.
+
+### Secret scanning
+
+15 pre-compiled regex patterns detect hardcoded credentials in source
+files: AWS access keys, AWS secret keys, GitHub / GitLab / Slack / Stripe /
+Google / Heroku tokens, JWTs, private keys (`-----BEGIN ... PRIVATE KEY-----`),
+generic API keys and passwords in config, and database connection strings
+(MongoDB / PostgreSQL / MySQL / Redis / AMQP). Evidence is auto-redacted in
+findings.
+
+### Software Composition Analysis (SCA)
+
+Parses 8 manifest formats — `package.json`, `package-lock.json`, `go.mod`,
+`requirements.txt`, `Pipfile.lock`, `Gemfile.lock`, `composer.lock`,
+`pom.xml` — and queries the [OSV.dev](https://osv.dev/) batch API for known
+CVEs. Findings include CVE IDs, severity, affected version ranges, and fix
+versions.
+
+### Configuration security
+
+Detects security issues in common config files: secrets in `.env` files,
+`Dockerfile` running as root (no `USER` directive), `docker-compose.yml`
+with `privileged: true` or `network_mode: host`, `nginx.conf` with
+`server_tokens on`.
+
+### Flags
+
+| Flag | Description | Default |
+|---|---|---|
+| `--secrets-only` | Run only secret scanning | off |
+| `--sca-only` | Run only dependency CVE scanning | off |
+| `--config-only` | Run only config security checks | off |
+| `--exclude-dirs LIST` | Skip directories (comma-separated) | `vendor,node_modules,.git` |
+| `--concurrency N` | Concurrent file scanning workers | `10` |
+| `--fail-on SEVERITY` | Exit code 2 on findings at or above this severity | |
+| `--format LIST` | Output formats (`json`, `html`, `markdown`, `csv`) | `json` |
+| `--output-dir PATH` | Write reports to this directory | |
+
+---
+
+## API server
+
+```sh
+assay serve [flags]
+```
+
+Run assay as an HTTP API for programmatic scan management.
+
+| Flag | Description | Default |
+|---|---|---|
+| `--port N` | Listen port | `8080` |
+| `--listen ADDR` | Bind address | `127.0.0.1` |
+| `--api-key KEY` | Bearer token for API authentication (also `ASSAY_API_KEY` env) | |
+
+### Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/health` | Health check (no auth required) |
+| `POST` | `/api/scans` | Create a new scan (`{"target":"https://..."}`) |
+| `GET` | `/api/scans` | List scans (paginated: `?offset=0&limit=25`) |
+| `GET` | `/api/scans/{id}` | Get scan status and findings |
+| `GET` | `/api/scans/{id}/report?format=json` | Download report |
+
+### Security
+
+- Binds to `127.0.0.1` by default — pass `--listen 0.0.0.0:8080` to
+  expose externally.
+- When `--api-key` is set, all endpoints except `/api/health` require
+  `Authorization: Bearer <key>` (constant-time comparison).
+- Scan targets are validated: `http`/`https` only, private/loopback
+  IPs rejected (SSRF protection with IPv6-mapped IPv4 normalization).
+- Concurrent scans are limited to 3 by default.
+- Job store evicts oldest completed jobs after 1000 entries.
+- A bundled web dashboard is served at `/` when the embedded SPA assets
+  are present.
 
 ---
 
@@ -397,15 +540,16 @@ assay scan https://api.example.com/v1/users/42 \
 ## External tool integrations
 
 assay ships in-process implementations for everything in
-[Detection coverage](#detection-coverage); the external wrappers are
-opt-in additions for breadth.
+[Detection coverage](#detection-coverage-dast) plus a **built-in Nuclei-compatible
+template engine** with full protocol parity (HTTP, DNS, Network, SSL,
+WebSocket, WHOIS, Headless with 20 actions, File, Workflow). The external
+wrappers are opt-in additions for breadth.
 
 | Tool | Status | Purpose |
 |---|---|---|
-| **Nuclei** | wrapped (`internal/tools/nuclei`) | Runs upstream community templates with `-jsonl`; findings parsed into the unified report |
-| **SQLMap** | wrapped (`internal/tools/sqlmap`) | Deep SQL-injection exploitation when in-process error / boolean-blind isn't enough |
-| ffuf | TODO | Path / parameter brute-force |
-| nikto | TODO | Legacy fingerprint scan |
+| **Built-in template engine** | native (`internal/templates`) | Nuclei-compatible: all protocols, unsafe-raw (smuggling), pipeline (HTTP/2 desync), interactsh OOB, 20 headless actions |
+| **Nuclei** | wrapped (`internal/tools/nuclei`) | Runs upstream community templates (15,000+) with `-jsonl`; findings parsed into the unified report |
+| **SQLMap** | wrapped (`internal/tools/sqlmap`) | Deep SQL-injection exploitation when in-process UNION / boolean / time-based isn't enough |
 
 `assay tools list` shows availability and version of each. `assay tools
 check` runs a health check and prints a green/red status. Missing
@@ -457,41 +601,87 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
 
 ---
 
+## How assay compares
+
+| Capability | assay | Nuclei | Burp Suite Pro | Acunetix |
+|---|:---:|:---:|:---:|:---:|
+| **Injection classes** | 30+ (incl. UNION SQLi, stored XSS) | 20+ (template-based) | 15+ native | 12+ native |
+| **Auth / access testing** | Native IDOR/BOLA, BAC, 403 bypass, JWT, OAuth, MFA, session lifecycle | Template-only | Extensions (Autorize) | Basic |
+| **Protocol attacks** | Smuggling, HTTP/2 desync, H/2 rapid-reset, H/3, race conditions | Partial (templates) | Good (extensions) | Minimal |
+| **Client-side / DOM** | postMessage, CSPT taint, DOM clobber, XS-Leaks, prototype pollution | Partial | Good | Good |
+| **API testing** | GraphQL (introspection + DoS + injection), OpenAPI semantic, ORM leak | Templates | API scanning | API scanning |
+| **Template ecosystem** | Built-in engine + Nuclei 15K+ | 15,000+ community | BApp Store | None |
+| **SAST** | Secrets + SCA + config | File templates only | None | SCA add-on |
+| **AI finding triage** | Haruspex adjudication | None | None | None |
+| **CI/CD** | SARIF, JUnit, GitLab, GitHub Action, baseline diff | Good | Plugin | Good |
+| **Authenticated scanning** | Form + headless login, session keepalive | Headers only | Macro recorder | Full |
+| **Cost** | Free (Apache 2.0) | Free (MIT) | $449/yr | $4,495+/yr |
+
+### Unique to assay
+
+- **AI-based finding triage** (Haruspex) — per-finding "real vs noise"
+  probability scoring, reducing manual triage.
+- **Two-identity IDOR/BOLA** as a first-class, native capability (no
+  plugin needed).
+- **Session keepalive with auto-reauth** — detects logout via canary
+  URL and re-authenticates so scans never silently degrade.
+- **13-source parameter auto-discovery** — forms, cookies, headers,
+  JSON body, path segments, JS storage, XML body, robots/sitemap, HTML
+  comments, JS routes, multipart, OpenAPI, GraphQL introspection.
+- **postMessage origin validation** and **CSPT source→sink JS taint
+  tracking** — unique DOM-aware probes.
+- **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`,
+  `xp_cmdshell`) require explicit `--risk 3`.
+
+---
+
 ## Architecture
 
 ```mermaid
 flowchart LR
     CLI -->|targets + config| Scanner
-    Scanner --> Discovery[Discovery pipeline]
-    Discovery -->|forms / JSON / XML / multipart / paths / headers / cookies / JS routes / GraphQL / OpenAPI| Params[(Parameter set)]
-    Scanner --> Detection[Native detectors]
-    Detection --> HTTP[HTTP client]
+    CLI -->|paths| SAST[SAST engine]
+    Scanner --> Discovery[Discovery · 13 sources]
+    Discovery --> Params[(Parameters)]
+    Scanner --> Detection[110+ native detectors]
+    Detection --> HTTP[HTTP client · scope · throttle]
     Detection --> Headless[Headless pool · go-rod]
-    Detection --> OOB[Interactsh]
-    Detection --> NVD[NVD CVE API]
-    Scanner --> Templates[In-process Nuclei engine]
-    Scanner --> Tools[External tool wrappers]
-    Tools --> NucleiBin[nuclei binary]
-    Tools --> SQLMapBin[sqlmap binary]
-    Detection --> OWASP[OWASP mapper]
+    Detection --> OOB[Interactsh OOB]
+    Scanner --> Templates[Nuclei template engine]
+    Templates -->|HTTP · DNS · File · Headless · Workflow| HTTP
+    Scanner --> Tools[External tools]
+    Tools --> NucleiBin[nuclei]
+    Tools --> SQLMapBin[sqlmap]
+    Detection --> Verify[Verification]
+    Verify --> Haruspex[Haruspex AI triage]
+    Haruspex --> OWASP[OWASP + compliance mapper]
+    SAST --> Secrets[Secret scanner]
+    SAST --> SCA[SCA · OSV.dev]
+    SAST --> Config[Config auditor]
     OWASP --> Reporter
-    Reporter --> JSON & HTML & Text
+    SAST --> Reporter
+    Reporter --> JSON & HTML & SARIF & CSV
 ```
 
-The orchestrator dispatches in three phases:
+The DAST orchestrator dispatches in five phases:
 
-1. **Discovery** — enumerate every injectable surface from response
-   bodies, headers, cookies, and the OpenAPI spec when supplied.
+1. **Discovery** — enumerate every injectable surface from 13 sources
+   (forms, cookies, headers, JSON, XML, multipart, paths, JS storage,
+   comments, JS routes, OpenAPI, GraphQL introspection, robots/sitemap).
 2. **Parameter-injection** — for each discovered parameter, run only
    the detectors that make sense for its `Location` (query/body/path/
    header/cookie/storage). `SendPayloadAt` dispatches into the
    correct transport.
 3. **URL-level** — IDOR, two-identity BOLA, CORS, smuggling, race,
    cache deception, postMessage probe, JWT, OAuth, GraphQL, the
-   OpenAPI runner, and ~30 more, all in parallel goroutines.
+   OpenAPI runner, and ~40 more, all in parallel goroutines.
+4. **Stored XSS** (opt-in) — inject canaries, crawl, match reflections,
+   confirm with real payloads.
+5. **OOB** — poll interactsh callbacks to confirm blind cases (XXE,
+   SSRF, CMDI, XSS, second-order).
 
-OOB callbacks confirm blind cases (XXE, SSRF, CMDI, second-order)
-asynchronously after the synchronous phases.
+Post-scan: **verification** re-tests findings, then **Haruspex AI triage**
+annotates each with a "real vs noise" probability.
 
 ---
 
@@ -500,24 +690,35 @@ asynchronously after the synchronous phases.
 ```
 cmd/assay/                        CLI entry point (Cobra)
 internal/
+  api/                           HTTP JSON API server (assay serve)
+  auth/                          Form + headless login, session capture
+  checkpoint/                    Scan resume / checkpoint persistence
+  compliance/                    PCI DSS / HIPAA / SOC 2 mapping
   core/                          Finding, Target, Severity, Parameter
-  detection/<module>/            Per-detector packages (one per category)
-  discovery/                     Auto-discovery pipeline (form, JSON, XML, multipart, OpenAPI, …)
-  headless/                      Rod-backed browser pool + DOM probes
+  crawl/                         State-aware BFS crawler with form submission
+  decision/                      Haruspex / Jev template-relevance + finding triage
+  detection/<module>/            110+ per-detector packages (one per category)
+  discovery/                     Auto-discovery pipeline (13 sources)
+  headless/                      Rod-backed browser pool + 20 headless actions
   http/                          HTTP client with location-aware payload dispatch
   owasp/                         WSTG / Top-10 / API-Top-10 mappers
-  payloads/                      Payload data per category
-  reporting/                     JSON / HTML / text reporters
-  scanner/                       Scan orchestration (split into category submodules)
-  templates/                     Nuclei-compatible template engine
+  payloads/                      Risk-gated payload data per category
+  reporting/                     JSON / HTML / Markdown / CSV / SARIF / JUnit reporters
+  sast/                          Native SAST engine (secrets, SCA, config)
+  scanner/                       DAST scan orchestration
+  scope/                         URL scope policy (host + path rules)
+  scoring/                       CVSS scoring
+  session/                       Session keepalive with auto-reauth
+  templates/                     Nuclei-compatible template engine (full parity)
   tools/                         External tool wrappers (sqlmap, nuclei)
-configs/                         Default configurations
+  verification/                  Finding re-test verification
+  webui/                         Embedded SPA dashboard
 data/                            Wordlists and fingerprints
-docs/                            Specs and design notes
+web/                             Dashboard source (React)
 ```
 
-CLAUDE.md sets a 500-line per-source-file ceiling; refactor when a
-file grows past it.
+Source files are kept under 500 lines; refactor when a file grows
+past it.
 
 ---
 
