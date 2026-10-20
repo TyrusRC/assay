@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,10 @@ import (
 	"github.com/TyrusRC/assay/internal/reporting"
 	"github.com/TyrusRC/assay/internal/scanner"
 )
+
+func logInfo(msg string, args ...any)  { fmt.Fprintf(os.Stderr, "[INFO] "+msg+"\n", args...) }
+func logWarn(msg string, args ...any)  { fmt.Fprintf(os.Stderr, "[WARN] "+msg+"\n", args...) }
+func logError(msg string, args ...any) { fmt.Fprintf(os.Stderr, "[ERROR] "+msg+"\n", args...) }
 
 // Runner executes a scan for a request and returns its result. Implementations
 // back the real scanner; tests supply a fake.
@@ -84,6 +89,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/scans", s.requireAuth(s.handleCreateScan))
 	s.mux.HandleFunc("GET /api/scans", s.requireAuth(s.handleListScans))
 	s.mux.HandleFunc("GET /api/scans/{id}", s.requireAuth(s.handleGetScan))
+	s.mux.HandleFunc("DELETE /api/scans/{id}", s.requireAuth(s.handleCancelScan))
+	s.mux.HandleFunc("GET /api/scans/{id}/progress", s.requireAuth(s.handleGetProgress))
 	s.mux.HandleFunc("GET /api/scans/{id}/report", s.requireAuth(s.handleGetReport))
 }
 
@@ -129,6 +136,7 @@ func (s *Server) handleCreateScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	job := s.store.Create(req)
+	logInfo("scan %s queued for %s", job.ID, req.Target)
 	s.start(r.Context(), job.ID, req)
 	writeJSON(w, http.StatusAccepted, job)
 }
@@ -213,6 +221,41 @@ func (s *Server) handleGetScan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, job)
 }
 
+func (s *Server) handleCancelScan(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := s.store.Get(id); !ok {
+		writeError(w, http.StatusNotFound, "scan not found")
+		return
+	}
+	if !s.store.Cancel(id) {
+		writeError(w, http.StatusConflict, "scan is not running")
+		return
+	}
+	logInfo("scan %s cancelled by operator", id)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+}
+
+func (s *Server) handleGetProgress(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	job, ok := s.store.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "scan not found")
+		return
+	}
+	if job.Status != StatusRunning {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status":   job.Status,
+			"progress": job.Progress,
+		})
+		return
+	}
+	p := s.store.GetProgress(id)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   job.Status,
+		"progress": p,
+	})
+}
+
 func (s *Server) handleGetReport(w http.ResponseWriter, r *http.Request) {
 	job, ok := s.store.Get(r.PathValue("id"))
 	if !ok {
@@ -256,6 +299,7 @@ func (s *Server) start(reqCtx context.Context, id string, req ScanRequest) {
 		case s.scanSem <- struct{}{}:
 			defer func() { <-s.scanSem }()
 		case <-time.After(5 * time.Second):
+			logWarn("scan %s rejected: too many concurrent scans", id)
 			s.store.setFailed(id, "too many concurrent scans; try again later")
 			return
 		}
@@ -263,11 +307,26 @@ func (s *Server) start(reqCtx context.Context, id string, req ScanRequest) {
 		s.store.setRunning(id)
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(reqCtx), scanTimeout)
 		defer cancel()
+		s.store.setCancel(id, cancel)
+
+		logInfo("scan %s started for %s (profile=%s)", id, req.Target, req.Profile)
+
 		result, err := s.runner.Run(ctx, req)
+		if ctx.Err() != nil {
+			logInfo("scan %s cancelled", id)
+			return
+		}
 		if err != nil {
+			logError("scan %s failed: %v", id, err)
 			s.store.setFailed(id, err.Error())
 			return
 		}
+		summary := result.Summary()
+		s.store.setProgress(id, ScanProgress{
+			Phase:         "completed",
+			FindingsCount: summary.TotalFindings,
+		})
+		logInfo("scan %s completed: %d findings", id, summary.TotalFindings)
 		s.store.setCompleted(id, result)
 	}()
 }

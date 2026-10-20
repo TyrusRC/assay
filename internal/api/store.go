@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,7 +26,16 @@ const (
 	StatusCompleted ScanStatus = "completed"
 	// StatusFailed means the scan errored out.
 	StatusFailed ScanStatus = "failed"
+	// StatusCancelled means the scan was stopped by the operator.
+	StatusCancelled ScanStatus = "cancelled"
 )
+
+// ScanProgress holds live scan metrics exposed via the progress endpoint.
+type ScanProgress struct {
+	Phase         string `json:"phase"`
+	FindingsCount int    `json:"findings_count"`
+	RequestsSent  int    `json:"requests_sent"`
+}
 
 // DefaultMaxJobs is the default upper bound on stored jobs before eviction.
 const DefaultMaxJobs = 1000
@@ -44,12 +54,15 @@ type ScanJob struct {
 	Status    ScanStatus           `json:"status"`
 	Error     string               `json:"error,omitempty"`
 	Summary   *scanner.ScanSummary `json:"summary,omitempty"`
+	Progress  *ScanProgress        `json:"progress,omitempty"`
 	CreatedAt time.Time            `json:"created_at"`
 	UpdatedAt time.Time            `json:"updated_at"`
 
 	// result holds the raw scan output for report rendering. It is not
 	// serialized in the job listing; reports are fetched via their endpoint.
 	result *scanner.ScanResult
+	// cancel, when non-nil, stops the running scan's context.
+	cancel context.CancelFunc
 }
 
 // Result returns the raw scan result, or nil if the scan has not completed.
@@ -274,6 +287,53 @@ func (s *Store) setFailed(id, errMsg string) {
 		job.UpdatedAt = s.now()
 		s.logPersist()
 	}
+}
+
+// setCancel stores the cancel function for a running job so the API can stop it.
+func (s *Store) setCancel(id string, cancel context.CancelFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[id]; ok {
+		job.cancel = cancel
+	}
+}
+
+// Cancel cancels a running scan and marks it cancelled. Returns true if the
+// job was running and is now cancelled; false otherwise.
+func (s *Store) Cancel(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[id]
+	if !ok || job.Status != StatusRunning {
+		return false
+	}
+	if job.cancel != nil {
+		job.cancel()
+	}
+	job.Status = StatusCancelled
+	job.UpdatedAt = s.now()
+	s.logPersist()
+	return true
+}
+
+// setProgress updates the live progress metrics for a running job.
+func (s *Store) setProgress(id string, p ScanProgress) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[id]; ok && job.Status == StatusRunning {
+		job.Progress = &p
+	}
+}
+
+// GetProgress returns the live progress for a job, or nil.
+func (s *Store) GetProgress(id string) *ScanProgress {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if job, ok := s.jobs[id]; ok && job.Progress != nil {
+		cp := *job.Progress
+		return &cp
+	}
+	return nil
 }
 
 // copyJob returns a shallow copy safe to hand out without exposing the stored
