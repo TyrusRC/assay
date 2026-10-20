@@ -29,6 +29,31 @@ func (h *httpFetcher) Fetch(ctx context.Context, url string) (string, error) {
 	return resp.Body, nil
 }
 
+// httpPostFetcher adapts the scanner's HTTP client to crawl.PostFetcher for
+// form submissions during crawling.
+type httpPostFetcher struct {
+	client *assayhttp.Client
+}
+
+func (h *httpPostFetcher) Post(ctx interface{}, rawURL, contentType, body string) (string, error) {
+	c, _ := ctx.(context.Context)
+	if c == nil {
+		c = context.Background()
+	}
+	req := &assayhttp.Request{
+		Method:      "POST",
+		URL:         rawURL,
+		Body:        body,
+		ContentType: contentType,
+		Headers:     map[string]string{"Content-Type": contentType},
+	}
+	resp, err := h.client.Do(c, req)
+	if err != nil || resp == nil {
+		return "", err
+	}
+	return resp.Body, nil
+}
+
 // stateCrawlURLs runs the state-aware HTTP crawler from seed and returns the
 // endpoints it discovered. When scanClient is non-nil it is used for all
 // fetches so the crawl inherits the scan's proxy, auth, and headers.
@@ -44,6 +69,10 @@ func (s *InternalScanner) stateCrawlURLs(ctx context.Context, seed string, scanC
 		Fetcher:      &httpFetcher{client: client},
 		SameHostOnly: true,
 		MaxRequests:  s.config.CrawlMaxPages,
+		SubmitForms:  s.config.SubmitForms,
+	}
+	if s.config.SubmitForms {
+		cr.FormPostFetcher = &httpPostFetcher{client: client}
 	}
 	return cr.Crawl(ctx, []string{seed}).Endpoints
 }

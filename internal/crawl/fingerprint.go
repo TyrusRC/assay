@@ -17,12 +17,21 @@ import (
 	"golang.org/x/net/html"
 )
 
+// FormField captures an individual form input's metadata for smart filling.
+type FormField struct {
+	Name    string
+	Type    string // input type: text, password, email, hidden, etc.
+	Value   string // default/pre-filled value
+	TagName string // input, select, textarea
+}
+
 // Form is a normalized HTML form: its submission target, method, and the names
 // of its inputs. These define part of a page's action shape.
 type Form struct {
-	Action string
-	Method string
-	Fields []string
+	Action       string
+	Method       string
+	Fields       []string // field names only (used for fingerprinting)
+	FieldDetails []FormField
 }
 
 // Fingerprint returns a stable hash of a page's structural state: the sorted
@@ -145,12 +154,26 @@ func extractForms(htmlBody string) []Form {
 			f.Method = strings.ToUpper(strings.TrimSpace(m))
 		}
 		walk(n, func(c *html.Node) {
-			if c.Type == html.ElementNode && (strings.EqualFold(c.Data, "input") ||
-				strings.EqualFold(c.Data, "select") || strings.EqualFold(c.Data, "textarea")) {
-				if name, ok := attrValue(c, "name"); ok && name != "" {
-					f.Fields = append(f.Fields, name)
-				}
+			if c.Type != html.ElementNode {
+				return
 			}
+			tag := strings.ToLower(c.Data)
+			if tag != "input" && tag != "select" && tag != "textarea" {
+				return
+			}
+			name, ok := attrValue(c, "name")
+			if !ok || name == "" {
+				return
+			}
+			f.Fields = append(f.Fields, name)
+			fd := FormField{Name: name, TagName: tag}
+			if typ, ok := attrValue(c, "type"); ok {
+				fd.Type = strings.ToLower(strings.TrimSpace(typ))
+			}
+			if val, ok := attrValue(c, "value"); ok {
+				fd.Value = val
+			}
+			f.FieldDetails = append(f.FieldDetails, fd)
 		})
 		forms = append(forms, f)
 	})

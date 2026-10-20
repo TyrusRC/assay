@@ -3,6 +3,7 @@ package crawl
 import (
 	"context"
 	"net/url"
+	"strings"
 )
 
 // Default bounds for a crawl when the caller leaves them zero.
@@ -27,6 +28,10 @@ type Crawler struct {
 	MaxStates int
 	// SameHostOnly restricts the crawl to the seeds' hosts.
 	SameHostOnly bool
+	// SubmitForms enables auto-submission of discovered forms with test data.
+	SubmitForms bool
+	// FormPostFetcher submits forms via POST. Required when SubmitForms is true.
+	FormPostFetcher PostFetcher
 }
 
 // Result reports what a crawl discovered.
@@ -60,6 +65,11 @@ func (c *Crawler) Crawl(ctx context.Context, seeds []string) Result {
 	endpointSet := map[string]bool{}
 	states := map[string]bool{}
 
+	var formSubmitter *FormSubmitter
+	if c.SubmitForms && c.FormPostFetcher != nil {
+		formSubmitter = NewFormSubmitter(c.Fetcher, c.FormPostFetcher)
+	}
+
 	queue := make([]string, 0, len(seeds))
 	for _, s := range seeds {
 		if !queuedOrSeen[s] {
@@ -77,6 +87,9 @@ func (c *Crawler) Crawl(ctx context.Context, seeds []string) Result {
 	}
 
 	for len(queue) > 0 {
+		if ctx.Err() != nil {
+			break
+		}
 		if res.Requests >= maxReq || len(states) >= maxStates {
 			break
 		}
@@ -96,12 +109,15 @@ func (c *Crawler) Crawl(ctx context.Context, seeds []string) Result {
 
 		fp := Fingerprint(body)
 		if states[fp] {
-			// Equivalent state already expanded — keep the endpoint, skip the walk.
 			continue
 		}
 		states[fp] = true
 
 		c.expand(cur, body, hosts, queuedOrSeen, &queue, addEndpoint)
+
+		if formSubmitter != nil {
+			c.submitForms(ctx, cur, body, hosts, formSubmitter, queuedOrSeen, &queue, addEndpoint, &res)
+		}
 	}
 
 	res.States = len(states)
@@ -175,4 +191,82 @@ func hostAllowed(rawURL string, hosts map[string]bool) bool {
 		return false
 	}
 	return hosts[u.Host]
+}
+
+// submitForms fills and submits forms discovered on the current page, adding
+// response URLs and their links to the crawl queue.
+func (c *Crawler) submitForms(ctx context.Context, pageURL, body string, hosts map[string]bool, fs *FormSubmitter, seen map[string]bool, queue *[]string, addEndpoint func(string), res *Result) {
+	forms := extractForms(body)
+	maxReq := c.MaxRequests
+	if maxReq <= 0 {
+		maxReq = defaultMaxRequests
+	}
+	queueCap := 10 * maxReq
+
+	for _, f := range forms {
+		if ctx.Err() != nil {
+			return
+		}
+		if !fs.CanSubmit(f, pageURL) {
+			continue
+		}
+
+		actionURL := resolveURL(pageURL, f.Action)
+		if actionURL == "" {
+			actionURL = pageURL
+		}
+		if c.SameHostOnly && !hostAllowed(actionURL, hosts) {
+			continue
+		}
+
+		vals := FillForm(f)
+		if len(vals) == 0 {
+			continue
+		}
+
+		fs.MarkSubmitted(f)
+
+		var respBody string
+		var err error
+		if f.Method == "GET" {
+			getURL := appendFormQuery(actionURL, vals.Encode())
+			respBody, err = fs.Fetcher.Fetch(ctx, getURL)
+			res.Requests++
+			addEndpoint(getURL)
+		} else {
+			respBody, err = fs.PostFetcher.Post(ctx, actionURL, "application/x-www-form-urlencoded", vals.Encode())
+			res.Requests++
+			addEndpoint(actionURL)
+		}
+		if err != nil || respBody == "" {
+			continue
+		}
+
+		for _, href := range extractLinks(respBody) {
+			abs := resolveURL(actionURL, href)
+			if abs == "" {
+				continue
+			}
+			if c.SameHostOnly && !hostAllowed(abs, hosts) {
+				continue
+			}
+			if !seen[abs] {
+				seen[abs] = true
+				if len(*queue) < queueCap {
+					*queue = append(*queue, abs)
+				}
+			}
+		}
+	}
+}
+
+// appendFormQuery appends encoded query params to a URL, choosing ? or &.
+func appendFormQuery(u, encoded string) string {
+	if encoded == "" {
+		return u
+	}
+	if strings.Contains(u, "?") {
+		return u + "&" + encoded
+	}
+	return u + "?" + encoded
 }
