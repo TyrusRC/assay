@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/xss"
@@ -40,18 +41,43 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	applyScanConfigInPlace(s.client, scanConfig)
 	scanClient := s.client
 
+	// Target-down detection: cancel the scan when the HTTP client has seen
+	// too many consecutive connection failures.
+	maxConnErr := s.config.MaxConsecutiveErrors
+	if maxConnErr <= 0 {
+		maxConnErr = 20
+	}
+	scanCtx, scanCancel := context.WithCancel(ctx)
+
 	// Keep the authenticated session alive for the scan's duration: poll the
 	// canary and re-authenticate on logout so authed probes do not silently
 	// degrade to unauthenticated. Uses scanClient (not s.client) so the
 	// keepalive traffic goes through the same proxy and carries the same
 	// auth headers as the actual scan.
 	if s.config.Session != nil {
-		sessCtx, sessCancel := context.WithCancel(ctx)
+		sessCtx, sessCancel := context.WithCancel(scanCtx)
 		defer sessCancel()
 		go s.config.Session.Keepalive(sessCtx, scanClient, s.config.SessionCheckInterval, func(note string) {
 			fmt.Fprintf(os.Stderr, "[*] %s\n", note)
 		})
 	}
+	defer scanCancel()
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-scanCtx.Done():
+				return
+			case <-ticker.C:
+				if scanClient.ConnErrors() >= maxConnErr {
+					fmt.Fprintf(os.Stderr, "[!] Aborting scan — target appears down (%d consecutive connection failures)\n", scanClient.ConnErrors())
+					scanCancel()
+					return
+				}
+			}
+		}
+	}()
 
 	// Reset the per-scan baseline cache. Each of the 7 bank-driven
 	// parameter-injection detectors fetches the target URL once as its
@@ -62,7 +88,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// 1. Technology detection (fast, provides context)
 	if s.config.EnableTechScan && s.techDetector != nil {
 		fmt.Fprintf(os.Stderr, "[*] Running tech stack detection...\n")
-		techResult := s.detectTechnologiesWithClient(ctx, targetURL, scanClient)
+		techResult := s.detectTechnologiesWithClient(scanCtx, targetURL, scanClient)
 		result.Technologies = techResult
 		if techResult != nil {
 			fmt.Fprintf(os.Stderr, "[+] Detected %d technologies\n", len(techResult.Technologies))
@@ -82,7 +108,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	var discoveredParams []core.Parameter
 	if s.config.EnableDiscovery && s.discoveryPipeline != nil {
 		fmt.Fprintf(os.Stderr, "[*] Running auto-discovery pipeline...\n")
-		discoveryResult, discoveryErr := s.discoveryPipeline.Run(ctx, targetURL)
+		discoveryResult, discoveryErr := s.discoveryPipeline.Run(scanCtx, targetURL)
 		if discoveryErr != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("discovery: %v", discoveryErr))
 		} else if discoveryResult != nil {
@@ -154,15 +180,15 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	if len(params) > 0 {
 		prog.SetPhase("parameter-injection")
 		fmt.Fprintf(os.Stderr, "[*] Phase 1: parameter-injection tests...\n")
-		ClassifyParameters(ctx, scanClient, targetURL, params, method)
-		s.runParameterTests(ctx, &wg, findingsChan, params, targetURL, method, scanClient, prog)
+		ClassifyParameters(scanCtx, scanClient, targetURL, params, method)
+		s.runParameterTests(scanCtx, &wg, findingsChan, params, targetURL, method, scanClient, prog)
 		wg.Wait()
 	}
 
 	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
 	prog.SetPhase("url-level")
 	fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
-	s.runURLLevelTests(ctx, &wg, findingsChan, targetURL, scanConfig)
+	s.runURLLevelTests(scanCtx, &wg, findingsChan, targetURL, scanConfig)
 
 	// Wait for URL-level tests
 	wg.Wait()
@@ -175,7 +201,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		if scanConfig != nil {
 			proxyURL = scanConfig.ProxyURL
 		}
-		s.runTemplateTests(ctx, &wg, findingsChan, target, proxyURL, scanConfig)
+		s.runTemplateTests(scanCtx, &wg, findingsChan, target, proxyURL, scanConfig)
 		wg.Wait()
 	}
 
@@ -189,8 +215,8 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		go func() {
 			defer wg.Done()
 			opts := xss.DefaultStoredOptions()
-			findings := s.storedXSSDetector.DetectStored(ctx, targetURL, params, method, opts)
-			emit(ctx, findingsChan, findings)
+			findings := s.storedXSSDetector.DetectStored(scanCtx, targetURL, params, method, opts)
+			emit(scanCtx, findingsChan, findings)
 			if len(findings) > 0 {
 				fmt.Fprintf(os.Stderr, "[+] Stored XSS: %d findings\n", len(findings))
 			}
@@ -201,7 +227,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// Phase 2: OOB detection (after SQLi/XSS, wait for OOB client with timeout)
 	prog.SetPhase("oob")
 	fmt.Fprintf(os.Stderr, "[*] Phase 2: OOB / blind-vulnerability detection...\n")
-	s.runOOBTests(ctx, &wg, findingsChan, result, params, targetURL, method, scanClient)
+	s.runOOBTests(scanCtx, &wg, findingsChan, result, params, targetURL, method, scanClient)
 
 	wg.Wait()
 

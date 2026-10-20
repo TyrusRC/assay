@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/scope"
@@ -52,6 +53,8 @@ type Response struct {
 	// OriginalValue holds the original parameter value before payload injection.
 	// Set by SendPayload for baseline comparison in detectors.
 	OriginalValue string
+	// WAFBlocked is true when the response looks like a WAF block page.
+	WAFBlocked bool
 }
 
 // Client is an HTTP client for security testing.
@@ -68,6 +71,14 @@ type Client struct {
 	throttle        *throttle
 	cookieSrc       func() string
 	mu              sync.Mutex
+
+	// WAF / resilience counters (atomic, safe for concurrent reads).
+	wafBlocks       int32 // consecutive WAF-block responses
+	connErrors      int32 // consecutive connection-level failures
+	lockoutDetected int32 // 1 when account lockout is suspected
+
+	// wafWarnOnce ensures the WAF-block stderr warning fires only once.
+	wafWarnOnce sync.Once
 }
 
 // NewClient creates a new HTTP client.
@@ -394,6 +405,7 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		if httpResp != nil {
 			httpResp.Body.Close()
 		}
+		atomic.AddInt32(&c.connErrors, 1)
 		time.Sleep(1 * time.Second)
 		httpReq2, cloneErr := http.NewRequestWithContext(ctx, httpReq.Method, httpReq.URL.String(), strings.NewReader(req.Body))
 		if cloneErr == nil {
@@ -405,6 +417,10 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 			httpResp, err = c.httpClient.Do(httpReq2)
 		}
 		if err != nil {
+			n := atomic.AddInt32(&c.connErrors, 1)
+			if n >= 20 {
+				fmt.Fprintf(os.Stderr, "[!] Target appears down — %d consecutive connection failures\n", n)
+			}
 			return nil, fmt.Errorf("request failed: %w", err)
 		}
 	}
@@ -434,5 +450,104 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		response.Headers[k] = strings.Join(vals, ", ")
 	}
 
+	// --- WAF-block detection ---
+	if isWAFBlock(response) {
+		response.WAFBlocked = true
+		n := atomic.AddInt32(&c.wafBlocks, 1)
+		if n >= 10 {
+			c.wafWarnOnce.Do(func() {
+				fmt.Fprintf(os.Stderr, "[!] WAF blocking detected — %d consecutive blocks; consider reducing --rate\n", n)
+			})
+		}
+		if n >= 3 {
+			time.Sleep(5 * time.Second)
+		}
+	} else {
+		atomic.StoreInt32(&c.wafBlocks, 0)
+	}
+
+	// --- Connection-error tracking (reset on success) ---
+	atomic.StoreInt32(&c.connErrors, 0)
+
+	// --- Account-lockout detection ---
+	if isLoginURL(req.URL) && isLockoutResponse(response) {
+		if atomic.CompareAndSwapInt32(&c.lockoutDetected, 0, 1) {
+			fmt.Fprintf(os.Stderr, "[!] Possible account lockout detected at %s\n", req.URL)
+		}
+	}
+
 	return response, nil
+}
+
+// WAFBlocks returns the current consecutive WAF-block count.
+func (c *Client) WAFBlocks() int {
+	return int(atomic.LoadInt32(&c.wafBlocks))
+}
+
+// ConnErrors returns the current consecutive connection-error count.
+func (c *Client) ConnErrors() int {
+	return int(atomic.LoadInt32(&c.connErrors))
+}
+
+// LockoutDetected reports whether the client has seen a probable account-lockout
+// response. Detectors should check this before sending auth probes.
+func (c *Client) LockoutDetected() bool {
+	return atomic.LoadInt32(&c.lockoutDetected) != 0
+}
+
+// isWAFBlock heuristically identifies a response as a WAF block page.
+func isWAFBlock(r *Response) bool {
+	if r.StatusCode == 429 {
+		return true
+	}
+	if _, ok := r.Headers["Retry-After"]; ok {
+		return true
+	}
+	if r.StatusCode == 403 {
+		lower := strings.ToLower(r.Body)
+		for _, sig := range wafSignatures {
+			if strings.Contains(lower, sig) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var wafSignatures = []string{
+	"blocked", "access denied", "cloudflare", "akamai",
+	"imperva", "sucuri", "mod_security", "web application firewall",
+	"rate limit", "captcha", "challenge-platform", "ddos protection",
+}
+
+// isLoginURL reports whether the URL path looks like an authentication endpoint.
+func isLoginURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	p := strings.ToLower(u.Path)
+	return strings.Contains(p, "login") || strings.Contains(p, "signin") ||
+		strings.Contains(p, "auth") || strings.Contains(p, "token") ||
+		strings.Contains(p, "oauth")
+}
+
+// isLockoutResponse checks for lockout indicators in the response.
+func isLockoutResponse(r *Response) bool {
+	if r.StatusCode == 429 {
+		return true
+	}
+	lower := strings.ToLower(r.Body)
+	for _, sig := range lockoutSignatures {
+		if strings.Contains(lower, sig) {
+			return true
+		}
+	}
+	return false
+}
+
+var lockoutSignatures = []string{
+	"locked", "too many attempts", "account locked",
+	"temporarily disabled", "too many requests",
+	"maximum login attempts", "account suspended",
 }

@@ -218,6 +218,10 @@ type InternalScanConfig struct {
 	// Zero (the default) means unlimited. The CLI sets it from --rate.
 	RateLimitPerSec float64
 
+	// MaxConsecutiveErrors aborts the scan when this many consecutive
+	// connection-level failures occur (target down). Zero uses default (20).
+	MaxConsecutiveErrors int
+
 	// Session, when set, supplies a live cookie to the scan client and is polled
 	// during the scan to detect logout and re-authenticate. The CLI builds it
 	// after login from --session-check-url / --login-success.
