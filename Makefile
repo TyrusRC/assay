@@ -17,7 +17,7 @@ GOFMT=$(GOCMD) fmt
 GOVET=$(GOCMD) vet
 
 # Build flags
-LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X main.date=$(BUILD_TIME) -X main.commit=$(shell git rev-parse --short HEAD 2>/dev/null || echo none)"
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 
@@ -43,9 +43,10 @@ build-all:
 	@echo "Building for all platforms..."
 	@mkdir -p $(BINARY_DIR)
 	@for platform in $(PLATFORMS); do \
+		ext=""; [ "$${platform%/*}" = "windows" ] && ext=".exe"; \
 		GOOS=$${platform%/*} GOARCH=$${platform#*/} \
-		$(GOBUILD) $(LDFLAGS) -o $(BINARY_DIR)/$(BINARY_NAME)-$${platform%/*}-$${platform#*/}$(if $(findstring windows,$${platform%/*}),.exe,) ./$(CMD_DIR); \
-		echo "Built: $(BINARY_DIR)/$(BINARY_NAME)-$${platform%/*}-$${platform#*/}"; \
+		$(GOBUILD) $(LDFLAGS) -o $(BINARY_DIR)/$(BINARY_NAME)-$${platform%/*}-$${platform#*/}$${ext} ./$(CMD_DIR); \
+		echo "Built: $(BINARY_DIR)/$(BINARY_NAME)-$${platform%/*}-$${platform#*/}$${ext}"; \
 	done
 
 ## build-linux: Build for Linux amd64
@@ -96,11 +97,13 @@ test-race:
 ## test-integration: Run integration tests
 test-integration:
 	@echo "Running integration tests..."
+	@test -d tests/integration || { echo "No integration tests found (tests/integration/ does not exist)"; exit 0; }
 	$(GOTEST) -v -tags=integration ./tests/integration/...
 
 ## test-e2e: Run end-to-end tests
 test-e2e:
 	@echo "Running e2e tests..."
+	@test -d tests/e2e || { echo "No e2e tests found (tests/e2e/ does not exist)"; exit 0; }
 	$(GOTEST) -v -tags=e2e ./tests/e2e/...
 
 ## bench: Run benchmarks

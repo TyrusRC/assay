@@ -19,13 +19,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+// jevClient is a dedicated HTTP client for Jev gateway calls, with explicit
+// timeouts so we never depend on http.DefaultClient's zero-value behaviour.
+var jevClient = &http.Client{Timeout: 90 * time.Second}
+
+// maxJevResponseSize limits Jev response body reads to prevent OOM.
+const maxJevResponseSize = 10 << 20 // 10 MB
 
 const (
 	defaultBaseURL = "https://ai-gateway.vercel.sh"
@@ -85,12 +95,18 @@ func truthy(s string) bool {
 
 // isLocal reports whether a base URL points at a self-hosted loopback engine —
 // which needs no key (the key authenticates a remote hosted gateway only).
-func isLocal(url string) bool {
-	u := strings.ToLower(url)
-	for _, h := range []string{"127.0.0.1", "localhost", "0.0.0.0", "[::1]"} {
-		if strings.Contains(u, h) {
-			return true
-		}
+func isLocal(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "127.0.0.1", "localhost", "0.0.0.0", "::1":
+		return true
 	}
 	return false
 }
@@ -207,7 +223,7 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 		req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := jevClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +232,7 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 		return nil, &httpError{resp.StatusCode}
 	}
 	var out jevResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxJevResponseSize)).Decode(&out); err != nil {
 		return nil, err
 	}
 	scores := make([]float64, len(items))
@@ -251,46 +267,78 @@ func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]*float64, erro
 	// true/false `criteria` are fixed — this matches how the model was trained
 	// (observation in the state, not folded into the instruction), which the batched
 	// form does not, and which otherwise degrades noise discrimination.
+	//
+	// Requests are fanned out with bounded concurrency. Individual failures set
+	// that item to nil (no opinion) rather than aborting the entire batch.
 	q := map[string]jevQuestion{"q": {
 		Type:         "boolean",
 		Instructions: "Is this a real, reportable security finding?",
 		Criteria:     map[string]string{"true": "a real, exploitable vulnerability", "false": "noise / not reportable alone"},
 	}}
+	const maxParallel = 5
 	scores := make([]*float64, len(items))
+	errs := make([]error, len(items))
+	sem := make(chan struct{}, maxParallel)
+	var wg sync.WaitGroup
 	for i, it := range items {
-		body, err := json.Marshal(jevRequest{Model: cfg.Model, Domain: "web", State: it.Text, Questions: q})
-		if err != nil {
-			return nil, err
+		wg.Add(1)
+		go func(idx int, item Item) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			body, err := json.Marshal(jevRequest{Model: cfg.Model, Domain: "web", State: item.Text, Questions: q})
+			if err != nil {
+				errs[idx] = err
+				return
+			}
+			reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(reqCtx, http.MethodPost,
+				strings.TrimRight(cfg.BaseURL, "/")+"/v1/evaluate", bytes.NewReader(body))
+			if err != nil {
+				errs[idx] = err
+				return
+			}
+			if cfg.APIKey != "" {
+				req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := jevClient.Do(req)
+			if err != nil {
+				errs[idx] = err
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				errs[idx] = &httpError{resp.StatusCode}
+				return
+			}
+			var out jevResponse
+			if err := json.NewDecoder(io.LimitReader(resp.Body, maxJevResponseSize)).Decode(&out); err != nil {
+				errs[idx] = err
+				return
+			}
+			scores[idx] = out.Answers["q"].Probability
+		}(i, it)
+	}
+	wg.Wait()
+	// If every request failed, report the first error so the caller can
+	// fail-open on the whole batch. Partial success is returned as-is:
+	// items with errors keep their nil score (no opinion).
+	allFailed := true
+	var firstErr error
+	for _, e := range errs {
+		if e == nil {
+			allFailed = false
+			break
 		}
-		reqCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		req, err := http.NewRequestWithContext(reqCtx, http.MethodPost,
-			strings.TrimRight(cfg.BaseURL, "/")+"/v1/evaluate", bytes.NewReader(body))
-		if err != nil {
-			cancel()
-			return nil, err
+		if firstErr == nil {
+			firstErr = e
 		}
-		if cfg.APIKey != "" {
-			req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			cancel()
-			return nil, &httpError{resp.StatusCode}
-		}
-		var out jevResponse
-		derr := json.NewDecoder(resp.Body).Decode(&out)
-		resp.Body.Close()
-		cancel()
-		if derr != nil {
-			return nil, derr
-		}
-		scores[i] = out.Answers["q"].Probability
+	}
+	if allFailed && firstErr != nil {
+		return nil, firstErr
 	}
 	return scores, nil
 }

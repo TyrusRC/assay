@@ -48,7 +48,7 @@ type Assessment struct {
 	Unmapped     core.Findings `json:"unmapped,omitempty"`
 }
 
-var owaspRe = regexp.MustCompile(`(?i)\bA(\d{1,2})\b`)
+var owaspRe = regexp.MustCompile(`(?i)\bA(0?[1-9]|10)\b`)
 
 // Frameworks returns the supported frameworks.
 func Frameworks() []Framework {

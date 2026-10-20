@@ -112,6 +112,9 @@ func (c *Crawler) Crawl(ctx context.Context, startURL string, opts CrawlOptions)
 		}
 
 		for _, raw := range discovered {
+			if ctx.Err() != nil {
+				break
+			}
 			abs := normalizeURL(startU, raw)
 			if abs == "" {
 				continue

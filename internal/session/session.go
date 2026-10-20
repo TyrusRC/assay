@@ -66,10 +66,13 @@ func (s *Session) Alive(ctx context.Context, client *http.Client) bool {
 }
 
 // authenticated decides from a canary response whether the session is still
-// logged in. A 401/403 is a logout. With a marker set, its presence decides.
-// Without a marker, a login-looking final URL or Location header is a logout.
+// logged in. Only 401 is treated as a definitive logout signal — 403 is
+// ambiguous (could be role-based access on a valid session). With a marker
+// set, its presence decides. Without a marker, a login-looking final URL or
+// Location header is a logout. The canary URL should return 200 when the
+// session is authenticated.
 func (s *Session) authenticated(resp *http.Response) bool {
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+	if resp.StatusCode == 401 {
 		return false
 	}
 	if s.marker != "" {

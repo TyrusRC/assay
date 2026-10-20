@@ -110,6 +110,11 @@ func (c *Crawler) Crawl(ctx context.Context, seeds []string) Result {
 
 // expand enqueues a page's same-host links and records its form actions.
 func (c *Crawler) expand(cur, body string, hosts, seen map[string]bool, queue *[]string, addEndpoint func(string)) {
+	maxReq := c.MaxRequests
+	if maxReq <= 0 {
+		maxReq = defaultMaxRequests
+	}
+	queueCap := 10 * maxReq
 	for _, href := range extractLinks(body) {
 		abs := resolveURL(cur, href)
 		if abs == "" {
@@ -120,7 +125,9 @@ func (c *Crawler) expand(cur, body string, hosts, seen map[string]bool, queue *[
 		}
 		if !seen[abs] {
 			seen[abs] = true
-			*queue = append(*queue, abs)
+			if len(*queue) < queueCap {
+				*queue = append(*queue, abs)
+			}
 		}
 	}
 	for _, f := range extractForms(body) {

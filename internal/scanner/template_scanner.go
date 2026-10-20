@@ -114,7 +114,14 @@ func NewTemplateScanner(config *TemplateScanConfig) (*TemplateScanner, error) {
 }
 
 // LoadTemplates loads templates from configured sources.
+// Deprecated: use LoadTemplatesCtx to pass the scan context through.
 func (s *TemplateScanner) LoadTemplates() ([]*templates.Template, error) {
+	return s.LoadTemplatesCtx(context.Background())
+}
+
+// LoadTemplatesCtx loads templates from configured sources, using ctx for
+// network-bound operations like the decision-engine ranking call.
+func (s *TemplateScanner) LoadTemplatesCtx(ctx context.Context) ([]*templates.Template, error) {
 	var allTemplates []*templates.Template
 
 	// Load from directory
@@ -150,14 +157,14 @@ func (s *TemplateScanner) LoadTemplates() ([]*templates.Template, error) {
 
 	// Decision engine: rank by relevance to the detected tech (and optionally
 	// cap). Opt-in — zero config leaves the set untouched.
-	allTemplates = s.decide(allTemplates)
+	allTemplates = s.decide(ctx, allTemplates)
 
 	return allTemplates, nil
 }
 
 // decide reorders (and optionally caps) templates by relevance to the target's
 // detected technologies, via the decision engine. A no-op unless enabled.
-func (s *TemplateScanner) decide(tmpls []*templates.Template) []*templates.Template {
+func (s *TemplateScanner) decide(ctx context.Context, tmpls []*templates.Template) []*templates.Template {
 	if !s.config.Decision.Enabled || len(tmpls) == 0 {
 		return tmpls
 	}
@@ -168,7 +175,7 @@ func (s *TemplateScanner) decide(tmpls []*templates.Template) []*templates.Templ
 		items[i] = decision.Item{Key: key, Text: t.ID + " " + t.Info.Name + " " + t.Info.Tags}
 		byKey[key] = t
 	}
-	ranked := decision.Rank(context.Background(), s.config.Decision, s.config.TechTokens, items)
+	ranked := decision.Rank(ctx, s.config.Decision, s.config.TechTokens, items)
 	out := make([]*templates.Template, 0, len(ranked))
 	for _, it := range ranked {
 		if t := byKey[it.Key]; t != nil {
@@ -264,7 +271,7 @@ templateLoop:
 
 // ScanWithLoad loads templates and executes them against a target.
 func (s *TemplateScanner) ScanWithLoad(ctx context.Context, target *core.Target) (*TemplateScanResult, error) {
-	tmpls, err := s.LoadTemplates()
+	tmpls, err := s.LoadTemplatesCtx(ctx)
 	if err != nil {
 		return nil, err
 	}

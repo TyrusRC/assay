@@ -334,29 +334,32 @@ type InternalScanResult struct {
 	Errors       []string
 }
 
-// applyScanConfig writes per-scan settings (proxy, headers, cookies, UA,
-// insecure) onto the shared http.Client used by every detector. Without
-// this, only a handful of detectors that took an explicit *http.Client
-// argument (SQLi, ClassifyParameters, OOB) saw the user's --proxy / -H /
-// --user-agent flags — the rest silently bypassed Burp Suite and
-// authentication.
-func applyScanConfig(client *http.Client, cfg *Config) {
-	if client == nil || cfg == nil {
-		return
+// applyScanConfig returns a clone of the given client with per-scan settings
+// (proxy, headers, cookies, UA, insecure) applied. The original client is
+// never mutated, so concurrent scan goroutines that still hold a reference
+// to it are safe.
+func applyScanConfig(client *http.Client, cfg *Config) *http.Client {
+	if client == nil {
+		return client
+	}
+	c := client.Clone()
+	if cfg == nil {
+		return c
 	}
 	if len(cfg.Headers) > 0 {
-		client.WithHeaders(cfg.Headers)
+		c.WithHeaders(cfg.Headers)
 	}
 	if cfg.Cookies != "" {
-		client.WithCookies(cfg.Cookies)
+		c.WithCookies(cfg.Cookies)
 	}
 	if cfg.UserAgent != "" {
-		client.WithUserAgent(cfg.UserAgent)
+		c.WithUserAgent(cfg.UserAgent)
 	}
 	if cfg.ProxyURL != "" {
-		client.WithProxy(cfg.ProxyURL)
+		c.WithProxy(cfg.ProxyURL)
 	}
 	if cfg.Insecure {
-		client.WithInsecure(true)
+		c.WithInsecure(true)
 	}
+	return c
 }

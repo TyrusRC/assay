@@ -42,25 +42,16 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		})
 	}
 
-	// Apply per-scan settings (proxy, headers, cookies, UA, insecure) to
-	// the SHARED client so that EVERY detector inherits them. All
-	// detectors were constructed with s.client; mutating it here is the
-	// single point where Burp-Suite proxying, custom headers, and
-	// authenticated User-Agent/cookies are wired in for the whole scan.
-	// One-Scanner-per-Scan is the contract; concurrent scans on the same
-	// scanner instance would race on these settings.
-	applyScanConfig(s.client, scanConfig)
+	// Clone the shared client and apply per-scan settings (proxy, headers,
+	// cookies, UA, insecure) so every detector inherits them without
+	// mutating the original — safe for concurrent scans.
+	scanClient := applyScanConfig(s.client, scanConfig)
 
 	// Reset the per-scan baseline cache. Each of the 7 bank-driven
 	// parameter-injection detectors fetches the target URL once as its
 	// baseline; sharing those results across detectors saves up to 6
 	// duplicate GETs per parameterised URL.
 	s.baselineCache = paraminject.NewCache()
-
-	// scanClient is kept as an alias for the few hot paths that take an
-	// explicit *http.Client argument (SQLi, ClassifyParameters, OOB).
-	// They now share the same configured instance as the rest.
-	scanClient := s.client
 
 	// 1. Technology detection (fast, provides context)
 	if s.config.EnableTechScan && s.techDetector != nil {

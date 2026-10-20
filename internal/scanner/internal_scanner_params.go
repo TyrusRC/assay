@@ -90,10 +90,11 @@ func (s *InternalScanner) extractParametersWithConfig(target *core.Target, scanC
 			seenKey := fmt.Sprintf("path:%d", segmentIdx)
 			if !seen[seenKey] {
 				params = append(params, core.Parameter{
-					Name:     fmt.Sprintf("path_%d", segmentIdx),
-					Location: core.ParamLocationPath,
-					Value:    seg,
-					Type:     "number",
+					Name:         fmt.Sprintf("path_%d", segmentIdx),
+					Location:     core.ParamLocationPath,
+					Value:        seg,
+					Type:         "number",
+					SegmentIndex: segmentIdx,
 				})
 				seen[seenKey] = true
 			}
@@ -101,10 +102,11 @@ func (s *InternalScanner) extractParametersWithConfig(target *core.Target, scanC
 			seenKey := fmt.Sprintf("path:%d", segmentIdx)
 			if !seen[seenKey] {
 				params = append(params, core.Parameter{
-					Name:     fmt.Sprintf("path_%d", segmentIdx),
-					Location: core.ParamLocationPath,
-					Value:    seg,
-					Type:     "string",
+					Name:         fmt.Sprintf("path_%d", segmentIdx),
+					Location:     core.ParamLocationPath,
+					Value:        seg,
+					Type:         "string",
+					SegmentIndex: segmentIdx,
 				})
 				seen[seenKey] = true
 			}

@@ -295,6 +295,10 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 			go func() {
 				defer wg.Done()
 
+				// Crawl before acquiring the semaphore so discovery doesn't
+				// hold a concurrency slot while it fetches links.
+				scanTargets := expandWithCrawl(scanCtx, internalScanner, targets, config.Verbose, errorsChan)
+
 				// Acquire semaphore
 				select {
 				case semaphore <- struct{}{}:
@@ -302,8 +306,6 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 				case <-scanCtx.Done():
 					return
 				}
-
-				scanTargets := expandWithCrawl(scanCtx, internalScanner, targets, config.Verbose, errorsChan)
 
 				// Resume: load a prior checkpoint, carry its findings forward, and
 				// skip targets already scanned. CheckpointPath records progress as
