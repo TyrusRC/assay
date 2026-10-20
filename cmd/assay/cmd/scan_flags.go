@@ -115,6 +115,7 @@ var (
 	sessionCheckInterval time.Duration
 	checkpointPath       string
 	resumePath           string
+	dryRun               bool
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.

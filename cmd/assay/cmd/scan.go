@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
@@ -158,6 +159,40 @@ func init() {
 	scanCmd.Flags().DurationVar(&sessionCheckInterval, "session-check-interval", 60*time.Second, "How often to poll --session-check-url for logout")
 	scanCmd.Flags().StringVar(&checkpointPath, "checkpoint", "", "Record scan progress per target to this file so an interrupted scan can resume")
 	scanCmd.Flags().StringVar(&resumePath, "resume", "", "Resume from a checkpoint file: skip already-scanned targets and carry their findings forward (usually the same path as --checkpoint)")
+	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what the scan would do without sending any traffic")
+}
+
+func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {
+	w := os.Stderr
+	fmt.Fprintln(w, "=== DRY RUN — no traffic will be sent ===")
+	fmt.Fprintf(w, "Targets (%d):\n", len(targets))
+	for _, t := range targets {
+		fmt.Fprintf(w, "  %s\n", t)
+	}
+	fmt.Fprintf(w, "Profile: %s\n", profile)
+	fmt.Fprintf(w, "Level: %d  Risk: %d\n", level, risk)
+	fmt.Fprintf(w, "Rate limit: %.0f req/s\n", cfg.RateLimitPerSec)
+	if cfg.Scope != nil {
+		fmt.Fprintln(w, "Scope: ON (target host(s))")
+	} else {
+		fmt.Fprintln(w, "Scope: OFF")
+	}
+	fmt.Fprintln(w, "\nEnabled detectors:")
+	v := reflect.ValueOf(cfg).Elem()
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if strings.HasPrefix(f.Name, "Enable") && f.Type.Kind() == reflect.Bool && v.Field(i).Bool() {
+			fmt.Fprintf(w, "  %s\n", strings.TrimPrefix(f.Name, "Enable"))
+		}
+	}
+	if len(templateDirs) > 0 {
+		fmt.Fprintf(w, "\nTemplates: %v\n", templateDirs)
+	}
+	if loginURL != "" {
+		fmt.Fprintf(w, "\nLogin: %s (user: %s)\n", loginURL, loginUser)
+	}
+	fmt.Fprintln(w, "\n=== No traffic sent ===")
 }
 
 // adjudicateFindings runs a fail-open Haruspex triage pass over already-produced
@@ -351,6 +386,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 	internalConfig.Verbose = verbose
+
+	if dryRun {
+		printDryRun(targets, internalConfig)
+		return nil
+	}
+
 	if err := s.SetInternalConfig(internalConfig); err != nil && verbose {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to configure internal scanner: %v\n", err)
 	}
