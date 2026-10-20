@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/scope"
 )
 
@@ -71,6 +72,19 @@ type Client struct {
 	throttle        *throttle
 	cookieSrc       func() string
 	mu              sync.Mutex
+
+	// paramOverride, when set, makes SendPayload route through
+	// SendPayloadAt so every detector transparently injects at the right
+	// location (JSON body, path segment, header, XML body) without
+	// changing its own signature. Set via ForParam; each Clone inherits it.
+	paramOverride *core.Parameter
+
+	// siblingParams holds other body params from the same endpoint. When
+	// SendPayloadInJSON builds the JSON body, it includes these with
+	// default values so endpoints that require multiple fields (e.g.
+	// {"username":"PAYLOAD","password":"test"}) reach the SQL/logic layer
+	// instead of returning a 400 "missing field" error.
+	siblingParams []core.Parameter
 
 	// WAF / resilience counters (atomic, safe for concurrent reads).
 	wafBlocks       int32 // consecutive WAF-block responses
@@ -174,6 +188,8 @@ func (c *Client) Clone() *Client {
 		scope:           c.scope,
 		throttle:        c.throttle,
 		cookieSrc:       c.cookieSrc,
+		paramOverride:   c.paramOverride,
+		siblingParams:   c.siblingParams,
 	}
 	for k, v := range c.headers {
 		cloned.headers[k] = v
@@ -299,6 +315,29 @@ func (c *Client) HasAuth() bool {
 func (c *Client) WithInsecure(insecure bool) *Client {
 	c.insecure = insecure
 	c.rebuildNeeded()
+	return c
+}
+
+// ForParam returns a lightweight clone whose SendPayload dispatches through
+// SendPayloadAt for the given parameter. Use this in the scanner to create
+// a per-parameter client before passing it to any detector — every detector's
+// SendPayload call then transparently reaches the right injection point
+// (JSON body, path segment, header, XML, cookie) without changing the
+// detector's own code.
+//
+// The clone shares the underlying http.Client, throttle, cookie source, and
+// scope with the parent, so it is cheap to create per-parameter. It only
+// differs in the paramOverride and siblingParams fields.
+func (c *Client) ForParam(p core.Parameter) *Client {
+	cloned := c.Clone()
+	cloned.paramOverride = &p
+	return cloned
+}
+
+// WithSiblings attaches sibling body params from the same endpoint.
+// SendPayloadInJSON includes them with default values in every request.
+func (c *Client) WithSiblings(siblings []core.Parameter) *Client {
+	c.siblingParams = siblings
 	return c
 }
 

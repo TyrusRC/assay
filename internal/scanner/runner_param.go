@@ -13,18 +13,46 @@ import (
 // flood the server with hundreds of concurrent requests. Each parameter is
 // reported to prog as tested once its detectors finish.
 func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress) {
-	concurrency := 5
-	if s.config.MaxPayloadsPerParam > 0 && s.config.MaxPayloadsPerParam < concurrency {
-		concurrency = s.config.MaxPayloadsPerParam
+	concurrency := s.config.ParamConcurrency
+	if concurrency <= 0 {
+		concurrency = 10
 	}
 	sem := make(chan struct{}, concurrency)
+
+	// Group body params by endpoint so each param's client includes its
+	// siblings. Without this, SendPayloadInJSON sends {"username":"PAYLOAD"}
+	// alone and the server returns 400 "missing password" before the SQL runs.
+	type epKey struct{ url, method string }
+	epParams := make(map[epKey][]core.Parameter)
+	for _, p := range params {
+		u := targetURL
+		m := method
+		if p.SourceURL != "" {
+			u = p.SourceURL
+		}
+		if p.Method != "" {
+			m = p.Method
+		}
+		k := epKey{u, m}
+		epParams[k] = append(epParams[k], p)
+	}
+
 	for _, param := range params {
 		wg.Add(1)
 		go func(p core.Parameter) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			s.runParamDetectors(ctx, findingsChan, targetURL, p, method, scanClient)
+			injURL := targetURL
+			injMethod := method
+			if p.SourceURL != "" {
+				injURL = p.SourceURL
+			}
+			if p.Method != "" {
+				injMethod = p.Method
+			}
+			siblings := epParams[epKey{injURL, injMethod}]
+			s.runParamDetectors(ctx, findingsChan, injURL, p, injMethod, scanClient, siblings)
 			if prog != nil {
 				prog.IncrementTested()
 			}
@@ -86,7 +114,8 @@ func (s *InternalScanner) applicableTests(param core.Parameter) []paramTest {
 		}
 	case core.ParamLocationHeader:
 		applicableNames = map[string]bool{
-			"crlf": true, "headerinj": true, "ssti": true, "ssrf": true,
+			"sqli": true, "crlf": true, "headerinj": true, "ssti": true,
+			"ssrf": true, "nosql": true, "cmdi": true, "lfi": true,
 		}
 	case core.ParamLocationPath:
 		applicableNames = map[string]bool{
@@ -117,37 +146,55 @@ func (s *InternalScanner) applicableTests(param core.Parameter) []paramTest {
 }
 
 // runParamDetectors runs location-appropriate detectors for a single parameter.
-func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan chan<- *core.Finding, targetURL string, param core.Parameter, method string, scanClient *http.Client) {
+//
+// A per-param client (ForParam) ensures every detector's SendPayload call
+// routes through SendPayloadAt, injecting the payload at the correct
+// location (JSON body, path segment, header, XML, cookie, query) without
+// any detector code changes.
+func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan chan<- *core.Finding, targetURL string, param core.Parameter, method string, scanClient *http.Client, siblings []core.Parameter) {
+	pc := scanClient.ForParam(param).WithSiblings(siblings)
+
 	runners := map[string]func() []*core.Finding{
-		"sqli":            func() []*core.Finding { return s.testSQLiWithClient(ctx, targetURL, param, method, scanClient) },
-		"xss":             func() []*core.Finding { return s.testXSS(ctx, targetURL, param, method) },
-		"cmdi":            func() []*core.Finding { return s.testCMDI(ctx, targetURL, param, method) },
-		"ssrf":            func() []*core.Finding { return s.testSSRF(ctx, targetURL, param, method) },
-		"lfi":             func() []*core.Finding { return s.testLFI(ctx, targetURL, param, method) },
-		"xxe":             func() []*core.Finding { return s.testXXEInParam(ctx, targetURL, param, method) },
-		"nosql":           func() []*core.Finding { return s.testNoSQL(ctx, targetURL, param, method) },
-		"ssti":            func() []*core.Finding { return s.testSSTI(ctx, targetURL, param, method) },
-		"redirect":        func() []*core.Finding { return s.testRedirect(ctx, targetURL, param, method) },
-		"crlf":            func() []*core.Finding { return s.testCRLF(ctx, targetURL, param, method) },
-		"ldap":            func() []*core.Finding { return s.testLDAP(ctx, targetURL, param, method) },
-		"xpath":           func() []*core.Finding { return s.testXPath(ctx, targetURL, param, method) },
-		"headerinj":       func() []*core.Finding { return s.testHeaderInj(ctx, targetURL, param, method) },
-		"csti":            func() []*core.Finding { return s.testCSTI(ctx, targetURL, param, method) },
-		"rfi":             func() []*core.Finding { return s.testRFI(ctx, targetURL, param, method) },
-		"csvinj":          func() []*core.Finding { return s.testCSVInj(ctx, targetURL, param, method) },
-		"cachepoisoning":  func() []*core.Finding { return s.testCachePoisoning(ctx, targetURL, param, method) },
-		"cssinj":          func() []*core.Finding { return s.testCSSInj(ctx, targetURL, param, method) },
-		"deser":           func() []*core.Finding { return s.testDeser(ctx, targetURL, param, method) },
-		"domclobber":      func() []*core.Finding { return s.testDOMClobber(ctx, targetURL, param, method) },
-		"emailinj":        func() []*core.Finding { return s.testEmailInj(ctx, targetURL, param, method) },
-		"hpp":             func() []*core.Finding { return s.testHPP(ctx, targetURL, param, method) },
-		"htmlinj":         func() []*core.Finding { return s.testHTMLInj(ctx, targetURL, param, method) },
-		"massassign":      func() []*core.Finding { return s.testMassAssign(ctx, targetURL, param, method) },
-		"protopollserver": func() []*core.Finding { return s.testProtoPollServer(ctx, targetURL, param, method) },
-		"ssi":             func() []*core.Finding { return s.testSSI(ctx, targetURL, param, method) },
+		"sqli":            func() []*core.Finding { return s.testSQLiWithClient(ctx, targetURL, param, method, pc) },
+		"xss":             func() []*core.Finding { return s.testXSSWithClient(ctx, targetURL, param, method, pc) },
+		"cmdi":            func() []*core.Finding { return s.testCMDIWithClient(ctx, targetURL, param, method, pc) },
+		"ssrf":            func() []*core.Finding { return s.testSSRFWithClient(ctx, targetURL, param, method, pc) },
+		"lfi":             func() []*core.Finding { return s.testLFIWithClient(ctx, targetURL, param, method, pc) },
+		"xxe":             func() []*core.Finding { return s.testXXEWithClient(ctx, targetURL, param, method, pc) },
+		"nosql":           func() []*core.Finding { return s.testNoSQLWithClient(ctx, targetURL, param, method, pc) },
+		"ssti":            func() []*core.Finding { return s.testSSTIWithClient(ctx, targetURL, param, method, pc) },
+		"redirect":        func() []*core.Finding { return s.testRedirectWithClient(ctx, targetURL, param, method, pc) },
+		"crlf":            func() []*core.Finding { return s.testCRLFWithClient(ctx, targetURL, param, method, pc) },
+		"ldap":            func() []*core.Finding { return s.testLDAPWithClient(ctx, targetURL, param, method, pc) },
+		"xpath":           func() []*core.Finding { return s.testXPathWithClient(ctx, targetURL, param, method, pc) },
+		"headerinj":       func() []*core.Finding { return s.testHeaderInjWithClient(ctx, targetURL, param, method, pc) },
+		"csti":            func() []*core.Finding { return s.testCSTIWithClient(ctx, targetURL, param, method, pc) },
+		"rfi":             func() []*core.Finding { return s.testRFIWithClient(ctx, targetURL, param, method, pc) },
+		"csvinj":          func() []*core.Finding { return s.testCSVInjWithClient(ctx, targetURL, param, method, pc) },
+		"cachepoisoning":  func() []*core.Finding { return s.testCachePoisoningWithClient(ctx, targetURL, param, method, pc) },
+		"cssinj":          func() []*core.Finding { return s.testCSSInjWithClient(ctx, targetURL, param, method, pc) },
+		"deser":           func() []*core.Finding { return s.testDeserWithClient(ctx, targetURL, param, method, pc) },
+		"domclobber":      func() []*core.Finding { return s.testDOMClobberWithClient(ctx, targetURL, param, method, pc) },
+		"emailinj":        func() []*core.Finding { return s.testEmailInjWithClient(ctx, targetURL, param, method, pc) },
+		"hpp":             func() []*core.Finding { return s.testHPPWithClient(ctx, targetURL, param, method, pc) },
+		"htmlinj":         func() []*core.Finding { return s.testHTMLInjWithClient(ctx, targetURL, param, method, pc) },
+		"massassign":      func() []*core.Finding { return s.testMassAssignWithClient(ctx, targetURL, param, method, pc) },
+		"protopollserver": func() []*core.Finding { return s.testProtoPollServerWithClient(ctx, targetURL, param, method, pc) },
+		"ssi":             func() []*core.Finding { return s.testSSIWithClient(ctx, targetURL, param, method, pc) },
 	}
 
 	applicable := s.applicableTests(param)
+
+	// Run detector classes in parallel within each param. Default 3
+	// concurrent detector goroutines per param keeps request volume
+	// bounded while cutting wall-clock time ~3x on multi-class params.
+	detConc := s.config.DetectorConcurrency
+	if detConc <= 0 {
+		detConc = 3
+	}
+	detSem := make(chan struct{}, detConc)
+	var detWg sync.WaitGroup
+
 	for _, t := range applicable {
 		if s.confirmed.shouldSkip(param.Name, t.name) {
 			continue
@@ -156,10 +203,17 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 		if !ok {
 			continue
 		}
-		findings := runner()
-		if len(findings) > 0 {
-			s.confirmed.confirm(param.Name, t.name)
-			emit(ctx, findingsChan, findings)
-		}
+		detWg.Add(1)
+		detSem <- struct{}{}
+		go func(name string, run func() []*core.Finding) {
+			defer detWg.Done()
+			defer func() { <-detSem }()
+			findings := run()
+			if len(findings) > 0 {
+				s.confirmed.confirm(param.Name, name)
+				emit(ctx, findingsChan, findings)
+			}
+		}(t.name, runner)
 	}
+	detWg.Wait()
 }

@@ -22,9 +22,25 @@ func (c *Client) SendRawBody(ctx context.Context, url, method, body, contentType
 }
 
 // SendPayload sends a request with a payload injected into a parameter.
-// For GET requests, the payload is placed in the query string.
-// For POST/PUT/PATCH requests, the payload goes into the form body only.
+//
+// When the client has a paramOverride (set via ForParam), the call routes
+// through SendPayloadAt, which dispatches by the parameter's Location
+// (JSON body, path segment, header, XML, cookie, query). This makes every
+// detector location-aware without changing its code.
+//
+// Without a paramOverride, the legacy behavior applies: GET puts the payload
+// in the query string, POST/PUT/PATCH puts it in a form-urlencoded body.
 func (c *Client) SendPayload(ctx context.Context, baseURL, param, payload, method string) (*Response, error) {
+	if c.paramOverride != nil {
+		return c.SendPayloadAt(ctx, baseURL, *c.paramOverride, payload, method)
+	}
+	return c.sendPayloadDirect(ctx, baseURL, param, payload, method)
+}
+
+// sendPayloadDirect is the original query/form-body injection path. It is
+// called directly by SendPayloadAt for the query and default-body cases to
+// avoid infinite recursion through the paramOverride check in SendPayload.
+func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload, method string) (*Response, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
@@ -90,8 +106,19 @@ func (c *Client) SendPayloadInCookie(ctx context.Context, baseURL, cookieName, p
 
 // SendPayloadInJSON sends a POST request with a JSON body containing the payload
 // at the specified field path. The fieldPath is a single-level field name.
+// When siblingParams are set (via WithSiblings), all other body params from the
+// same endpoint are included with a default value ("test") so the server accepts
+// the request instead of returning a "missing field" error.
 func (c *Client) SendPayloadInJSON(ctx context.Context, baseURL, fieldPath, payload string) (*Response, error) {
-	body, err := json.Marshal(map[string]string{fieldPath: payload})
+	fields := make(map[string]string)
+	for _, sp := range c.siblingParams {
+		if sp.Location == core.ParamLocationBody && sp.Name != fieldPath {
+			fields[sp.Name] = "test"
+		}
+	}
+	fields[fieldPath] = payload
+
+	body, err := json.Marshal(fields)
 	if err != nil {
 		return nil, fmt.Errorf("json marshal payload: %w", err)
 	}
@@ -197,13 +224,13 @@ func (c *Client) SendPayloadAt(ctx context.Context, baseURL string, param core.P
 		if strings.Contains(ct, "xml") {
 			return c.SendPayloadInXML(ctx, baseURL, param.Name, payload)
 		}
-		return c.SendPayload(ctx, baseURL, param.Name, payload, method)
+		return c.sendPayloadDirect(ctx, baseURL, param.Name, payload, method)
 	case core.ParamLocationLocalStorage, core.ParamLocationSessionStorage:
 		req := &Request{Method: "GET", URL: baseURL}
 		return c.Do(ctx, req)
 	case core.ParamLocationQuery, "":
 		fallthrough
 	default:
-		return c.SendPayload(ctx, baseURL, param.Name, payload, method)
+		return c.sendPayloadDirect(ctx, baseURL, param.Name, payload, method)
 	}
 }

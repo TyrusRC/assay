@@ -91,8 +91,23 @@ type DetectionResult struct {
 	DetectedPlatform cmdi.Platform
 }
 
+// DetectParam tests a parameter for Command Injection vulnerabilities using
+// location-aware payload dispatch. Use this over Detect when the parameter's
+// location (path, header, JSON body, etc.) matters.
+func (d *Detector) DetectParam(ctx context.Context, target string, param core.Parameter, method string, opts DetectOptions) (*DetectionResult, error) {
+	return d.detectImpl(ctx, target, param.Name, method, opts, func(ctx context.Context, payload string) (*http.Response, error) {
+		return d.client.SendPayloadAt(ctx, target, param, payload, method)
+	})
+}
+
 // Detect tests a parameter for Command Injection vulnerabilities.
 func (d *Detector) Detect(ctx context.Context, target, param, method string, opts DetectOptions) (*DetectionResult, error) {
+	return d.detectImpl(ctx, target, param, method, opts, func(ctx context.Context, payload string) (*http.Response, error) {
+		return d.client.SendPayload(ctx, target, param, payload, method)
+	})
+}
+
+func (d *Detector) detectImpl(ctx context.Context, target, param, method string, opts DetectOptions, send func(context.Context, string) (*http.Response, error)) (*DetectionResult, error) {
 	result := &DetectionResult{
 		Findings: make([]*core.Finding, 0),
 	}
@@ -114,7 +129,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	}
 
 	// First, get baseline response
-	baselineResp, err := d.client.SendPayload(ctx, target, param, "baseline_test_value", method)
+	baselineResp, err := send(ctx, "baseline_test_value")
 	if err != nil {
 		return result, fmt.Errorf("failed to get baseline: %w", err)
 	}
@@ -134,7 +149,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 
 		result.TestedPayloads++
 
-		resp, err := d.client.SendPayload(ctx, target, param, payload.Value, method)
+		resp, err := send(ctx, payload.Value)
 		if err != nil {
 			continue
 		}
@@ -164,7 +179,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			result.TestedPayloads++
 
 			start := time.Now()
-			_, err := d.client.SendPayload(ctx, target, param, payload.Value, method)
+			_, err := send(ctx, payload.Value)
 			elapsed := time.Since(start)
 
 			if err != nil {
@@ -179,7 +194,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 				// Confirmation round: send the same probe again to
 				// rule out transient network/server slowness.
 				start2 := time.Now()
-				_, err2 := d.client.SendPayload(ctx, target, param, payload.Value, method)
+				_, err2 := send(ctx, payload.Value)
 				elapsed2 := time.Since(start2)
 				if err2 != nil {
 					continue

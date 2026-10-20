@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
@@ -12,6 +13,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/csti"
 	"github.com/TyrusRC/assay/internal/detection/csvinj"
 	"github.com/TyrusRC/assay/internal/detection/headerinj"
+	"github.com/TyrusRC/assay/internal/detection/injection"
 	"github.com/TyrusRC/assay/internal/detection/ldap"
 	"github.com/TyrusRC/assay/internal/detection/lfi"
 	"github.com/TyrusRC/assay/internal/detection/nosql"
@@ -59,7 +61,7 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 		default:
 		}
 
-		resp, err := client.SendPayload(ctx, targetURL, paramName, payload.Value, method)
+		resp, err := client.SendPayloadAt(ctx, targetURL, param, payload.Value, method)
 		if err != nil {
 			continue
 		}
@@ -95,7 +97,17 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 	}
 
 	if len(findings) == 0 {
-		if blindRes, err := s.sqliDetector.DetectBoolean(ctx, client, targetURL, paramName, method); err == nil && blindRes.IsVulnerable {
+		var blindRes *injection.BooleanResult
+		var blindErr error
+		if param.Location != core.ParamLocationQuery && param.Location != "" {
+			send := func(ctx context.Context, payload string) (*http.Response, error) {
+				return client.SendPayloadAt(ctx, targetURL, param, payload, method)
+			}
+			blindRes, blindErr = s.sqliDetector.DetectBooleanAt(ctx, client, targetURL, param, method, send)
+		} else {
+			blindRes, blindErr = s.sqliDetector.DetectBoolean(ctx, client, targetURL, paramName, method)
+		}
+		if blindErr == nil && blindRes != nil && blindRes.IsVulnerable {
 			if s.config.Verbose {
 				fmt.Fprintf(os.Stderr, "[+] Boolean-blind SQLi FOUND in '%s' (true=%s | false=%s)\n",
 					paramName, blindRes.TruePayload, blindRes.FalsePayload)
@@ -146,6 +158,65 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 		}
 	}
 
+	// Response-differential SQLi — catches custom-error-wrapped SQL (JSON
+	// APIs that never surface raw DB errors). Runs after UNION because it
+	// sends more probes and overlaps with boolean-blind.
+	if len(findings) == 0 {
+		if diffRes, err := s.sqliDetector.DetectDifferential(ctx, client, targetURL, paramName, method); err == nil && diffRes.IsVulnerable {
+			if s.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[+] Differential SQLi FOUND in '%s' (true=%s | false=%s)\n",
+					paramName, diffRes.TruePayload, diffRes.FalsePayload)
+			}
+			finding := core.NewFinding("SQL Injection (response-differential)", core.SeverityCritical)
+			finding.URL = targetURL
+			finding.Parameter = paramName
+			finding.Description = fmt.Sprintf(
+				"Response-differential SQL Injection detected in '%s' parameter. A SQL metacharacter changes the response shape, and a boolean WHERE-clause pair confirms the differential is SQL-controlled.",
+				paramName,
+			)
+			finding.Evidence = fmt.Sprintf("True payload: %s\nFalse payload: %s\nDifferential confidence: %.2f",
+				diffRes.TruePayload, diffRes.FalsePayload, diffRes.Confidence)
+			finding.Tool = "internal-sqli-detector"
+			finding.Remediation = "Use parameterized queries or prepared statements. Never concatenate user input into SQL queries."
+			finding.WithOWASPMapping(
+				[]string{"WSTG-INPV-05"},
+				[]string{"A05:2025"},
+				[]string{"CWE-89"},
+			)
+			findings = append(findings, finding)
+		}
+	}
+
+	// Time-based blind SQLi — last resort (slowest, 3s delay per probe).
+	if len(findings) == 0 {
+		send := func(ctx context.Context, payload string) (*http.Response, error) {
+			return client.SendPayloadAt(ctx, targetURL, param, payload, method)
+		}
+		if timeRes, err := s.sqliDetector.DetectTimeBasedAt(ctx, client, targetURL, paramName, method, send); err == nil && timeRes.IsVulnerable {
+			if s.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[+] Time-based blind SQLi FOUND in '%s' (baseline: %v, delayed: %v)\n",
+					paramName, timeRes.BaselineTime, timeRes.DelayedTime)
+			}
+			finding := core.NewFinding("SQL Injection (time-based blind)", core.SeverityCritical)
+			finding.URL = targetURL
+			finding.Parameter = paramName
+			finding.Description = fmt.Sprintf(
+				"Time-based blind SQL Injection detected in '%s' parameter (Database: %s). Response delayed by %v vs baseline %v.",
+				paramName, timeRes.DatabaseType, timeRes.DelayedTime, timeRes.BaselineTime,
+			)
+			finding.Evidence = fmt.Sprintf("Payload: %s\nBaseline: %v\nDelayed: %v\nConfidence: %.2f",
+				timeRes.Payload, timeRes.BaselineTime, timeRes.DelayedTime, timeRes.Confidence)
+			finding.Tool = "internal-sqli-detector"
+			finding.Remediation = "Use parameterized queries or prepared statements. Never concatenate user input into SQL queries."
+			finding.WithOWASPMapping(
+				[]string{"WSTG-INPV-05"},
+				[]string{"A05:2025"},
+				[]string{"CWE-89"},
+			)
+			findings = append(findings, finding)
+		}
+	}
+
 	return findings
 }
 
@@ -167,7 +238,7 @@ func (s *InternalScanner) testCMDI(ctx context.Context, targetURL string, param 
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing CMDI on param '%s'...\n", param.Name)
 	}
-	result, err := s.cmdiDetector.Detect(ctx, targetURL, param.Name, method, cmdi.DetectOptions{
+	result, err := s.cmdiDetector.DetectParam(ctx, targetURL, param, method, cmdi.DetectOptions{
 		MaxPayloads:      s.config.MaxPayloadsPerParam,
 		IncludeWAFBypass: s.config.IncludeWAFBypass,
 		Timeout:          s.config.RequestTimeout,
@@ -214,14 +285,27 @@ func (s *InternalScanner) testLFI(ctx context.Context, targetURL string, param c
 }
 
 // testXXEInParam tests a parameter for XXE using the internal detector.
+// For body params with XML content type, the detector replaces the entire
+// request body so the DOCTYPE + entity declaration is valid XML.
 func (s *InternalScanner) testXXEInParam(ctx context.Context, targetURL string, param core.Parameter, method string) []*core.Finding {
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing XXE on param '%s'...\n", param.Name)
 	}
-	result, err := s.xxeDetector.DetectInParameter(ctx, targetURL, param.Name, method, xxe.DetectOptions{
-		MaxPayloads: s.config.MaxPayloadsPerParam,
-		Timeout:     s.config.RequestTimeout,
-	})
+
+	opts := xxe.DefaultOptions()
+	opts.MaxPayloads = s.config.MaxPayloadsPerParam
+	opts.Timeout = s.config.RequestTimeout
+
+	if param.Location == core.ParamLocationBody && strings.Contains(strings.ToLower(param.ContentType), "xml") {
+		opts.ContentType = param.ContentType
+		result, err := s.xxeDetector.DetectInXMLBody(ctx, targetURL, param.Name, method, opts)
+		if err != nil || !result.Vulnerable {
+			return nil
+		}
+		return result.Findings
+	}
+
+	result, err := s.xxeDetector.DetectInParameter(ctx, targetURL, param.Name, method, opts)
 	if err != nil || !result.Vulnerable {
 		return nil
 	}

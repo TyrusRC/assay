@@ -342,6 +342,101 @@ func (d *Detector) hasFileContent(body, baselineBody string) bool {
 	return false
 }
 
+// doctypeNameRe matches the DOCTYPE declaration name for rewriting.
+var doctypeNameRe = regexp.MustCompile(`<!DOCTYPE\s+\w+`)
+
+// entityRefRe extracts &entityname; references from the payload body.
+var entityRefRe = regexp.MustCompile(`&\w+;`)
+
+// DetectInXMLBody tests for XXE when the endpoint expects a full XML body.
+// Unlike DetectInParameter (which injects into a single field), this replaces
+// the entire body with XXE payloads that use the parameter name as the
+// entity-expansion element. This is the correct approach for endpoints
+// discovered via OpenAPI with content-type application/xml.
+func (d *Detector) DetectInXMLBody(ctx context.Context, target, paramName, method string, opts DetectOptions) (*DetectionResult, error) {
+	result := &DetectionResult{
+		Findings: make([]*core.Finding, 0),
+	}
+
+	var payloads []xxe.Payload
+	for _, testType := range opts.TestTypes {
+		payloads = append(payloads, xxe.GetPayloads(testType)...)
+	}
+	if opts.MaxPayloads > 0 && len(payloads) > opts.MaxPayloads {
+		payloads = payloads[:opts.MaxPayloads]
+	}
+
+	ct := opts.ContentType
+	if ct == "" {
+		ct = "application/xml"
+	}
+
+	baselineXML := fmt.Sprintf("<?xml version=\"1.0\"?><%s>baseline</%s>", paramName, paramName)
+	baselineResp, err := d.client.SendRawBody(ctx, target, method, baselineXML, ct)
+	if err != nil {
+		return result, fmt.Errorf("failed to get baseline: %w", err)
+	}
+
+	for _, payload := range payloads {
+		select {
+		case <-ctx.Done():
+			return result, ctx.Err()
+		default:
+		}
+		result.TestedPayloads++
+
+		xmlBody := buildXXEBody(payload.Value, paramName)
+
+		resp, err := d.client.SendRawBody(ctx, target, method, xmlBody, ct)
+		if err != nil {
+			continue
+		}
+
+		success, extractedData := d.checkXXESuccess(resp, baselineResp, payload)
+		if success {
+			finding := d.createFindingWithParam(target, paramName, payload, resp, extractedData)
+			result.Findings = append(result.Findings, finding)
+			result.Vulnerable = true
+			result.DetectedType = payload.Type
+			result.DetectedTarget = payload.Target
+			result.ExfiltratedData = extractedData
+			return result, nil
+		}
+	}
+	return result, nil
+}
+
+// buildXXEBody rewrites a raw XXE payload to use paramName as the root
+// element and DOCTYPE name. The stock payloads all use <foo>; this swaps
+// that for the real element the endpoint expects.
+func buildXXEBody(rawPayload, paramName string) string {
+	docStart := strings.Index(rawPayload, "<!DOCTYPE")
+	if docStart < 0 {
+		docStart = strings.Index(rawPayload, "<!doctype")
+	}
+	if docStart < 0 {
+		return fmt.Sprintf("<?xml version=\"1.0\"?><%s>%s</%s>", paramName, rawPayload, paramName)
+	}
+
+	docEnd := strings.Index(rawPayload[docStart:], "]>")
+	if docEnd < 0 {
+		return rawPayload
+	}
+	docEnd += docStart + 2
+
+	doctype := rawPayload[docStart:docEnd]
+	doctypeFixed := doctypeNameRe.ReplaceAllString(doctype, "<!DOCTYPE "+paramName)
+
+	bodyPart := rawPayload[docEnd:]
+	entityRefs := entityRefRe.FindAllString(bodyPart, -1)
+	entityContent := "&xxe;"
+	if len(entityRefs) > 0 {
+		entityContent = entityRefs[0]
+	}
+
+	return fmt.Sprintf("<?xml version=\"1.0\"?>%s<%s>%s</%s>", doctypeFixed, paramName, entityContent, paramName)
+}
+
 // createFinding creates a Finding from a successful XXE test.
 func (d *Detector) createFinding(target string, payload xxe.Payload, resp *http.Response, extractedData string) *core.Finding {
 	severity := core.SeverityHigh

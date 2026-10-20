@@ -157,8 +157,10 @@ type Parameter struct {
 	Type           string `json:"type,omitempty"`           // string, number, boolean, array, object
 	Reflected      bool   `json:"reflected,omitempty"`      // whether value is reflected in response
 	Classification string `json:"classification,omitempty"` // detected category (id, file, url, search, command, template, generic)
-	ContentType    string `json:"content_type,omitempty"`   // response content type when this param was probed
+	ContentType    string `json:"content_type,omitempty"`   // body content type for injection dispatch (e.g. application/json)
 	SegmentIndex   int    `json:"segment_index,omitempty"`  // for path params, the segment position
+	SourceURL      string `json:"source_url,omitempty"`     // endpoint URL this param belongs to (from OpenAPI/crawl); injection targets this URL
+	Method         string `json:"method,omitempty"`         // HTTP method for this endpoint (GET/POST/PUT/DELETE)
 }
 
 // Parameter classification constants.

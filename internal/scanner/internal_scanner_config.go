@@ -198,8 +198,10 @@ type InternalScanConfig struct {
 	IDORTargetURL string    // optional override for the cross-identity probe URL
 
 	// Scan intensity
-	MaxPayloadsPerParam int
-	IncludeWAFBypass    bool
+	MaxPayloadsPerParam  int
+	IncludeWAFBypass     bool
+	ParamConcurrency     int // max params tested in parallel (default 10)
+	DetectorConcurrency  int // max detector classes per param in parallel (default 3)
 
 	// Timeouts
 	RequestTimeout time.Duration
@@ -363,6 +365,8 @@ func DefaultInternalConfig() *InternalScanConfig {
 		HeadlessMaxBrowsers:   3,
 		MaxPayloadsPerParam:   30,
 		IncludeWAFBypass:      true,
+		ParamConcurrency:      10,
+		DetectorConcurrency:   3,
 		RequestTimeout:        10 * time.Second,
 		OOBPollTimeout:        10 * time.Second,
 		RateLimitPerSec:       20, // safe default; --rate overrides

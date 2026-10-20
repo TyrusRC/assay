@@ -731,7 +731,7 @@ func TestInternalScanner_ApplicableTests_QueryParam(t *testing.T) {
 	expectedNames := []string{
 		"sqli", "xss", "cmdi", "ssrf", "lfi", "xxe", "nosql", "ssti",
 		"redirect", "crlf", "ldap", "xpath", "headerinj", "csti", "rfi", "csvinj",
-		"cachepoisoning", "cssinj", "deser", "domclobber", "emailinj",
+		"cssinj", "deser", "domclobber", "emailinj",
 		"hpp", "htmlinj", "ssi",
 	}
 	if len(tests) != len(expectedNames) {
@@ -773,8 +773,11 @@ func TestInternalScanner_ApplicableTests_HeaderParam(t *testing.T) {
 	param := core.Parameter{Name: "X-Forwarded-For", Location: core.ParamLocationHeader}
 	tests := scanner.applicableTests(param)
 
-	// Header params should get crlf, headerinj, ssti, ssrf
-	allowedNames := map[string]bool{"crlf": true, "headerinj": true, "ssti": true, "ssrf": true}
+	// Header params get injection tests that make sense for header values
+	allowedNames := map[string]bool{
+		"sqli": true, "crlf": true, "headerinj": true, "ssti": true,
+		"ssrf": true, "nosql": true, "cmdi": true, "lfi": true,
+	}
 	for _, test := range tests {
 		if !allowedNames[test.name] {
 			t.Errorf("applicableTests(header) should not include %q", test.name)

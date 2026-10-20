@@ -29,13 +29,19 @@ well.
 
 ### Highlights
 
-- **UNION-based SQL injection** — binary-search column detection, multi-DB fingerprinting
+- **Multi-technique SQL injection** — error-based, boolean-blind, UNION-based (binary-search column detection, multi-DB fingerprint), response-differential (catches custom JSON error wrappers), time-based blind, and status-code differential. Location-aware: works on query, JSON body, XML body, path, header, and cookie params.
+- **OpenAPI-first API scanning** — YAML + JSON spec parsing, requestBody property extraction, sibling body-param injection (sends all fields so multi-field endpoints reach the SQL layer), per-endpoint method + URL routing.
+- **Code injection detection** — raw eval()/exec() detection via arithmetic probes (catches Python eval, Node vm, Ruby eval) alongside template-engine SSTI.
+- **XXE with body replacement** — for XML-accepting endpoints, sends the full DOCTYPE + entity declaration as the request body with the correct element name from the API schema.
+- **Parallel detector pipeline** — configurable param concurrency (default 10) and per-param detector concurrency (default 3). Spec-discovered params run before generic built-in headers.
 - **Stored XSS** — full inject → crawl → match → confirm workflow
 - **Native SAST** — `assay sast ./src` for secret scanning, dependency CVEs (OSV.dev), and config security
 - **Form auto-submission** — smart crawl discovers pages behind form gates (`--submit-forms`)
+- **Auto template discovery** — loads `~/nuclei-templates` + `~/.local/share/assay/custom-nuclei-templates/templates` by default. Override with `--templates` or `ASSAY_TEMPLATES` env.
 - **Nuclei template parity** — 20 headless actions, file / workflow / code templates, unsafe-raw (smuggling), pipeline (HTTP/2 desync), interactsh OOB polling
 - **AI finding triage** — Haruspex adjudication scores each finding's "real vs noise" probability
 - **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`, `xp_cmdshell`) require `--risk 3`
+- **Incremental results** — findings flush to disk after each scan phase, so early results survive if a later phase times out
 - **Authenticated API server** — `assay serve` with bearer-token auth, SSRF protection, concurrent scan limits
 
 ---

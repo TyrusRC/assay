@@ -186,8 +186,12 @@ func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {
 			fmt.Fprintf(w, "  %s\n", strings.TrimPrefix(f.Name, "Enable"))
 		}
 	}
-	if len(templateDirs) > 0 {
-		fmt.Fprintf(w, "\nTemplates: %v\n", templateDirs)
+	tplPaths := templateDirs
+	if len(tplPaths) == 0 {
+		tplPaths = discoverTemplatePaths()
+	}
+	if len(tplPaths) > 0 {
+		fmt.Fprintf(w, "\nTemplates: %v\n", tplPaths)
 	}
 	if loginURL != "" {
 		fmt.Fprintf(w, "\nLogin: %s (user: %s)\n", loginURL, loginUser)
@@ -301,6 +305,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 		sessionCookies = mergeCookies(cookies, got)
 		if verbose {
 			fmt.Fprintln(os.Stderr, "[*] Authenticated: scanning with captured session")
+		}
+	}
+
+	// When a proxy is set but --insecure was not explicitly passed, auto-enable
+	// TLS skip. The proxy (typically Burp) terminates TLS with its own CA, so
+	// direct requests fail with x509 verification errors unless skipped.
+	if proxy != "" && !insecure {
+		insecure = true
+		if verbose {
+			fmt.Fprintf(os.Stderr, "[*] --proxy set: auto-enabling --insecure (TLS verification skipped)\n")
 		}
 	}
 

@@ -10,6 +10,60 @@ import (
 	"github.com/TyrusRC/assay/internal/payloads/ssti"
 )
 
+// detectRawEval tests for raw code injection (Python eval(), Node.js
+// vm.runInNewContext(), Ruby eval(), PHP eval()) by sending bare arithmetic
+// expressions without any template-engine wrapper. Sentinel wrapping would
+// break eval() — "st123...7*7st123..." is not valid Python — so this method
+// uses high-entropy operands (1337*7 = 9359) that are unlikely to appear in
+// baseline responses. Two out of three matching probes confirms the finding.
+func (d *Detector) detectRawEval(ctx context.Context, target, param, method string, baseline *baselineResponse) mathDetectionResult {
+	result := mathDetectionResult{engine: ssti.EngineUnknown}
+
+	type evalProbe struct {
+		payload  string
+		expected string
+	}
+	probes := []evalProbe{
+		{"1337*7", "9359"},
+		{"1337+7", "1344"},
+		{"1337-3", "1334"},
+	}
+
+	hits := 0
+	var firstPayload, firstResult string
+	for _, p := range probes {
+		select {
+		case <-ctx.Done():
+			return result
+		default:
+		}
+
+		if strings.Contains(baseline.body, p.expected) {
+			continue
+		}
+
+		resp, err := d.client.SendPayload(ctx, target, param, p.payload, method)
+		if err != nil || resp == nil {
+			continue
+		}
+		if strings.Contains(resp.Body, p.expected) {
+			hits++
+			if firstPayload == "" {
+				firstPayload = p.payload
+				firstResult = p.expected
+			}
+		}
+	}
+
+	if hits >= 2 {
+		result.detected = true
+		result.expression = firstPayload
+		result.result = firstResult
+		result.confidence = 0.90
+	}
+	return result
+}
+
 // detectMathExpression tests for SSTI using mathematical expressions.
 // Each probe wraps its math expression with a unique alphanumeric sentinel
 // (e.g. "st42..."). A response containing `st42...49st42...` is strong

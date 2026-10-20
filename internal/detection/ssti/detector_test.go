@@ -2585,3 +2585,174 @@ func TestDetector_Detect_NoMaxPayloads(t *testing.T) {
 		t.Error("should have tested payloads when MaxPayloads is 0")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Raw eval() detection tests
+// ---------------------------------------------------------------------------
+
+// TestDetector_detectRawEval_PythonEval simulates a Python eval() endpoint
+// that evaluates bare arithmetic and returns the result in the response.
+func TestDetector_detectRawEval_PythonEval(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		// Simulate Python eval(): bare arithmetic returns the result
+		switch payload {
+		case "1337*7":
+			return `{"result": 9359}`
+		case "1337+7":
+			return `{"result": 1344}`
+		case "1337-3":
+			return `{"result": 1334}`
+		}
+		return `{"result": "unknown"}`
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+	ctx := context.Background()
+
+	baseline := &baselineResponse{body: `{"result": "unknown"}`, statusCode: 200}
+	result := detector.detectRawEval(ctx, ts.URL+"?input=test", "input", "GET", baseline)
+
+	if !result.detected {
+		t.Fatal("detectRawEval should detect Python eval()")
+	}
+	if result.confidence < 0.90 {
+		t.Errorf("confidence = %v, want >= 0.90", result.confidence)
+	}
+	if result.expression == "" {
+		t.Error("expression should not be empty")
+	}
+}
+
+// TestDetector_detectRawEval_NotVulnerable verifies that a safe server
+// (echoes payload verbatim, no evaluation) is NOT flagged.
+func TestDetector_detectRawEval_NotVulnerable(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		return "you searched for: " + payload
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+	ctx := context.Background()
+
+	baseline := &baselineResponse{body: "you searched for: baseline", statusCode: 200}
+	result := detector.detectRawEval(ctx, ts.URL+"?input=test", "input", "GET", baseline)
+
+	if result.detected {
+		t.Error("detectRawEval should NOT detect on a safe echo server")
+	}
+}
+
+// TestDetector_detectRawEval_BaselineContainsResult verifies that when the
+// baseline response already contains the expected result, that probe is
+// skipped to avoid false positives.
+func TestDetector_detectRawEval_BaselineContainsResult(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		// Always return a page that happens to contain 9359 and 1344
+		return "page with numbers 9359 and 1344 and other stuff"
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+	ctx := context.Background()
+
+	baseline := &baselineResponse{
+		body:       "page with numbers 9359 and 1344 and other stuff",
+		statusCode: 200,
+	}
+	result := detector.detectRawEval(ctx, ts.URL+"?input=test", "input", "GET", baseline)
+
+	if result.detected {
+		t.Error("detectRawEval should NOT detect when baseline contains expected results")
+	}
+}
+
+// TestDetector_detectRawEval_OnlyOneHit verifies that a single matching
+// probe (< 2) is NOT enough to confirm — requires 2 of 3.
+func TestDetector_detectRawEval_OnlyOneHit(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		if payload == "1337*7" {
+			return "result: 9359"
+		}
+		return "error"
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+	ctx := context.Background()
+
+	baseline := &baselineResponse{body: "error", statusCode: 200}
+	result := detector.detectRawEval(ctx, ts.URL+"?input=test", "input", "GET", baseline)
+
+	if result.detected {
+		t.Error("detectRawEval should NOT confirm with only 1 of 3 probes matching")
+	}
+}
+
+// TestDetector_detectRawEval_ContextCancelled verifies context cancellation.
+func TestDetector_detectRawEval_ContextCancelled(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		return "9359 1344 1334"
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	baseline := &baselineResponse{body: "clean", statusCode: 200}
+	result := detector.detectRawEval(ctx, ts.URL+"?input=test", "input", "GET", baseline)
+
+	if result.detected {
+		t.Error("detectRawEval should not detect when context is cancelled")
+	}
+}
+
+// TestDetector_Detect_FullFlow_RawEval tests the complete Detect() flow
+// when the server is vulnerable to raw eval() code injection.
+func TestDetector_Detect_FullFlow_RawEval(t *testing.T) {
+	ts := newMockServer(func(payload string) string {
+		switch payload {
+		case "1337*7":
+			return "9359"
+		case "1337+7":
+			return "1344"
+		case "1337-3":
+			return "1334"
+		}
+		return "safe"
+	})
+	defer ts.Close()
+
+	client := http.NewClient()
+	detector := New(client)
+	ctx := context.Background()
+
+	opts := DetectOptions{
+		MaxPayloads:      10,
+		IncludeWAFBypass: false,
+		Timeout:          5 * time.Second,
+		TestAllEngines:   false,
+		IncludeRCE:       false,
+	}
+
+	result, err := detector.Detect(ctx, ts.URL+"?input=test", "input", "GET", opts)
+	if err != nil {
+		t.Fatalf("Detect() returned error: %v", err)
+	}
+	if !result.Vulnerable {
+		t.Error("Detect() should report vulnerable for raw eval() code injection")
+	}
+	if len(result.Findings) == 0 {
+		t.Fatal("Detect() should have at least one finding")
+	}
+	if !strings.Contains(result.Findings[0].Description, "Code Injection") {
+		t.Errorf("finding description = %q, want to contain 'Code Injection'", result.Findings[0].Description)
+	}
+}

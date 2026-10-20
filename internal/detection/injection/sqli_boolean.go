@@ -31,9 +31,13 @@ var booleanPayloadPairs = []booleanPayloadPair{
 	{"single-quote", "' AND '1'='1", "' AND '1'='2"},
 	{"single-quote-or", "' OR '1'='1", "' OR '1'='2"},
 	{"single-quote-comment", "' AND '1'='1' --", "' AND '1'='2' --"},
+	{"single-quote-or-comment", "' OR '1'='1' --", "' OR '1'='2' --"},
 	{"double-quote", "\" AND \"1\"=\"1", "\" AND \"1\"=\"2"},
+	{"double-quote-or-comment", "\" OR \"1\"=\"1\" --", "\" OR \"1\"=\"2\" --"},
 	{"numeric", " AND 1=1", " AND 1=2"},
 	{"numeric-or", " OR 1=1", " OR 1=2"},
+	{"numeric-comment", " AND 1=1 --", " AND 1=2 --"},
+	{"numeric-or-comment", " OR 1=1 --", " OR 1=2 --"},
 }
 
 // DetectBoolean probes a parameter for boolean-based blind SQLi by

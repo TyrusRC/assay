@@ -76,8 +76,12 @@ func registerTools(s *scanner.Scanner) {
 		nucleiTool := nuclei.New()
 		if nucleiTool.IsAvailable() {
 			opts := nucleiTool.DefaultOptions()
-			if len(templateDirs) > 0 {
-				opts.TemplatePaths = templateDirs
+			tplPaths := templateDirs
+			if len(tplPaths) == 0 {
+				tplPaths = discoverTemplatePaths()
+			}
+			if len(tplPaths) > 0 {
+				opts.TemplatePaths = tplPaths
 			}
 			if nucleiTags != "" {
 				opts.Tags = splitCSV(nucleiTags)

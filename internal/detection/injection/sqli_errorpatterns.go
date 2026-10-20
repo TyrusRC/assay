@@ -35,8 +35,11 @@ func (d *SQLiDetector) initErrorPatterns() {
 
 	d.errorPatterns[DBSQLite] = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)SQLITE_ERROR`),
+		regexp.MustCompile(`(?i)sqlite3\.OperationalError`),
 		regexp.MustCompile(`(?i)sqlite3\..*Error`),
 		regexp.MustCompile(`(?i)SQLite.*syntax`),
+		regexp.MustCompile(`(?i)unrecognized token`),
+		regexp.MustCompile(`(?i)near\s+"[^"]*":\s*syntax error`),
 	}
 }
 

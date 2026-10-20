@@ -105,7 +105,27 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		return result, fmt.Errorf("failed to establish baseline: %w", err)
 	}
 
-	// Phase 2: Mathematical expression detection
+	// Phase 1.5: Raw eval() detection — catches code injection (Python
+	// eval/exec, Node vm, Ruby eval, PHP eval) without template syntax.
+	rawEvalResult := d.detectRawEval(ctx, target, param, method, baseline)
+	if rawEvalResult.detected {
+		result.Vulnerable = true
+		result.DetectedEngine = ssti.EngineUnknown
+		result.EngineConfidence = rawEvalResult.confidence
+
+		finding := d.createFinding(target, param, ssti.Payload{
+			Value:           rawEvalResult.expression,
+			Engine:          ssti.EngineUnknown,
+			Description:     "Raw code injection (eval/exec) detected via math expression",
+			ExpectedOutput:  rawEvalResult.result,
+			DetectionMethod: ssti.MethodMath,
+		}, nil, ssti.EngineUnknown)
+		finding.Description = fmt.Sprintf("Code Injection (eval/exec) in '%s' parameter — server evaluates arithmetic expressions directly", param)
+		result.Findings = append(result.Findings, finding)
+		return result, nil
+	}
+
+	// Phase 2: Mathematical expression detection (template engines)
 	mathResult := d.detectMathExpression(ctx, target, param, method, baseline)
 	if mathResult.detected {
 		result.Vulnerable = true

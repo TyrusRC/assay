@@ -3,9 +3,15 @@ package scanner
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
 )
+
+// urlTestTimeout caps any single URL-level detector. Headless-browser
+// probes on API-only targets (no HTML to render) can block indefinitely;
+// this ensures the scan always finishes and writes results.
+const urlTestTimeout = 60 * time.Second
 
 // launchIf is sugar around InternalScanner.launch that gates on a
 // boolean before scheduling, so the URL-level orchestrator stays one
@@ -15,6 +21,20 @@ func (s *InternalScanner) launchIf(wg *sync.WaitGroup, cond bool, fn func()) {
 		return
 	}
 	s.launch(wg, fn)
+}
+
+// launchIfTimed is launchIf with a per-detector timeout. The detector
+// receives a child context that is cancelled after urlTestTimeout so
+// headless-browser probes on API-only targets cannot stall the scan.
+func (s *InternalScanner) launchIfTimed(ctx context.Context, wg *sync.WaitGroup, cond bool, fn func(context.Context)) {
+	if !cond {
+		return
+	}
+	s.launch(wg, func() {
+		tctx, cancel := context.WithTimeout(ctx, urlTestTimeout)
+		defer cancel()
+		fn(tctx)
+	})
 }
 
 // runURLLevelTests launches goroutines for URL-level tests (IDOR, CORS, and friends).
@@ -125,10 +145,12 @@ func (s *InternalScanner) launchURLAccess(ctx context.Context, wg *sync.WaitGrou
 
 // launchURLNetwork dispatches network / protocol probes: WebSocket,
 // SSE, gRPC reflection, HTTP/2 rapid-reset.
+// WS and SSE use launchIfTimed: both hold an open connection that can
+// block indefinitely on targets that don't speak the protocol.
 func (s *InternalScanner) launchURLNetwork(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string) {
 	c := s.config
-	s.launchIf(wg, c.EnableWS, func() { emit(ctx, findingsChan, s.testWS(ctx, targetURL)) })
-	s.launchIf(wg, c.EnableSSE, func() { emit(ctx, findingsChan, s.testSSE(ctx, targetURL)) })
+	s.launchIfTimed(ctx, wg, c.EnableWS, func(tctx context.Context) { emit(tctx, findingsChan, s.testWS(tctx, targetURL)) })
+	s.launchIfTimed(ctx, wg, c.EnableSSE, func(tctx context.Context) { emit(tctx, findingsChan, s.testSSE(tctx, targetURL)) })
 	s.launchIf(wg, c.EnableGRPCReflect, func() { emit(ctx, findingsChan, s.testGRPCReflect(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableH2Reset, func() { emit(ctx, findingsChan, s.testH2Reset(ctx, targetURL)) })
 	s.launchIf(wg, c.EnableH2Continue, func() { emit(ctx, findingsChan, s.testH2Continuation(ctx, targetURL)) })
@@ -138,18 +160,30 @@ func (s *InternalScanner) launchURLNetwork(ctx context.Context, wg *sync.WaitGro
 // launchURLDOM dispatches headless-browser-backed probes: storage
 // injection, DOM-XSS, client-side prototype pollution, DOM-based
 // open redirect, postMessage origin validation.
+// All use launchIfTimed: headless probes hang on API-only targets
+// (no HTML to render), so the 60s cap ensures the scan finishes.
 func (s *InternalScanner) launchURLDOM(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, targetURL string) {
 	c := s.config
-	s.launchIf(wg, c.EnableStorageInj && s.storageInjDetector != nil,
-		func() { emit(ctx, findingsChan, s.testStorageInj(ctx, targetURL)) })
-	s.launchIf(wg, c.EnableDOMXSS && s.headlessPool != nil,
-		func() { emit(ctx, findingsChan, s.testDOMXSS(ctx, targetURL)) })
-	s.launchIf(wg, c.EnableProtoPoll && s.headlessPool != nil,
-		func() { emit(ctx, findingsChan, s.testProtoPollutionDOM(ctx, targetURL)) })
-	s.launchIf(wg, c.EnableDOMRedirect && s.headlessPool != nil,
-		func() { emit(ctx, findingsChan, s.testDOMRedirect(ctx, targetURL)) })
-	s.launchIf(wg, c.EnablePostMsg && s.postMsgDetector != nil,
-		func() { emit(ctx, findingsChan, s.testPostMsg(ctx, targetURL)) })
+	s.launchIfTimed(ctx, wg, c.EnableStorageInj && s.storageInjDetector != nil,
+		func(tctx context.Context) {
+			emit(tctx, findingsChan, s.testStorageInj(tctx, targetURL))
+		})
+	s.launchIfTimed(ctx, wg, c.EnableDOMXSS && s.headlessPool != nil,
+		func(tctx context.Context) {
+			emit(tctx, findingsChan, s.testDOMXSS(tctx, targetURL))
+		})
+	s.launchIfTimed(ctx, wg, c.EnableProtoPoll && s.headlessPool != nil,
+		func(tctx context.Context) {
+			emit(tctx, findingsChan, s.testProtoPollutionDOM(tctx, targetURL))
+		})
+	s.launchIfTimed(ctx, wg, c.EnableDOMRedirect && s.headlessPool != nil,
+		func(tctx context.Context) {
+			emit(tctx, findingsChan, s.testDOMRedirect(tctx, targetURL))
+		})
+	s.launchIfTimed(ctx, wg, c.EnablePostMsg && s.postMsgDetector != nil,
+		func(tctx context.Context) {
+			emit(tctx, findingsChan, s.testPostMsg(tctx, targetURL))
+		})
 }
 
 // launchURLAPI dispatches API-surface probes: JS dependency CVE,

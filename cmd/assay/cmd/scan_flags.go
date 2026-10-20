@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/scanner"
@@ -129,6 +130,12 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	if len(templateDirs) > 0 {
 		internalConfig.EnableTemplates = true
 		internalConfig.TemplatePaths = templateDirs
+	} else {
+		// Auto-discover default nuclei + custom template directories.
+		internalConfig.TemplatePaths = discoverTemplatePaths()
+		if len(internalConfig.TemplatePaths) > 0 {
+			internalConfig.EnableTemplates = true
+		}
 	}
 	if disableOOB {
 		internalConfig.EnableOOB = false
@@ -298,4 +305,36 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 		internalConfig.NVDAPIKey = env
 	}
 	return nil
+}
+
+// discoverTemplatePaths returns template directories that exist on disk.
+// Checked in order:
+//  1. ASSAY_TEMPLATES env var (os.PathListSeparator-separated)
+//  2. ~/.local/nuclei-templates (nuclei's default store)
+//  3. ~/nuclei-templates (legacy nuclei location)
+//  4. ~/.local/share/assay/custom-nuclei-templates/templates
+//     (TyrusRC/custom-nuclei-templates clone — ships with Assay)
+func discoverTemplatePaths() []string {
+	if env := os.Getenv("ASSAY_TEMPLATES"); env != "" {
+		return filepath.SplitList(env)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	candidates := []string{
+		filepath.Join(home, ".local", "nuclei-templates"),
+		filepath.Join(home, "nuclei-templates"),
+		filepath.Join(home, ".local", "share", "assay", "custom-nuclei-templates", "templates"),
+	}
+
+	var found []string
+	for _, c := range candidates {
+		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			found = append(found, c)
+		}
+	}
+	return found
 }

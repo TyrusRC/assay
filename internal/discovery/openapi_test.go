@@ -167,6 +167,83 @@ func TestOpenAPIDiscoverer_Discover(t *testing.T) {
 				{Name: "fields", Location: core.ParamLocationQuery},
 			},
 		},
+		{
+			name:        "YAML OpenAPI spec",
+			contentType: "text/yaml",
+			body: `openapi: "3.0.1"
+info:
+  title: Test API
+paths:
+  /eval:
+    get:
+      parameters:
+      - name: s
+        in: query
+      - name: X-Auth-Token
+        in: header
+`,
+			expectedParams: []core.Parameter{
+				{Name: "s", Location: core.ParamLocationQuery},
+				{Name: "X-Auth-Token", Location: core.ParamLocationHeader},
+			},
+		},
+		{
+			name:        "requestBody properties (OpenAPI 3.x)",
+			contentType: "application/json",
+			body: `{
+				"openapi": "3.0.1",
+				"paths": {
+					"/tokens": {
+						"post": {
+							"requestBody": {
+								"content": {
+									"application/json": {
+										"schema": {
+											"properties": {
+												"username": {"type": "string"},
+												"password": {"type": "string"}
+											},
+											"type": "object"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}`,
+			expectedParams: []core.Parameter{
+				{Name: "username", Location: core.ParamLocationBody, ContentType: "application/json"},
+				{Name: "password", Location: core.ParamLocationBody, ContentType: "application/json"},
+			},
+		},
+		{
+			name:        "YAML with requestBody and parameters combined",
+			contentType: "text/yaml",
+			body: `openapi: "3.0.1"
+paths:
+  /user:
+    post:
+      parameters:
+      - name: X-Auth-Token
+        in: header
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              type: object
+`,
+			expectedParams: []core.Parameter{
+				{Name: "X-Auth-Token", Location: core.ParamLocationHeader},
+				{Name: "username", Location: core.ParamLocationBody, ContentType: "application/json"},
+				{Name: "password", Location: core.ParamLocationBody, ContentType: "application/json"},
+			},
+		},
 	}
 
 	d := NewOpenAPIDiscoverer()

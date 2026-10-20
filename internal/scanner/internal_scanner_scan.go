@@ -2,8 +2,11 @@ package scanner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -136,6 +139,16 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		}
 	}
 
+	// Prioritize spec-discovered params (SourceURL set) over generic
+	// built-in header probes. Without this, 12 built-in headers eat
+	// the first concurrency slots and body/path params from the OpenAPI
+	// spec never reach the detectors within the scan timeout.
+	sort.SliceStable(params, func(i, j int) bool {
+		iSpec := params[i].SourceURL != ""
+		jSpec := params[j].SourceURL != ""
+		return iSpec && !jSpec
+	})
+
 	// URL-level detectors (secheaders, TLS, cloud, smuggling, WS, etc.)
 	// must run regardless of how many parameters were discovered — they
 	// audit the host, not a parameter. Only the parameter-injection
@@ -164,17 +177,29 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		method = scanConfig.Method
 	}
 
-	// Drain findings concurrently to prevent channel deadlock
+	// Drain findings concurrently to prevent channel deadlock.
+	// A mutex protects the slice so mid-phase flushes can snapshot
+	// without racing the collector goroutine.
 	var collectedFindings core.Findings
+	var findingsMu sync.Mutex
 	var collectWg sync.WaitGroup
 	collectWg.Add(1)
 	go func() {
 		defer collectWg.Done()
 		for finding := range findingsChan {
+			findingsMu.Lock()
 			collectedFindings = append(collectedFindings, finding)
+			findingsMu.Unlock()
 			prog.IncrementFindings(1)
 		}
 	}()
+
+	// partialDir is where we flush intermediate results so early-phase
+	// findings survive if a later phase hangs or the process is killed.
+	partialDir := ""
+	if scanConfig != nil && scanConfig.OutputDir != "" {
+		partialDir = scanConfig.OutputDir
+	}
 
 	// Phase 1: parameter-injection tests, only when we have params to inject into.
 	if len(params) > 0 {
@@ -184,6 +209,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		s.runParameterTests(scanCtx, &wg, findingsChan, params, targetURL, method, scanClient, prog)
 		wg.Wait()
 	}
+	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
 	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
 	prog.SetPhase("url-level")
@@ -192,6 +218,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	// Wait for URL-level tests
 	wg.Wait()
+	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
 	// Phase 1.75: Template scanning (after URL-level tests, before OOB)
 	if s.config.EnableTemplates && len(s.config.TemplatePaths) > 0 {
@@ -203,6 +230,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		}
 		s.runTemplateTests(scanCtx, &wg, findingsChan, target, proxyURL, scanConfig)
 		wg.Wait()
+		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}
 
 	// Phase 1.8: Stored XSS (inject→crawl→match→confirm). Runs after injection
@@ -222,6 +250,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 			}
 		}()
 		wg.Wait()
+		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}
 
 	// Phase 2: OOB detection (after SQLi/XSS, wait for OOB client with timeout)
@@ -240,6 +269,11 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// Deduplicate findings
 	result.Findings = collectedFindings.Deduplicate()
 
+	// Remove partial-results file — the caller writes the final report.
+	if partialDir != "" {
+		os.Remove(filepath.Join(partialDir, "assay-partial.json"))
+	}
+
 	fmt.Fprintf(os.Stderr, "[+] Internal scan finished for %s — %d findings\n", targetURL, len(result.Findings))
 
 	// Surface baseline-cache effectiveness. Quiet on verbose-off when the
@@ -250,4 +284,33 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 
 	return result, nil
+}
+
+// flushPartialFindings writes the current findings snapshot to
+// <dir>/assay-partial.json. Called after each scan phase so findings
+// from earlier phases survive if a later phase hangs or the process
+// is killed. The partial file is removed on normal scan completion.
+func flushPartialFindings(mu *sync.Mutex, findings *core.Findings, dir string) {
+	if dir == "" {
+		return
+	}
+	mu.Lock()
+	n := len(*findings)
+	if n == 0 {
+		mu.Unlock()
+		return
+	}
+	snapshot := make(core.Findings, n)
+	copy(snapshot, *findings)
+	mu.Unlock()
+
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(dir, 0o755)
+	path := filepath.Join(dir, "assay-partial.json")
+	if err := os.WriteFile(path, data, 0o644); err == nil {
+		fmt.Fprintf(os.Stderr, "[*] Flushed %d partial findings to %s\n", n, path)
+	}
 }
