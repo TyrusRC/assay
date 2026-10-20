@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -91,7 +93,12 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.config.APIKey != "" {
 			auth := r.Header.Get("Authorization")
-			if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != s.config.APIKey {
+			if !strings.HasPrefix(auth, "Bearer ") {
+				writeError(w, http.StatusUnauthorized, "missing or invalid API key")
+				return
+			}
+			got := strings.TrimPrefix(auth, "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(got), []byte(s.config.APIKey)) != 1 {
 				writeError(w, http.StatusUnauthorized, "missing or invalid API key")
 				return
 			}
@@ -144,15 +151,48 @@ func (s *Server) validateTarget(raw string) error {
 		return &validationError{"cannot resolve target host"}
 	}
 	for _, ipStr := range ips {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			continue
-		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		if isBlockedIP(ipStr) {
 			return &validationError{"target resolves to a private/loopback address"}
 		}
 	}
 	return nil
+}
+
+// isBlockedIP reports whether ipStr is a loopback, private, link-local, or
+// unspecified address. IPv6-mapped IPv4 addresses (e.g. ::ffff:127.0.0.1) are
+// normalised to their IPv4 form first so they cannot bypass the check.
+func isBlockedIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return true // unparseable → block
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		ip = ip4
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
+}
+
+// SafeDialContext returns a net.Dialer.DialContext wrapper that resolves the
+// target address and blocks connections to private/loopback IPs. Use it as the
+// DialContext in an http.Transport to defend against DNS-rebinding SSRF: even
+// if a hostname resolved to a public IP at validation time, the transport-level
+// check catches a rebind to a private IP at connect time.
+func SafeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("ssrf dial: %w", err)
+	}
+	ips, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("ssrf dial: resolve %s: %w", host, err)
+	}
+	for _, ipStr := range ips {
+		if isBlockedIP(ipStr) {
+			return nil, fmt.Errorf("ssrf dial: %s resolved to blocked address %s", host, ipStr)
+		}
+	}
+	var d net.Dialer
+	return d.DialContext(ctx, network, net.JoinHostPort(ips[0], port))
 }
 
 type validationError struct{ msg string }

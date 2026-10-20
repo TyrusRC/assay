@@ -43,11 +43,17 @@ func (p *Parser) ParseFile(path string) (*templates.Template, error) {
 	return tmpl, nil
 }
 
+// maxTemplateSize limits template file reads to 10 MB.
+const maxTemplateSize = 10 << 20
+
 // Parse parses a template from a reader.
 func (p *Parser) Parse(r io.Reader) (*templates.Template, error) {
-	data, err := io.ReadAll(r)
+	data, err := io.ReadAll(io.LimitReader(r, maxTemplateSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template: %w", err)
+	}
+	if len(data) > maxTemplateSize {
+		return nil, fmt.Errorf("template exceeds maximum size of %d bytes", maxTemplateSize)
 	}
 
 	return p.ParseBytes(data)

@@ -47,6 +47,12 @@ func (r *Report) WriteMarkdown(w io.Writer) error {
 	return nil
 }
 
+// sanitizeFence prevents Markdown code-fence breakout by replacing triple
+// backtick sequences with a visually similar but non-breaking form.
+func sanitizeFence(s string) string {
+	return strings.ReplaceAll(s, "```", "` ` `")
+}
+
 // writeMarkdownFinding renders a single finding as a Markdown section.
 func writeMarkdownFinding(w io.Writer, f *core.Finding) {
 	fmt.Fprintf(w, "### %s\n\n", f.Type)
@@ -71,13 +77,13 @@ func writeMarkdownFinding(w io.Writer, f *core.Finding) {
 		fmt.Fprintf(w, "\n%s\n", f.Description)
 	}
 	if f.Evidence != "" {
-		fmt.Fprintf(w, "\n```\n%s\n```\n", f.Evidence)
+		fmt.Fprintf(w, "\n```\n%s\n```\n", sanitizeFence(f.Evidence))
 	}
 	if f.Request != "" {
-		fmt.Fprintf(w, "\n**Request:**\n\n```http\n%s\n```\n", f.Request)
+		fmt.Fprintf(w, "\n**Request:**\n\n```http\n%s\n```\n", sanitizeFence(f.Request))
 	}
 	if f.Response != "" {
-		fmt.Fprintf(w, "\n**Response:**\n\n```http\n%s\n```\n", f.Response)
+		fmt.Fprintf(w, "\n**Response:**\n\n```http\n%s\n```\n", sanitizeFence(f.Response))
 	}
 	if f.Remediation != "" {
 		fmt.Fprintf(w, "\n**Remediation:** %s\n", f.Remediation)

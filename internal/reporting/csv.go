@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+// sanitizeCSVCell prefixes values that spreadsheet applications interpret as
+// formulas (=, +, -, @, TAB, CR) with a single-quote to prevent CSV injection.
+func sanitizeCSVCell(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	}
+	return s
+}
+
 // WriteCSV writes the findings as CSV, one row per finding.
 func (r *Report) WriteCSV(w io.Writer) error {
 	cw := csv.NewWriter(w)
@@ -19,18 +32,18 @@ func (r *Report) WriteCSV(w io.Writer) error {
 	}
 	for _, f := range r.ScanResult.Findings {
 		row := []string{
-			f.ID,
-			f.Type,
-			string(f.Severity),
-			string(f.Confidence),
+			sanitizeCSVCell(f.ID),
+			sanitizeCSVCell(f.Type),
+			sanitizeCSVCell(string(f.Severity)),
+			sanitizeCSVCell(string(f.Confidence)),
 			strconv.FormatFloat(f.CVSS, 'f', 1, 64),
-			f.CVSSVector,
-			f.URL,
-			f.Parameter,
-			strings.Join(f.CWE, ";"),
-			strings.Join(f.Top10, ";"),
-			strings.Join(f.WSTG, ";"),
-			f.Tool,
+			sanitizeCSVCell(f.CVSSVector),
+			sanitizeCSVCell(f.URL),
+			sanitizeCSVCell(f.Parameter),
+			sanitizeCSVCell(strings.Join(f.CWE, ";")),
+			sanitizeCSVCell(strings.Join(f.Top10, ";")),
+			sanitizeCSVCell(strings.Join(f.WSTG, ";")),
+			sanitizeCSVCell(f.Tool),
 		}
 		if err := cw.Write(row); err != nil {
 			return err

@@ -142,11 +142,7 @@ func (r *Report) WriteHTML(w io.Writer) error {
 		data.OWASP = append(data.OWASP, htmlOWASP{Code: code, Count: n})
 	}
 
-	tmpl, err := template.New("report").Parse(htmlTemplate)
-	if err != nil {
-		return err
-	}
-	return tmpl.Execute(w, data)
+	return htmlTmpl.Execute(w, data)
 }
 
 const htmlTemplate = `<!DOCTYPE html>
@@ -217,3 +213,5 @@ details{margin-top:8px}summary{cursor:pointer;font-size:13px;color:#11243b}
 </main>
 </body>
 </html>`
+
+var htmlTmpl = template.Must(template.New("report").Parse(htmlTemplate))
