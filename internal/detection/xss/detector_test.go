@@ -225,8 +225,8 @@ func TestDetector_isInsideTag(t *testing.T) {
 		{"case insensitive open", `<SCRIPT>var x = 1;</script>`, "script", true},
 		{"case insensitive close", `<script>var x = 1;</SCRIPT>`, "script", true},
 		{"script with attributes", `<script type="text/javascript">var x;</script>`, "script", true},
-		{"open before close", `<script>...</script><script>`, "script", true},
-		{"close before open", `</script>text<script>code`, "script", true},
+		{"open before close", `<script>...</script><script>`, "script", false},
+		{"close before open", `</script>text<script>code`, "script", false},
 	}
 
 	for _, tt := range tests {

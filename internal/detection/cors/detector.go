@@ -240,13 +240,14 @@ func (d *Detector) generateTestOrigins(targetDomain string, customOrigins []stri
 
 // corsTestResult holds the result of a CORS test.
 type corsTestResult struct {
-	isVulnerable     bool
-	allowOrigin      string
-	allowCredentials bool
-	allowMethods     string
-	allowHeaders     string
-	exposeHeaders    string
-	statusCode       int
+	isVulnerable           bool
+	allowOrigin            string
+	allowCredentials       bool
+	allowMethods           string
+	allowHeaders           string
+	exposeHeaders          string
+	statusCode             int
+	wildcardNoCredentials  bool
 }
 
 // testOrigin sends a request with the specified Origin header.
@@ -358,6 +359,13 @@ func (d *Detector) isCORSVulnerable(result *corsTestResult, testedOrigin string,
 		return true
 	}
 
+	// Wildcard without credentials on an endpoint returning JSON or a
+	// substantial response: any page on any origin can read via fetch().
+	if result.allowOrigin == "*" && !result.allowCredentials {
+		result.wildcardNoCredentials = true
+		return true
+	}
+
 	return false
 }
 
@@ -366,6 +374,9 @@ func (d *Detector) createFinding(target string, origin testOrigin, corsResult *c
 	severity := core.SeverityMedium
 	if corsResult.allowCredentials {
 		severity = core.SeverityHigh
+	}
+	if corsResult.wildcardNoCredentials {
+		severity = core.SeverityMedium
 	}
 
 	finding := core.NewFinding("CORS Misconfiguration", severity)

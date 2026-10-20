@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -171,17 +170,6 @@ func extractTokenCookies(resp *assayhttp.Response) map[string]string {
 				continue
 			}
 			out[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
-		}
-	}
-	// Fallback: Some HTTP clients normalise Set-Cookie via a Cookies
-	// helper. We don't have one here; the Header-walk above is enough
-	// for the test fixtures. For the live path, the *http.Response
-	// embedded Cookies are also worth scanning when available.
-	if hr, ok := any(resp).(*http.Response); ok {
-		for _, c := range hr.Cookies() {
-			if _, set := out[c.Name]; !set {
-				out[c.Name] = c.Value
-			}
 		}
 	}
 	return out

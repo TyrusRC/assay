@@ -169,7 +169,7 @@ func (d *Detector) isVulnerable(resp, baseline *http.Response, payload crlf.Payl
 
 	// Check for response splitting (double CRLF)
 	if payload.InjectionType == crlf.InjectionResponseSplit {
-		if d.hasResponseSplitIndicators(resp) {
+		if d.hasResponseSplitIndicators(resp, baseline) {
 			return true
 		}
 	}
@@ -280,9 +280,11 @@ func (d *Detector) getCookieHeaders(resp *http.Response) []string {
 	return cookies
 }
 
-// hasResponseSplitIndicators checks for HTTP response splitting.
-func (d *Detector) hasResponseSplitIndicators(resp *http.Response) bool {
-	// Check for HTML/script content in unexpected places
+// hasResponseSplitIndicators checks for HTTP response splitting, gated
+// against the baseline to avoid false positives on pages that naturally
+// contain these strings (e.g. HTML error pages on non-HTML endpoints,
+// documentation mentioning HTTP versions).
+func (d *Detector) hasResponseSplitIndicators(resp *http.Response, baseline *http.Response) bool {
 	indicators := []string{
 		"<html>",
 		"<body>",
@@ -292,9 +294,14 @@ func (d *Detector) hasResponseSplitIndicators(resp *http.Response) bool {
 	}
 
 	bodyLower := strings.ToLower(resp.Body)
+	baselineLower := ""
+	if baseline != nil {
+		baselineLower = strings.ToLower(baseline.Body)
+	}
+
 	for _, indicator := range indicators {
-		if strings.Contains(bodyLower, strings.ToLower(indicator)) {
-			// Check if this is expected content type
+		indicatorLower := strings.ToLower(indicator)
+		if strings.Contains(bodyLower, indicatorLower) && !strings.Contains(baselineLower, indicatorLower) {
 			contentType := resp.ContentType
 			if !strings.Contains(contentType, "html") {
 				return true
@@ -302,9 +309,11 @@ func (d *Detector) hasResponseSplitIndicators(resp *http.Response) bool {
 		}
 	}
 
-	// Check for double HTTP responses (response splitting)
-	if strings.Contains(resp.Body, "HTTP/1.") || strings.Contains(resp.Body, "HTTP/2") {
-		return true
+	// Check for double HTTP responses (response splitting), also baseline-gated
+	for _, proto := range []string{"HTTP/1.", "HTTP/2"} {
+		if strings.Contains(resp.Body, proto) && (baseline == nil || !strings.Contains(baseline.Body, proto)) {
+			return true
+		}
 	}
 
 	return false

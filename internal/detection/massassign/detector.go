@@ -88,8 +88,10 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		method = "POST"
 	}
 
-	// Get baseline response with legitimate data
-	baselineBody := `{"name": "testuser", "email": "test@example.com"}`
+	// Discover the endpoint's expected schema from a GET, so we don't
+	// send a hardcoded body that the endpoint may reject outright. Fall
+	// back to a generic body when GET doesn't return usable JSON.
+	baselineBody := d.discoverBaseline(ctx, target)
 	baselineResp, err := d.client.SendRawBody(ctx, target, method, baselineBody, "application/json")
 	if err != nil {
 		return result, fmt.Errorf("failed to get baseline: %w", err)
@@ -131,6 +133,27 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 	}
 
 	return result, nil
+}
+
+// discoverBaseline GETs the endpoint and, if the response is a JSON object,
+// returns it as a baseline body for POST/PUT testing. If the GET fails or does
+// not return JSON, a generic body is used — this limits accuracy on endpoints
+// that expect specific fields, but is the best available heuristic.
+func (d *Detector) discoverBaseline(ctx context.Context, target string) string {
+	const fallback = `{"name": "testuser", "email": "test@example.com"}`
+	resp, err := d.client.Get(ctx, target)
+	if err != nil || resp == nil || resp.Body == "" {
+		return fallback
+	}
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(resp.Body), &obj); err != nil || len(obj) == 0 {
+		return fallback
+	}
+	// Re-serialize the discovered schema (keeps only the top-level keys).
+	if b, err := json.Marshal(obj); err == nil {
+		return string(b)
+	}
+	return fallback
 }
 
 // hasFieldReflection checks if injected extra fields appear in the response.

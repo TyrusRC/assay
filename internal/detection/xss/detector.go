@@ -3,6 +3,7 @@ package xss
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -228,22 +229,41 @@ var (
 )
 
 func (d *Detector) isInsideTag(ctx, tag string) bool {
-	var openTag *regexp.Regexp
+	var openRe, closeRe *regexp.Regexp
 	switch tag {
 	case "script":
-		openTag = scriptOpenRe
+		openRe, closeRe = scriptOpenRe, scriptCloseRe
 	case "style":
-		openTag = styleOpenRe
+		openRe, closeRe = styleOpenRe, styleCloseRe
 	default:
-		openTag = regexp.MustCompile(`(?i)<` + tag + `[^>]*>`)
+		openRe = regexp.MustCompile(`(?i)<` + tag + `[^>]*>`)
+		closeRe = regexp.MustCompile(`(?i)</` + tag + `>`)
 	}
-	// `ctx` is a 400-char window around the reflection point; we're
-	// asking "is there any chance the reflection lies inside a <tag>...".
-	// The presence of an opening tag in that window is the right signal:
-	// a matched pair means we entered the scope; an unclosed open later
-	// in the window means we're still in it. A bare closing tag (without
-	// any open) cannot place the reflection inside the tag.
-	return openTag.MatchString(ctx)
+	// Walk through the context tracking open/close state. The probe sits
+	// at the midpoint. We want to know whether the midpoint falls inside
+	// an open tag scope (after an opener with no subsequent closer).
+	mid := len(ctx) / 2
+	opens := openRe.FindAllStringIndex(ctx, -1)
+	closes := closeRe.FindAllStringIndex(ctx, -1)
+
+	// Find the last opening tag that STARTS before the midpoint.
+	lastOpenEnd := -1
+	for i := len(opens) - 1; i >= 0; i-- {
+		if opens[i][0] < mid {
+			lastOpenEnd = opens[i][1]
+			break
+		}
+	}
+	if lastOpenEnd < 0 {
+		return false
+	}
+	// Check whether any close tag starts between lastOpenEnd and mid.
+	for _, c := range closes {
+		if c[0] >= lastOpenEnd && c[0] < mid {
+			return false
+		}
+	}
+	return true
 }
 
 // isInsideAttribute checks if position is inside an HTML attribute.
@@ -295,7 +315,31 @@ func (d *Detector) isPayloadReflected(body string, payload xss.Payload) bool {
 		return true
 	}
 
+	// Check for URL-decoded reflection
+	if urlDecoded, err := url.QueryUnescape(body); err == nil && urlDecoded != body {
+		if strings.Contains(urlDecoded, payload.Value) {
+			return true
+		}
+	}
+
+	// Check for JS-escaped reflection (\x3c → <, < → <, etc.)
+	jsUnescaped := jsUnescape(body)
+	if jsUnescaped != body && strings.Contains(jsUnescaped, payload.Value) {
+		return true
+	}
+
 	return false
+}
+
+// jsUnescape replaces common JS escape sequences with their literal characters.
+func jsUnescape(s string) string {
+	r := strings.NewReplacer(
+		`\x3c`, "<", `\x3e`, ">", `\x22`, `"`, `\x27`, "'", `\x26`, "&",
+		`\x3C`, "<", `\x3E`, ">",
+		`<`, "<", `>`, ">", `"`, `"`, `'`, "'", `&`, "&",
+		`<`, "<", `>`, ">",
+	)
+	return r.Replace(s)
 }
 
 // htmlDecode performs basic HTML entity decoding.

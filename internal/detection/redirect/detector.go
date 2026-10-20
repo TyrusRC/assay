@@ -163,8 +163,8 @@ func (d *Detector) DetectParams(ctx context.Context, target, method string) ([]s
 		return foundParams, fmt.Errorf("failed to get baseline: %w", err)
 	}
 
-	// Create a non-redirect-following client
-	nonRedirectClient := d.client.WithFollowRedirects(false)
+	// Clone before mutating to avoid changing the shared client.
+	nonRedirectClient := d.client.Clone().WithFollowRedirects(false)
 
 	// Test each common redirect parameter
 	for _, param := range redirect.RedirectParams() {

@@ -620,7 +620,7 @@ func TestHasFileContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := d.hasFileContent(tt.content)
+			result := d.hasFileContent(tt.content, "")
 			if result != tt.expected {
 				t.Errorf("hasFileContent(%q) = %v, want %v", tt.content, result, tt.expected)
 			}

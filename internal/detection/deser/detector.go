@@ -184,9 +184,12 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		// Check for error-based detection
+		// Check for error-based detection, gated on baseline to avoid
+		// false positives on pages that naturally mention deserialization
+		// error strings (e.g. documentation, stack traces in debug mode).
 		analysis := d.AnalyzeResponse(resp.Body)
-		if analysis.IsVulnerable {
+		baselineAnalysis := d.AnalyzeResponse(baselineResp.Body)
+		if analysis.IsVulnerable && !baselineAnalysis.IsVulnerable {
 			finding := d.createFinding(target, param, payload, resp, analysis.DetectionType)
 			finding.Evidence = analysis.Evidence
 			result.Findings = append(result.Findings, finding)
@@ -196,8 +199,7 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 
 		// Check for status code change indicating processing of serialized data
 		if d.hasStatusCodeChange(baselineStatus, resp.StatusCode) {
-			analysis := d.AnalyzeResponse(resp.Body)
-			if analysis.IsVulnerable {
+			if analysis.IsVulnerable && !baselineAnalysis.IsVulnerable {
 				finding := d.createFinding(target, param, payload, resp, "status-code-differential")
 				finding.Evidence = fmt.Sprintf("Status code changed from %d to %d. %s",
 					baselineStatus, resp.StatusCode, analysis.Evidence)

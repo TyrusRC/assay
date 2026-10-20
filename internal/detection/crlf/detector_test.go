@@ -419,7 +419,7 @@ func TestDetector_hasResponseSplitIndicators(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := detector.hasResponseSplitIndicators(tt.resp)
+			result := detector.hasResponseSplitIndicators(tt.resp, nil)
 			if result != tt.expected {
 				t.Errorf("hasResponseSplitIndicators() = %v, want %v", result, tt.expected)
 			}

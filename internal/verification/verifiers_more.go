@@ -2,6 +2,8 @@ package verification
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"net/url"
 	"strings"
 
@@ -10,35 +12,33 @@ import (
 )
 
 // sstiVerifier confirms server-side template injection by injecting an
-// arithmetic expression with distinctive operands and checking that the product
+// arithmetic expression with randomized operands and checking that the product
 // appears in the response while the literal expression does not — proof the
 // template engine evaluated it rather than merely reflecting it.
 type sstiVerifier struct{}
-
-// 7331 * 7 = 51317 — operands chosen to be unlikely to occur by coincidence.
-const (
-	sstiExpr    = "7331*7"
-	sstiProduct = "51317"
-)
 
 func (sstiVerifier) Verify(ctx context.Context, f *core.Finding, client *httpx.Client) (*Proof, error) {
 	if f.Parameter == "" {
 		return nil, nil
 	}
+	a := 100 + rand.Intn(899)
+	b := 100 + rand.Intn(899)
+	expr := fmt.Sprintf("%d*%d", a, b)
+	product := fmt.Sprintf("%d", a*b)
 	payloads := []string{
-		"{{" + sstiExpr + "}}", "${" + sstiExpr + "}", "#{" + sstiExpr + "}",
-		"<%= " + sstiExpr + " %>", "{" + sstiExpr + "}", "*{" + sstiExpr + "}",
+		"{{" + expr + "}}", "${" + expr + "}", "#{" + expr + "}",
+		"<%= " + expr + " %>", "{" + expr + "}", "*{" + expr + "}",
 	}
 	for _, p := range payloads {
 		resp, err := client.SendPayload(ctx, f.URL, f.Parameter, p, requestMethod(f))
 		if err != nil || resp == nil {
 			continue
 		}
-		if strings.Contains(resp.Body, sstiProduct) && !strings.Contains(resp.Body, sstiExpr) {
+		if strings.Contains(resp.Body, product) && !strings.Contains(resp.Body, expr) {
 			return &Proof{
 				Confirmed: true,
 				Method:    "template-evaluation",
-				Detail:    "injected " + p + " evaluated to " + sstiProduct + " in the response",
+				Detail:    "injected " + p + " evaluated to " + product + " in the response",
 			}, nil
 		}
 	}

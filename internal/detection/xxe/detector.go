@@ -289,8 +289,8 @@ func (d *Detector) checkXXESuccess(resp, baseline *http.Response, payload xxe.Pa
 	if baseline != nil {
 		// Response much different from baseline might indicate XXE
 		if d.significantlyDifferent(body, baseline.Body) {
-			// Additional check: look for any file-like content
-			if d.hasFileContent(body) {
+			// Additional check: look for file-like content absent in baseline
+			if d.hasFileContent(body, baseline.Body) {
 				return true, ""
 			}
 		}
@@ -322,8 +322,9 @@ func (d *Detector) significantlyDifferent(body1, body2 string) bool {
 	return false
 }
 
-// hasFileContent checks if the response contains file-like content.
-func (d *Detector) hasFileContent(body string) bool {
+// hasFileContent checks if the response contains file-like content that
+// is NOT already present in the baseline response.
+func (d *Detector) hasFileContent(body, baselineBody string) bool {
 	fileIndicators := []string{
 		"root:", "daemon:", "nobody:",
 		"127.0.0.1", "localhost",
@@ -333,7 +334,7 @@ func (d *Detector) hasFileContent(body string) bool {
 	}
 
 	for _, indicator := range fileIndicators {
-		if strings.Contains(body, indicator) {
+		if strings.Contains(body, indicator) && !strings.Contains(baselineBody, indicator) {
 			return true
 		}
 	}
