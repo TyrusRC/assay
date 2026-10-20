@@ -294,7 +294,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableDepConfusion:    true,
 		EnableTokenEntropy:    true,
 		EnableCacheDeception:  true,
-		EnableCachePoisoning:  true,
+		EnableCachePoisoning:  false, // off by default — injects headers into shared caches; can poison real user traffic on production CDNs
 		EnableCSSInj:          true,
 		EnableDeser:           true,
 		EnableDOMClobber:      true,
@@ -331,7 +331,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		EnableJavaReflect:     true, // ConfirmedJavaOnly gates RCE payloads behind a Java fingerprint
 		EnableNodeJSInject:    true, // ConfirmedNodeOnly gates RCE payloads; supports time-blind sleep
 		EnableArgInject:       true, // per-binary error patterns confirm flag landed in argv
-		EnableFileOps:         true, // matches FS error patterns referencing the traversed path
+		EnableFileOps:         false, // off by default — sends file create/delete/tamper payloads that can modify files on vulnerable targets
 		EnableRSCInject:       true, // gated on RSC fingerprint; auto no-op on non-Next.js targets
 		EnableWebAuthn:        true, // probes the curated CommonEndpoints wordlist (cheap; auto no-op on hosts without /webauthn or /api/passkey)
 		EnableHTTP3Desync:     true, // single passive HEAD; auto no-op on hosts without Alt-Svc
@@ -361,6 +361,7 @@ func DefaultInternalConfig() *InternalScanConfig {
 		IncludeWAFBypass:      true,
 		RequestTimeout:        10 * time.Second,
 		OOBPollTimeout:        10 * time.Second,
+		RateLimitPerSec:       20, // safe default; --rate overrides
 		Verbose:               false,
 	}
 }

@@ -388,10 +388,25 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		httpReq.Header.Set("Cookie", cookie)
 	}
 
-	// Execute request
+	// Execute request with one retry on transient failures.
 	httpResp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	if err != nil || (httpResp != nil && httpResp.StatusCode >= 502 && httpResp.StatusCode <= 504) {
+		if httpResp != nil {
+			httpResp.Body.Close()
+		}
+		time.Sleep(1 * time.Second)
+		httpReq2, cloneErr := http.NewRequestWithContext(ctx, httpReq.Method, httpReq.URL.String(), strings.NewReader(req.Body))
+		if cloneErr == nil {
+			for k, vals := range httpReq.Header {
+				for _, v := range vals {
+					httpReq2.Header.Add(k, v)
+				}
+			}
+			httpResp, err = c.httpClient.Do(httpReq2)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("request failed: %w", err)
+		}
 	}
 	defer httpResp.Body.Close()
 

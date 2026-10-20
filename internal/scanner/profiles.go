@@ -31,8 +31,9 @@ func QuickProfile() *Profile {
 	config.EnableSolrInject = false
 	config.EnablePHPInject = false
 	config.EnableESI = false
-	config.EnableRSCInject = false // posts Server-Action bodies; skip for quick
-	config.EnableCSPT = false      // fetches linked scripts; skip for quick
+	config.EnableRSCInject = false  // posts Server-Action bodies; skip for quick
+	config.EnableCSPT = false       // fetches linked scripts; skip for quick
+	config.RateLimitPerSec = 10     // conservative for quick scans
 	return &Profile{Name: "quick", Description: "Fast scan with reduced payloads and heavy per-param runners disabled", Config: config}
 }
 
@@ -53,6 +54,9 @@ func ThoroughProfile() *Profile {
 	config.EnableLongPwdDoS = true
 	config.EnableStoredXSS = true
 	config.VHostMaxRequests = 500
+	config.RateLimitPerSec = 50     // higher for engagement-class scans; --rate overrides
+	config.EnableCachePoisoning = true  // opt-in for thorough
+	config.EnableFileOps = true         // opt-in for thorough
 	return &Profile{Name: "thorough", Description: "Comprehensive scan with all detectors and recon stages enabled", Config: config}
 }
 
