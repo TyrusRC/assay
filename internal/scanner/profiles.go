@@ -21,9 +21,9 @@ func QuickProfile() *Profile {
 	config.EnableOOB = false
 	config.IncludeWAFBypass = false
 	config.EnableRaceCond = false
-	// Prune the heavier per-param-injection stages added in this series.
-	// Their passive equivalents (wafdetect / xfs / samesitescript / iistilde
-	// / secheaders / exposure) stay on — they share the baseline GET budget.
+	config.EnableTimeBasedSQLi = false
+
+	// Disable heavy per-param injection runners.
 	config.EnableNodeJSInject = false
 	config.EnableJavaReflect = false
 	config.EnableFileOps = false
@@ -31,11 +31,43 @@ func QuickProfile() *Profile {
 	config.EnableSolrInject = false
 	config.EnablePHPInject = false
 	config.EnableESI = false
-	config.EnableRSCInject = false      // posts Server-Action bodies; skip for quick
-	config.EnableCSPT = false           // fetches linked scripts; skip for quick
-	config.EnableTimeBasedSQLi = false  // 3s+ per probe per param; skip for quick
-	config.RateLimitPerSec = 10         // conservative for quick scans
-	return &Profile{Name: "quick", Description: "Fast scan with reduced payloads and heavy per-param runners disabled", Config: config}
+	config.EnableRSCInject = false
+	config.EnableCSPT = false
+
+	// Disable heavy URL-level probes that add 10-60s each.
+	config.EnableDOMXSS = false
+	config.EnableProtoPoll = false
+	config.EnableDOMRedirect = false
+	config.EnableStorageInj = false
+	config.EnablePostMsg = false
+	config.EnableHTTP2Advanced = false
+	config.EnableHTTP2Desync = false
+	config.EnableHTTP3Desync = false
+	config.EnableH2Reset = false
+	config.EnableH2Continue = false
+	config.EnableH2MadeReset = false
+	config.EnableGraphQLAdvanced = false
+	config.EnableGraphQLDoS = false
+	config.EnableHTTP2Race = false
+	config.EnableCacheDeception = false
+	config.EnableCacheKey = false
+	config.EnableSecondOrder = false
+	config.EnableXSLeaks = false
+	config.EnableSAMLInj = false
+	config.EnableDepConfusion = false
+	config.EnableDNSRebinding = false
+	config.EnableSessionLifecycle = false
+	config.EnableSessionFixation = false
+	config.EnableOAuthFlow = false
+	config.EnableOpenAPISemantic = false
+	config.EnablePaddingOracle = false
+	config.EnableMFABypass = false
+	config.EnableTimingEnum = false
+	config.EnablePasswordReset = false
+	config.EnableLongPwdDoS = false
+
+	config.RateLimitPerSec = 20
+	return &Profile{Name: "quick", Description: "Fast scan — parameter injection + essential URL-level checks only", Config: config}
 }
 
 // ThoroughProfile returns an aggressive scan profile.
