@@ -83,7 +83,8 @@ func (e *Executor) executeHTTP(ctx context.Context, tmpl *templates.Template, ht
 			interpolatedPath := e.interpolate(path, vars)
 			requestURL := e.buildURL(targetURL, interpolatedPath)
 
-			result := e.executeRequest(ctx, client, tmpl, httpReq, requestURL, httpReq.Method, httpReq.Body, vars)
+			body := e.interpolate(httpReq.Body, vars)
+			result := e.executeRequest(ctx, client, tmpl, httpReq, requestURL, httpReq.Method, body, vars)
 			results = append(results, result)
 			e.mergeExtractedIntoVars(result, vars)
 
@@ -139,7 +140,8 @@ func (e *Executor) executeHTTPRace(ctx context.Context, tmpl *templates.Template
 			}
 			go func(url string, gv map[string]interface{}) {
 				defer wg.Done()
-				result := e.executeRequest(ctx, client, tmpl, httpReq, url, httpReq.Method, httpReq.Body, gv)
+				body := e.interpolate(httpReq.Body, gv)
+				result := e.executeRequest(ctx, client, tmpl, httpReq, url, httpReq.Method, body, gv)
 				mu.Lock()
 				results = append(results, result)
 				mu.Unlock()

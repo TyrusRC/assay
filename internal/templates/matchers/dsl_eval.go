@@ -106,6 +106,40 @@ func (e *DSLEngine) evaluateComparison(expr string, ctx map[string]interface{}) 
 	return nil, false
 }
 
+// matchingParen returns the index of the closing ')' that matches the '(' at
+// position open, respecting nested parens and quoted strings. Returns -1 when
+// no match is found.
+func matchingParen(expr string, open int) int {
+	depth := 0
+	inQuote := false
+	quoteChar := byte(0)
+	for i := open; i < len(expr); i++ {
+		c := expr[i]
+		if inQuote {
+			if c == '\\' && i+1 < len(expr) {
+				i++ // skip escaped character
+				continue
+			}
+			if c == quoteChar {
+				inQuote = false
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			inQuote = true
+			quoteChar = c
+		} else if c == '(' {
+			depth++
+		} else if c == ')' {
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
 // findOperatorOutside finds an operator outside parentheses and quotes.
 func (e *DSLEngine) findOperatorOutside(expr, op string) int {
 	depth := 0
@@ -115,12 +149,20 @@ func (e *DSLEngine) findOperatorOutside(expr, op string) int {
 	for i := 0; i < len(expr)-len(op)+1; i++ {
 		c := expr[i]
 
-		if !inQuote && (c == '"' || c == '\'') {
+		if inQuote {
+			if c == '\\' && i+1 < len(expr) {
+				i++ // skip escaped character
+				continue
+			}
+			if c == quoteChar {
+				inQuote = false
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
 			inQuote = true
 			quoteChar = c
-		} else if inQuote && c == quoteChar {
-			inQuote = false
-		} else if !inQuote {
+		} else {
 			if c == '(' {
 				depth++
 			} else if c == ')' {
@@ -188,19 +230,28 @@ func (e *DSLEngine) compare(left, right interface{}, op string) bool {
 
 // evaluateFunction handles function calls.
 func (e *DSLEngine) evaluateFunction(expr string, ctx map[string]interface{}) (interface{}, bool) {
-	// Handle parenthesized expressions
-	if strings.HasPrefix(expr, "(") && strings.HasSuffix(expr, ")") {
-		return e.evaluateExpr(expr[1:len(expr)-1], ctx), true
+	// Handle parenthesized expressions: find the matching close-paren for the
+	// leading '(' via depth tracking so "(a)(b)" is not misread as a single
+	// parenthesized expression "a)(b".
+	if strings.HasPrefix(expr, "(") {
+		if closeIdx := matchingParen(expr, 0); closeIdx == len(expr)-1 {
+			return e.evaluateExpr(expr[1:closeIdx], ctx), true
+		}
 	}
 
 	// Find function name and arguments
 	parenIdx := strings.Index(expr, "(")
-	if parenIdx == -1 || !strings.HasSuffix(expr, ")") {
+	if parenIdx == -1 {
+		return nil, false
+	}
+	// Find the matching close-paren for this opening paren.
+	closeIdx := matchingParen(expr, parenIdx)
+	if closeIdx == -1 || closeIdx != len(expr)-1 {
 		return nil, false
 	}
 
 	funcName := expr[:parenIdx]
-	argsStr := expr[parenIdx+1 : len(expr)-1]
+	argsStr := expr[parenIdx+1 : closeIdx]
 
 	fn, exists := e.functions[funcName]
 	if !exists {

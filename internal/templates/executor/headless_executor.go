@@ -47,8 +47,9 @@ func (e *HeadlessExecutor) Execute(ctx context.Context, target string, step *tem
 
 	for _, action := range actions {
 		if err := e.runAction(ctx, page, target, action); err != nil {
-			// Non-fatal: log and continue to next action.
-			_ = err
+			if action.Action == "navigate" {
+				return nil, fmt.Errorf("headless executor: navigate failed: %w", err)
+			}
 		}
 	}
 

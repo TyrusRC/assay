@@ -65,11 +65,10 @@ func (e *Executor) executeRequest(ctx context.Context, client *http.Client, tmpl
 		method = "GET"
 	}
 
-	interpolatedBody := e.interpolate(body, vars)
 	req := &http.Request{
 		Method:  method,
 		URL:     requestURL,
-		Body:    interpolatedBody,
+		Body:    body,
 		Headers: make(map[string]string),
 	}
 	for k, v := range httpReq.Headers {
