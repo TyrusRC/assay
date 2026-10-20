@@ -2,8 +2,10 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/TyrusRC/assay/internal/core"
@@ -64,12 +66,24 @@ func (c *Client) SendPayloadInHeader(ctx context.Context, baseURL, headerName, p
 }
 
 // SendPayloadInCookie sends a request with a payload injected as a cookie value.
+// The test cookie is merged with any existing session cookies so authenticated
+// scans are not silently degraded to unauthenticated.
 func (c *Client) SendPayloadInCookie(ctx context.Context, baseURL, cookieName, payload, method string) (*Response, error) {
-	cookieStr := cookieName + "=" + payload
+	existing := c.cookies
+	if c.cookieSrc != nil {
+		if live := c.cookieSrc(); live != "" {
+			existing = live
+		}
+	}
+	testCookie := cookieName + "=" + payload
+	merged := testCookie
+	if existing != "" {
+		merged = existing + "; " + testCookie
+	}
 	req := &Request{
 		Method:  method,
 		URL:     baseURL,
-		Headers: map[string]string{"Cookie": cookieStr},
+		Headers: map[string]string{"Cookie": merged},
 	}
 	return c.Do(ctx, req)
 }
@@ -77,20 +91,15 @@ func (c *Client) SendPayloadInCookie(ctx context.Context, baseURL, cookieName, p
 // SendPayloadInJSON sends a POST request with a JSON body containing the payload
 // at the specified field path. The fieldPath is a single-level field name.
 func (c *Client) SendPayloadInJSON(ctx context.Context, baseURL, fieldPath, payload string) (*Response, error) {
-	escaped := strings.NewReplacer(
-		`\`, `\\`,
-		`"`, `\"`,
-		"\n", `\n`,
-		"\r", `\r`,
-		"\t", `\t`,
-	).Replace(payload)
-
-	jsonBody := fmt.Sprintf(`{%q:%q}`, fieldPath, escaped)
+	body, err := json.Marshal(map[string]string{fieldPath: payload})
+	if err != nil {
+		return nil, fmt.Errorf("json marshal payload: %w", err)
+	}
 
 	req := &Request{
 		Method:      "POST",
 		URL:         baseURL,
-		Body:        jsonBody,
+		Body:        string(body),
 		ContentType: "application/json",
 	}
 	return c.Do(ctx, req)
@@ -128,9 +137,15 @@ func (c *Client) SendPayloadInPath(ctx context.Context, baseURL string, segmentI
 	return c.Do(ctx, req)
 }
 
+// validXMLName matches a well-formed XML element name (no namespace).
+var validXMLName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9._-]*$`)
+
 // SendPayloadInXML sends a POST request with an XML body wrapping the payload
 // in the specified element name.
 func (c *Client) SendPayloadInXML(ctx context.Context, baseURL, elementName, payload string) (*Response, error) {
+	if !validXMLName.MatchString(elementName) {
+		return nil, fmt.Errorf("invalid XML element name: %q", elementName)
+	}
 	xmlBody := fmt.Sprintf("<%s>%s</%s>", elementName, payload, elementName)
 
 	req := &Request{

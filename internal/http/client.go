@@ -107,15 +107,20 @@ func (c *Client) buildHTTPClient() {
 		Timeout:   c.timeout,
 	}
 
-	// Configure redirect policy. The closure reads c.followRedirects and c.scope
-	// at redirect time, so a scope attached later via WithScope takes effect
-	// without rebuilding the client. An out-of-scope redirect is not followed
-	// (the 3xx response is returned) — note the redirect, do not leave scope.
+	// Configure redirect policy. The closure snapshots c.followRedirects and
+	// c.scope under the lock at redirect time, so a scope attached later via
+	// WithScope takes effect without rebuilding the client. An out-of-scope
+	// redirect is not followed (the 3xx response is returned).
 	c.httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if !c.followRedirects {
+		c.mu.Lock()
+		follow := c.followRedirects
+		sc := c.scope
+		c.mu.Unlock()
+
+		if !follow {
 			return http.ErrUseLastResponse
 		}
-		if c.scope != nil && !c.scope.InScope(req.URL.String()) {
+		if sc != nil && !sc.InScope(req.URL.String()) {
 			return http.ErrUseLastResponse
 		}
 		if len(via) >= 10 {
