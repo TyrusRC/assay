@@ -27,6 +27,9 @@ type Options struct {
 	// Tags filters templates by tag. Empty means no tag filter.
 	Tags []string
 
+	// ExcludeTags excludes templates matching these tags (-exclude-tags).
+	ExcludeTags []string
+
 	// Severity filters findings by severity. Empty means all severities.
 	// Valid values: "info", "low", "medium", "high", "critical".
 	Severity []string
@@ -43,6 +46,28 @@ type Options struct {
 
 	// Retries is the number of retries per template (-retries). 0 = default.
 	Retries int
+
+	// MaxHostError skips a host after this many errors (-max-host-error).
+	// 0 = nuclei default.
+	MaxHostError int
+
+	// Headless enables headless browser mode in nuclei (-headless).
+	Headless bool
+
+	// SystemResolvers uses OS DNS resolvers instead of nuclei's (-system-resolvers).
+	SystemResolvers bool
+
+	// FollowRedirects enables following HTTP redirects (-follow-redirects).
+	FollowRedirects bool
+
+	// FollowHostRedirects allows redirects that change the host (-follow-host-redirects).
+	FollowHostRedirects bool
+
+	// InteractshURL is a custom interactsh server URL (-interactsh-url).
+	InteractshURL string
+
+	// InteractshToken is the auth token for a custom interactsh server (-interactsh-token).
+	InteractshToken string
 
 	// Silent suppresses banner / progress output (-silent).
 	Silent bool
@@ -169,6 +194,9 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	if len(n.options.Tags) > 0 {
 		args = append(args, "-tags", strings.Join(n.options.Tags, ","))
 	}
+	if len(n.options.ExcludeTags) > 0 {
+		args = append(args, "-exclude-tags", strings.Join(n.options.ExcludeTags, ","))
+	}
 	if len(n.options.Severity) > 0 {
 		args = append(args, "-severity", strings.Join(n.options.Severity, ","))
 	}
@@ -183,6 +211,27 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	}
 	if n.options.Retries > 0 {
 		args = append(args, "-retries", fmt.Sprintf("%d", n.options.Retries))
+	}
+	if n.options.MaxHostError > 0 {
+		args = append(args, "-max-host-error", fmt.Sprintf("%d", n.options.MaxHostError))
+	}
+	if n.options.Headless {
+		args = append(args, "-headless")
+	}
+	if n.options.SystemResolvers {
+		args = append(args, "-system-resolvers")
+	}
+	if n.options.FollowRedirects {
+		args = append(args, "-follow-redirects")
+	}
+	if n.options.FollowHostRedirects {
+		args = append(args, "-follow-host-redirects")
+	}
+	if n.options.InteractshURL != "" {
+		args = append(args, "-interactsh-url", n.options.InteractshURL)
+	}
+	if n.options.InteractshToken != "" {
+		args = append(args, "-interactsh-token", n.options.InteractshToken)
 	}
 	for k, v := range req.Headers {
 		args = append(args, "-H", fmt.Sprintf("%s: %s", k, v))
@@ -269,12 +318,22 @@ type nucleiResult struct {
 	TemplateURL string   `json:"template-url"`
 	Type        string   `json:"type"`
 	Host        string   `json:"host"`
+	IP          string   `json:"ip"`
 	MatchedAt   string   `json:"matched-at"`
+	MatcherName string   `json:"matcher-name"`
 	Request     string   `json:"request"`
 	Response    string   `json:"response"`
 	CURL        string   `json:"curl-command"`
 	Extracted   []string `json:"extracted-results"`
-	Info        struct {
+	Interaction *struct {
+		Protocol string `json:"protocol"`
+		UniqueID string `json:"unique-id"`
+		FullID   string `json:"full-id"`
+		RawReq   string `json:"raw-request"`
+		RawResp  string `json:"raw-response"`
+		Type     string `json:"type"`
+	} `json:"interaction,omitempty"`
+	Info struct {
 		Name           string   `json:"name"`
 		Severity       string   `json:"severity"`
 		Description    string   `json:"description"`
@@ -383,6 +442,21 @@ func nucleiToFinding(nr *nucleiResult) *core.Finding {
 	}
 	if nr.Type != "" {
 		f.Metadata["nuclei.protocol"] = nr.Type
+	}
+	if nr.MatcherName != "" {
+		f.Metadata["nuclei.matcher-name"] = nr.MatcherName
+	}
+	if nr.IP != "" {
+		f.Metadata["nuclei.ip"] = nr.IP
+	}
+	if nr.Interaction != nil {
+		f.Metadata["nuclei.interaction.protocol"] = nr.Interaction.Protocol
+		if nr.Interaction.RawReq != "" {
+			f.Metadata["nuclei.interaction.request"] = nr.Interaction.RawReq
+		}
+		if nr.Interaction.RawResp != "" {
+			f.Metadata["nuclei.interaction.response"] = nr.Interaction.RawResp
+		}
 	}
 	return f
 }

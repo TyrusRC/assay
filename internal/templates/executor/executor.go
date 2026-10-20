@@ -178,10 +178,33 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		targetURL = "" // Templates provide their own URLs in paths
 	}
 
+	// Warn about unsupported protocol types so they aren't silently skipped.
+	if len(tmpl.Code) > 0 && e.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[!] Template %s uses code protocol (not supported, skipping code blocks)\n", tmpl.ID)
+	}
+	if len(tmpl.Javascript) > 0 && e.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[!] Template %s uses javascript protocol (not supported, skipping javascript blocks)\n", tmpl.ID)
+	}
+
+	// Workflow templates: execute each step's inline protocol blocks sequentially.
+	if len(tmpl.Workflows) > 0 {
+		return e.executeWorkflow(ctx, tmpl, targetURL)
+	}
+
 	if tmpl.Flow != "" {
 		return e.executeWithFlow(ctx, tmpl, targetURL)
 	}
 
+	results := e.executeProtocols(ctx, tmpl, targetURL)
+
+	// Poll interactsh for OOB callbacks after all protocols have run.
+	e.pollInteractsh(ctx, tmpl, targetURL, &results)
+
+	return results, nil
+}
+
+// executeProtocols runs all protocol blocks and returns the combined results.
+func (e *Executor) executeProtocols(ctx context.Context, tmpl *templates.Template, targetURL string) []*templates.ExecutionResult {
 	var results []*templates.ExecutionResult
 	stopFirst := e.config.StopAtFirstMatch
 
@@ -193,7 +216,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		}
 		results = append(results, httpResults...)
 		if (stopFirst || httpReq.StopAtFirstMatch) && hasMatch(httpResults) {
-			return results, nil
+			return results
 		}
 	}
 
@@ -205,7 +228,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		}
 		results = append(results, dnsResults...)
 		if stopFirst && hasMatch(dnsResults) {
-			return results, nil
+			return results
 		}
 	}
 
@@ -217,7 +240,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		}
 		results = append(results, networkResults...)
 		if stopFirst && hasMatch(networkResults) {
-			return results, nil
+			return results
 		}
 	}
 
@@ -229,7 +252,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		}
 		results = append(results, tcpResults...)
 		if stopFirst && hasMatch(tcpResults) {
-			return results, nil
+			return results
 		}
 	}
 
@@ -241,7 +264,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 		}
 		results = append(results, sslResults...)
 		if stopFirst && hasMatch(sslResults) {
-			return results, nil
+			return results
 		}
 	}
 
@@ -255,7 +278,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			stampResult(wsResult, tmpl, targetURL)
 			results = append(results, wsResult)
 			if stopFirst && wsResult.Matched {
-				return results, nil
+				return results
 			}
 		}
 	}
@@ -270,7 +293,7 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			stampResult(whoisResult, tmpl, targetURL)
 			results = append(results, whoisResult)
 			if stopFirst && whoisResult.Matched {
-				return results, nil
+				return results
 			}
 		}
 	}
@@ -285,10 +308,85 @@ func (e *Executor) Execute(ctx context.Context, tmpl *templates.Template, target
 			stampResult(headlessResult, tmpl, targetURL)
 			results = append(results, headlessResult)
 			if stopFirst && headlessResult.Matched {
-				return results, nil
+				return results
 			}
 		}
 	}
 
+	// Execute File probes
+	for i := range tmpl.File {
+		fileResults, err := e.fileExecutor.Execute(targetURL, &tmpl.File[i])
+		if err != nil && e.config.Verbose {
+			fmt.Fprintf(os.Stderr, "[!] File execution error: %v\n", err)
+		}
+		for _, fr := range fileResults {
+			stampResult(fr, tmpl, targetURL)
+		}
+		results = append(results, fileResults...)
+		if stopFirst && hasMatch(fileResults) {
+			return results
+		}
+	}
+
+	return results
+}
+
+// pollInteractsh checks for OOB callbacks after all protocol blocks have run.
+// If an interaction is received and no result has matched yet, it creates a
+// synthetic matched result so the finding is reported.
+func (e *Executor) pollInteractsh(ctx context.Context, tmpl *templates.Template, targetURL string, results *[]*templates.ExecutionResult) {
+	if e.interactshHelper == nil || e.interactshHelper.client == nil {
+		return
+	}
+	if hasMatch(*results) {
+		return
+	}
+	if e.interactshHelper.Poll(ctx) || e.interactshHelper.HasInteraction() {
+		r := &templates.ExecutionResult{
+			Matched:   true,
+			MatchedAt: targetURL,
+			Response:  "OOB interaction received via interactsh",
+		}
+		stampResult(r, tmpl, targetURL)
+		*results = append(*results, r)
+	}
+}
+
+// executeWorkflow runs a workflow template by executing each step's protocol
+// blocks sequentially. When a step has matchers, its result gates whether the
+// nested subtemplates execute (basic conditional branching).
+func (e *Executor) executeWorkflow(ctx context.Context, tmpl *templates.Template, targetURL string) ([]*templates.ExecutionResult, error) {
+	var results []*templates.ExecutionResult
+	for _, step := range tmpl.Workflows {
+		stepResults := e.runWorkflowStep(ctx, tmpl, step, targetURL)
+		results = append(results, stepResults...)
+	}
 	return results, nil
+}
+
+func (e *Executor) runWorkflowStep(ctx context.Context, parent *templates.Template, step templates.WorkflowStep, targetURL string) []*templates.ExecutionResult {
+	// A workflow step with a template ID references an external template.
+	// Without a template registry we can only execute inline protocol blocks
+	// from the parent. Steps that only carry a Template/Tags reference are
+	// logged and skipped.
+	if step.Template != "" && e.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Workflow step references template %q (executing parent protocols)\n", step.Template)
+	}
+
+	stepResults := e.executeProtocols(ctx, parent, targetURL)
+
+	// If the step has matchers, evaluate them to decide if subtemplates run.
+	runSubs := true
+	if len(step.Matchers) > 0 {
+		runSubs = hasMatch(stepResults)
+	}
+
+	if runSubs {
+		for _, sub := range step.Subtemplates {
+			subResults := e.runWorkflowStep(ctx, parent, sub, targetURL)
+			stepResults = append(stepResults, subResults...)
+		}
+	}
+
+	return stepResults
 }

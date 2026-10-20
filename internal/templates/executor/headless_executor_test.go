@@ -64,7 +64,7 @@ func TestHeadlessRunActionUnknown(t *testing.T) {
 	exec := NewHeadlessExecutor(nil)
 	// runAction with an unknown action should return nil (silent ignore).
 	action := templates.HeadlessAction{Action: "unknown_action"}
-	err := exec.runAction(context.Background(), nil, "https://example.com", action)
+	err := exec.runAction(context.Background(), nil, "https://example.com", action, make(map[string]interface{}))
 	if err != nil {
 		t.Errorf("runAction with unknown action should return nil, got: %v", err)
 	}
