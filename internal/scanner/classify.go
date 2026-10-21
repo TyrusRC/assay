@@ -23,8 +23,22 @@ func ClassifyParameter(ctx context.Context, client *http.Client, targetURL strin
 		return
 	}
 
-	// Record content type from response
-	param.ContentType = resp.ContentType
+	// Content-type negotiation for body params: if form-urlencoded
+	// returns 500, the endpoint may only accept JSON (SPA / JS-driven).
+	// Retry with JSON; if it works, tag the param so all subsequent
+	// probes use JSON instead of form-urlencoded.
+	if resp.StatusCode == 500 && param.Location == core.ParamLocationBody && param.ContentType == "" {
+		jsonResp, jsonErr := client.SendPayloadInJSON(ctx, targetURL, param.Name, canaryString)
+		if jsonErr == nil && jsonResp != nil && jsonResp.StatusCode != 500 {
+			resp = jsonResp
+			param.ContentType = "application/json"
+		}
+	}
+
+	// Record content type from response (if not already set by negotiation)
+	if param.ContentType == "" {
+		param.ContentType = resp.ContentType
+	}
 
 	// Check if canary is reflected in response body or headers
 	if strings.Contains(resp.Body, canaryString) {

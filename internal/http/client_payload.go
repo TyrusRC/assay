@@ -74,13 +74,6 @@ func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload,
 		resp.OriginalValue = originalValue
 	}
 
-	// Content-type negotiation: if a form-urlencoded POST returned a
-	// server error (500), the endpoint may only accept JSON. Retry once
-	// with JSON body so JS-driven APIs (vuln-bank, SPAs) get tested.
-	if resp != nil && resp.StatusCode == 500 && req.ContentType == "application/x-www-form-urlencoded" {
-		return c.SendPayloadInJSON(ctx, baseURL, param, payload)
-	}
-
 	return resp, err
 }
 
