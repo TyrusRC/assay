@@ -99,7 +99,7 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 				bq := fmt.Sprintf(`%s { %s(%s: "assay_baseline_test") }`, prefix, a.fieldName, a.argName)
 				bb, _ := det.BuildGraphQLRequest(bq, nil)
 				if br, err := scanClient.PostJSON(ctx, gqlEndpoint, bb); err == nil && br != nil {
-					if strings.Contains(br.Body, "must have a selection") || strings.Contains(br.Body, "subfields") {
+					if strings.Contains(br.Body, "must have a s") || strings.Contains(br.Body, "subfields") || strings.Contains(br.Body, "sub selection") {
 						a.needsSub = true
 						bq = fmt.Sprintf(`%s { %s(%s: "assay_baseline_test") { __typename } }`, prefix, a.fieldName, a.argName)
 						bb, _ = det.BuildGraphQLRequest(bq, nil)
@@ -156,8 +156,11 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 					injResult := det.AnalyzeInjectionResponse(r.Body)
 					isDiff := false
 					if !injResult.Vulnerable && p.value == "' OR '1'='1' --" && baselineLen > 0 {
-						// Differential: OR bypass returns more data than baseline.
 						diff := len(r.Body) - baselineLen
+						if s.config.Verbose {
+							fmt.Fprintf(os.Stderr, "[*] GQL SQLi diff %s.%s: baseline=%d payload=%d diff=%d query=%s resp=%.80s\n",
+								a.fieldName, a.argName, baselineLen, len(r.Body), diff, query, r.Body)
+						}
 						if diff > 50 && len(r.Body) > baselineLen*2 {
 							isDiff = true
 						}
@@ -306,8 +309,10 @@ func resolveTypeName(raw interface{}) string {
 }
 
 func escapeGQLString(s string) string {
+	// Only escape backslashes. Double-quotes are handled by json.Marshal
+	// which wraps the entire query in JSON — escaping " here would
+	// double-escape to \\" and break the GraphQL string literal.
 	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
 	return s
 }
 
