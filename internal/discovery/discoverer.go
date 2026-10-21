@@ -182,7 +182,13 @@ func (p *Pipeline) Run(ctx context.Context, targetURL string) (*DiscoveryResult,
 		}
 		count := 0
 		for _, param := range out.params {
-			key := param.Name + ":" + param.Location + ":" + param.SourceURL
+			// Headers are app-wide — dedup by Name:Location only.
+			// Body/query/path params keep SourceURL because the same
+			// field name on different endpoints hits different code.
+			key := param.Name + ":" + param.Location
+			if param.Location != "header" {
+				key += ":" + param.SourceURL
+			}
 			if !seen[key] {
 				seen[key] = true
 				result.Parameters = append(result.Parameters, param)

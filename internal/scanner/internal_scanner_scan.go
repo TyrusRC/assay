@@ -49,7 +49,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// too many consecutive connection failures.
 	maxConnErr := s.config.MaxConsecutiveErrors
 	if maxConnErr <= 0 {
-		maxConnErr = 20
+		maxConnErr = 50
 	}
 	scanCtx, scanCancel := context.WithCancel(ctx)
 
@@ -163,7 +163,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 			if strings.ContainsAny(p.Name, "(){}[]|;=<>!&^~`$?#@+*%/\\:, \"'") {
 				continue
 			}
-			if strings.Contains(p.Name, ".") && p.Location == "query" && p.SourceURL == "" {
+			if strings.Contains(p.Name, ".") && p.Location == "query" {
 				continue
 			}
 			clean = append(clean, p)
@@ -190,7 +190,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// on apps with hundreds of pages and thousands of form fields.
 	maxParams := s.config.MaxParams
 	if maxParams <= 0 {
-		maxParams = 500
+		maxParams = 200
 	}
 	if len(params) > maxParams {
 		fmt.Fprintf(os.Stderr, "[*] Capping parameters from %d to %d (sorted by priority)\n", len(params), maxParams)

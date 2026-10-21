@@ -89,6 +89,7 @@ type BooleanResult struct {
 // SQLiDetector detects SQL injection vulnerabilities.
 type SQLiDetector struct {
 	errorPatterns map[DatabaseType][]*regexp.Regexp
+	Verbose       bool
 }
 
 // NewSQLiDetector creates a new SQL injection detector.

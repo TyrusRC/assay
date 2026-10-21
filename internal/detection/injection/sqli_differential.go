@@ -2,6 +2,8 @@ package injection
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/TyrusRC/assay/internal/detection/analysis"
 	assayhttp "github.com/TyrusRC/assay/internal/http"
@@ -64,7 +66,13 @@ func (d *SQLiDetector) DetectDifferential(
 	// Phase 1: send a clean probe twice to establish stability.
 	cleanResp1, err := client.SendPayload(ctx, targetURL, param, differentialProbeValue, method)
 	if err != nil || cleanResp1 == nil {
+		if d.Verbose {
+			fmt.Fprintf(os.Stderr, "[debug-sqli-diff] clean probe failed for %s: err=%v resp=%v\n", param, err, cleanResp1)
+		}
 		return res, err
+	}
+	if d.Verbose {
+		fmt.Fprintf(os.Stderr, "[debug-sqli-diff] %s clean=%d ", param, cleanResp1.StatusCode)
 	}
 	cleanResp2, err := client.SendPayload(ctx, targetURL, param, differentialProbeValue, method)
 	if err != nil || cleanResp2 == nil {
@@ -88,7 +96,13 @@ func (d *SQLiDetector) DetectDifferential(
 
 		brokenResp, err := client.SendPayload(ctx, targetURL, param, qp.broken, method)
 		if err != nil || brokenResp == nil {
+			if d.Verbose {
+				fmt.Fprintf(os.Stderr, "[debug-sqli-diff] broken probe failed for %s: err=%v\n", param, err)
+			}
 			continue
+		}
+		if d.Verbose {
+			fmt.Fprintf(os.Stderr, "broken(%s)=%d ", qp.name, brokenResp.StatusCode)
 		}
 		brokenBody := analysis.StripDynamicContent(brokenResp.Body)
 

@@ -135,6 +135,9 @@ func (s *InternalScanner) initDetectors(httpClient *http.Client, config *Interna
 	// headers but skips the scope gate, so a default-on scope does not block them.
 	infraClient := httpClient.Clone().WithScope(nil)
 	s.sqliDetector = injection.NewSQLiDetector()
+	if config.Verbose {
+		s.sqliDetector.Verbose = true
+	}
 	s.xssDetector = xss.New(httpClient)
 	s.cmdiDetector = cmdi.New(httpClient)
 	s.ssrfDetector = ssrf.New(httpClient)

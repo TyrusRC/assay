@@ -15,7 +15,7 @@ import (
 func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress) {
 	concurrency := s.config.ParamConcurrency
 	if concurrency <= 0 {
-		concurrency = 10
+		concurrency = 5
 	}
 	sem := make(chan struct{}, concurrency)
 
