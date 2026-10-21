@@ -153,15 +153,15 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		return iSpec && !jSpec
 	})
 
-	// Filter out garbage params from JS minification (names with parens,
-	// colons, pipes, brackets, or longer than 60 chars are not real params).
+	// Filter out garbage params from JS minification. Real param names are
+	// short identifiers: alphanumeric + hyphens + underscores + dots.
 	{
 		var clean []core.Parameter
 		for _, p := range params {
-			if len(p.Name) > 60 {
+			if len(p.Name) > 40 {
 				continue
 			}
-			if strings.ContainsAny(p.Name, "(){}[]|;=<>!&^~`") {
+			if strings.ContainsAny(p.Name, "(){}[]|;=<>!&^~`$?#@+*%/\\:, \"'") {
 				continue
 			}
 			clean = append(clean, p)
@@ -267,16 +267,25 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
-	// Priority probes: GraphQL introspection runs before the capped URL-level
-	// phase so it isn't starved by 40+ competing detectors.
+	// Priority probes: GraphQL introspection + injection runs before the
+	// capped URL-level phase so it isn't starved by 40+ competing detectors.
 	if s.config.EnableGraphQL && s.graphqlDetector != nil {
 		prog.SetPhase("graphql-probe")
 		gqlCtx, gqlCancel := context.WithTimeout(scanCtx, 15*time.Second)
 		gqlFindings := s.testGraphQL(gqlCtx, targetURL)
 		gqlCancel()
 		emit(scanCtx, findingsChan, gqlFindings)
-		if len(gqlFindings) > 0 {
-			fmt.Fprintf(os.Stderr, "[+] GraphQL: %d findings\n", len(gqlFindings))
+
+		// Discover the GraphQL endpoint URL, then inject into all args.
+		gqlEndpoints, _ := s.graphqlDetector.DiscoverEndpoints(scanCtx, target.BaseURL())
+		if len(gqlEndpoints) > 0 {
+			gqlURL := gqlEndpoints[0]
+			fmt.Fprintf(os.Stderr, "[*] GraphQL injection on %s...\n", gqlURL)
+			prog.SetPhase("graphql-inject")
+			gqlInjectCtx, gqlInjectCancel := context.WithTimeout(scanCtx, 60*time.Second)
+			s.runGraphQLInjection(gqlInjectCtx, &wg, findingsChan, gqlURL, scanClient)
+			wg.Wait()
+			gqlInjectCancel()
 		}
 		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}
