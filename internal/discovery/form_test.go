@@ -66,14 +66,14 @@ func TestFormDiscoverer_Discover(t *testing.T) {
 			},
 		},
 		{
-			name: "form without method defaults to GET",
+			name: "form without method defaults to POST",
 			body: `<html><body>
 				<form action="/search">
 					<input type="text" name="q">
 				</form>
 			</body></html>`,
 			expectedParams: []core.Parameter{
-				{Name: "q", Location: core.ParamLocationQuery, Type: "string"},
+				{Name: "q", Location: core.ParamLocationBody, Type: "string", Method: "POST"},
 			},
 		},
 		{

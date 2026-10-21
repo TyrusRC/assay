@@ -94,8 +94,9 @@ func (d *SQLiDetector) DetectBoolean(
 		}
 	}
 
-	// Baseline is the original URL — sent ONCE, reused across all probes.
-	baselineResp, err := client.Get(ctx, targetURL)
+	// Baseline uses SendPayload with a clean value so the request uses
+	// the same dispatch path (method, body encoding) as the probes.
+	baselineResp, err := client.SendPayload(ctx, targetURL, param, "baseline_bool_probe", method)
 	if err != nil || baselineResp == nil {
 		return res, err
 	}

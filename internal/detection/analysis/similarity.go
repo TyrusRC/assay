@@ -64,7 +64,32 @@ func ResponseSimilarity(a, b string) float64 {
 		return 1.0
 	}
 
-	return float64(intersectionSize) / float64(unionSize)
+	jaccard := float64(intersectionSize) / float64(unionSize)
+
+	// Supplement Jaccard with a length-ratio penalty. Jaccard over
+	// unique-token sets misses cases where the same vocabulary appears
+	// with different frequency (e.g., a table with 10 rows vs 1 row,
+	// or a dashboard vs an empty-result page using the same template).
+	// A large length difference is a strong differential signal.
+	lenA, lenB := float64(len(a)), float64(len(b))
+	maxLen := lenA
+	if lenB > maxLen {
+		maxLen = lenB
+	}
+	if maxLen > 0 {
+		lenRatio := 1.0 - (abs64(lenA-lenB) / maxLen)
+		if lenRatio < jaccard {
+			return (jaccard + lenRatio) / 2
+		}
+	}
+	return jaccard
+}
+
+func abs64(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // dynamicPatterns contains compiled regular expressions for known dynamic tokens

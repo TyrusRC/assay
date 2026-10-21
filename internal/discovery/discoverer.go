@@ -97,6 +97,7 @@ func (p *Pipeline) Run(ctx context.Context, targetURL string) (*DiscoveryResult,
 	}
 	var pages []pageResult
 
+	var linkParams []core.Parameter
 	queue := []string{targetURL}
 	visited[targetURL] = true
 
@@ -122,6 +123,18 @@ func (p *Pipeline) Run(ctx context.Context, targetURL string) (*DiscoveryResult,
 			if !visited[link] && len(visited) < maxPages {
 				visited[link] = true
 				queue = append(queue, link)
+			}
+			// Extract query params from link URLs — free params, no HTTP cost.
+			if u, err := url.Parse(link); err == nil && u.RawQuery != "" {
+				for key := range u.Query() {
+					if key != "" {
+						linkParams = append(linkParams, core.Parameter{
+							Name:      key,
+							Location:  core.ParamLocationQuery,
+							SourceURL: strings.SplitN(link, "?", 2)[0],
+						})
+					}
+				}
 			}
 		}
 	}
@@ -196,6 +209,16 @@ func (p *Pipeline) Run(ctx context.Context, targetURL string) (*DiscoveryResult,
 			}
 		}
 		result.Sources[out.name] += count
+	}
+
+	// Add params extracted from link query strings.
+	for _, param := range linkParams {
+		key := param.Name + ":" + param.Location + ":" + param.SourceURL
+		if !seen[key] {
+			seen[key] = true
+			result.Parameters = append(result.Parameters, param)
+			result.Sources["link-query"]++
+		}
 	}
 
 	return result, nil

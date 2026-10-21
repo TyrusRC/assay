@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/TyrusRC/assay/internal/core"
@@ -24,7 +25,7 @@ func (f *FormDiscoverer) Name() string {
 }
 
 // Discover extracts form parameters from the HTML response.
-func (f *FormDiscoverer) Discover(_ context.Context, _ string, resp *http.Response) ([]core.Parameter, error) {
+func (f *FormDiscoverer) Discover(_ context.Context, targetURL string, resp *http.Response) ([]core.Parameter, error) {
 	if resp == nil || resp.Body == "" {
 		return nil, nil
 	}
@@ -35,67 +36,84 @@ func (f *FormDiscoverer) Discover(_ context.Context, _ string, resp *http.Respon
 	}
 
 	var params []core.Parameter
-	f.walkNode(doc, "", &params)
+	f.walkNode(doc, "", "", targetURL, &params)
 	return params, nil
 }
 
+// formCtx holds the current form's method and resolved action URL.
+type formCtx struct {
+	method string
+	action string
+}
+
 // walkNode traverses the HTML tree to find form elements.
-func (f *FormDiscoverer) walkNode(n *html.Node, formMethod string, params *[]core.Parameter) {
+func (f *FormDiscoverer) walkNode(n *html.Node, formMethod, formAction, pageURL string, params *[]core.Parameter) {
 	if n.Type == html.ElementNode {
 		switch n.Data {
 		case "form":
 			formMethod = f.getAttr(n, "method")
 			if formMethod == "" {
-				// HTML spec defaults to GET, but real-world forms without
-				// an explicit method are almost always JS-driven (AJAX POST)
-				// or legacy forms that forgot the attribute. Default to POST
-				// to catch login forms, search forms, etc.
 				formMethod = "post"
 			}
-			// Process child elements within this form
-			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				f.walkNode(c, formMethod, params)
+			// Resolve form action URL. Empty action means POST to the
+			// current page URL (standard HTML behavior).
+			rawAction := f.getAttr(n, "action")
+			if rawAction != "" {
+				if base, err := url.Parse(pageURL); err == nil {
+					if ref, err := url.Parse(rawAction); err == nil {
+						formAction = base.ResolveReference(ref).String()
+					}
+				}
 			}
-			return // Don't recurse again below
+			if formAction == "" {
+				formAction = pageURL
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				f.walkNode(c, formMethod, formAction, pageURL, params)
+			}
+			return
 		case "input":
 			name := f.getAttr(n, "name")
 			inputType := strings.ToLower(f.getAttr(n, "type"))
 			if name != "" && inputType != "file" && inputType != "submit" && inputType != "button" && inputType != "image" && inputType != "reset" {
 				*params = append(*params, core.Parameter{
-					Name:     name,
-					Location: f.locationForMethod(formMethod),
-					Value:    f.getAttr(n, "value"),
-					Type:     "string",
-					Method:   strings.ToUpper(formMethod),
+					Name:      name,
+					Location:  f.locationForMethod(formMethod),
+					Value:     f.getAttr(n, "value"),
+					Type:      "string",
+					Method:    strings.ToUpper(formMethod),
+					SourceURL: formAction,
 				})
 			}
 		case "textarea":
 			name := f.getAttr(n, "name")
 			if name != "" {
 				*params = append(*params, core.Parameter{
-					Name:     name,
-					Location: f.locationForMethod(formMethod),
-					Value:    f.textContent(n),
-					Type:     "string",
-					Method:   strings.ToUpper(formMethod),
+					Name:      name,
+					Location:  f.locationForMethod(formMethod),
+					Value:     f.textContent(n),
+					Type:      "string",
+					Method:    strings.ToUpper(formMethod),
+					SourceURL: formAction,
 				})
 			}
 		case "select":
 			name := f.getAttr(n, "name")
 			if name != "" {
 				*params = append(*params, core.Parameter{
-					Name:     name,
-					Location: f.locationForMethod(formMethod),
-					Value:    "",
-					Type:     "string",
-					Method:   strings.ToUpper(formMethod),
+					Name:      name,
+					Location:  f.locationForMethod(formMethod),
+					Value:     "",
+					Type:      "string",
+					Method:    strings.ToUpper(formMethod),
+					SourceURL: formAction,
 				})
 			}
 		}
 	}
 
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		f.walkNode(c, formMethod, params)
+		f.walkNode(c, formMethod, formAction, pageURL, params)
 	}
 }
 
