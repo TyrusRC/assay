@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -152,6 +153,22 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		return iSpec && !jSpec
 	})
 
+	// Filter out garbage params from JS minification (names with parens,
+	// colons, pipes, brackets, or longer than 60 chars are not real params).
+	{
+		var clean []core.Parameter
+		for _, p := range params {
+			if len(p.Name) > 60 {
+				continue
+			}
+			if strings.ContainsAny(p.Name, "(){}[]|;=<>!&^~`") {
+				continue
+			}
+			clean = append(clean, p)
+		}
+		params = clean
+	}
+
 	// --param filter: test only the named parameters.
 	if len(s.config.OnlyParams) > 0 {
 		allowed := make(map[string]bool, len(s.config.OnlyParams))
@@ -249,6 +266,20 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		}
 	}
 	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+
+	// Priority probes: GraphQL introspection runs before the capped URL-level
+	// phase so it isn't starved by 40+ competing detectors.
+	if s.config.EnableGraphQL && s.graphqlDetector != nil {
+		prog.SetPhase("graphql-probe")
+		gqlCtx, gqlCancel := context.WithTimeout(scanCtx, 15*time.Second)
+		gqlFindings := s.testGraphQL(gqlCtx, targetURL)
+		gqlCancel()
+		emit(scanCtx, findingsChan, gqlFindings)
+		if len(gqlFindings) > 0 {
+			fmt.Fprintf(os.Stderr, "[+] GraphQL: %d findings\n", len(gqlFindings))
+		}
+		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+	}
 
 	// Phase 1.5: URL-level tests with a hard 90s cap so slow targets
 	// (WebLogic, etc.) don't block the entire scan.
