@@ -149,6 +149,21 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		return iSpec && !jSpec
 	})
 
+	// --param filter: test only the named parameters.
+	if len(s.config.OnlyParams) > 0 {
+		allowed := make(map[string]bool, len(s.config.OnlyParams))
+		for _, n := range s.config.OnlyParams {
+			allowed[n] = true
+		}
+		var filtered []core.Parameter
+		for _, p := range params {
+			if allowed[p.Name] {
+				filtered = append(filtered, p)
+			}
+		}
+		params = filtered
+	}
+
 	// URL-level detectors (secheaders, TLS, cloud, smuggling, WS, etc.)
 	// must run regardless of how many parameters were discovered — they
 	// audit the host, not a parameter. Only the parameter-injection

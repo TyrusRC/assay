@@ -204,6 +204,11 @@ type InternalScanConfig struct {
 	DetectorConcurrency  int  // max detector classes per param in parallel (default 3)
 	EnableTimeBasedSQLi  bool // enable time-based blind SQLi (slow, 3s+ per probe)
 
+	// Focused test mode: when set, only the named detectors and/or params run.
+	// Empty = run everything applicable (default).
+	OnlyTests  []string // e.g. ["sqli","cmdi"] — run only these detector classes
+	OnlyParams []string // e.g. ["username","X-Auth-Token"] — test only these param names
+
 	// Timeouts
 	RequestTimeout time.Duration
 	OOBPollTimeout time.Duration

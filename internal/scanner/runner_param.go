@@ -185,6 +185,21 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 
 	applicable := s.applicableTests(param)
 
+	// --test filter: run only named detector classes.
+	if len(s.config.OnlyTests) > 0 {
+		allowed := make(map[string]bool, len(s.config.OnlyTests))
+		for _, t := range s.config.OnlyTests {
+			allowed[t] = true
+		}
+		var filtered []paramTest
+		for _, t := range applicable {
+			if allowed[t.name] {
+				filtered = append(filtered, t)
+			}
+		}
+		applicable = filtered
+	}
+
 	// Run detector classes in parallel within each param. Default 3
 	// concurrent detector goroutines per param keeps request volume
 	// bounded while cutting wall-clock time ~3x on multi-class params.

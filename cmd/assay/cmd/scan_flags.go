@@ -15,6 +15,8 @@ import (
 var (
 	timeout              time.Duration
 	concurrency          int
+	onlyTests            []string
+	onlyParams           []string
 	headers              []string
 	cookies              string
 	userAgent            string
@@ -127,11 +129,19 @@ var (
 // flag and writes one config field. Splitting it further would obscure
 // the 1:1 flag→config mapping that's the only thing readers want.
 func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
-	if len(templateDirs) > 0 {
+	if len(onlyTests) > 0 {
+		internalConfig.OnlyTests = onlyTests
+	}
+	if len(onlyParams) > 0 {
+		internalConfig.OnlyParams = onlyParams
+	}
+	if len(onlyTests) > 0 {
+		// Focused test mode: skip templates entirely.
+		internalConfig.EnableTemplates = false
+	} else if len(templateDirs) > 0 {
 		internalConfig.EnableTemplates = true
 		internalConfig.TemplatePaths = templateDirs
 	} else {
-		// Auto-discover default nuclei + custom template directories.
 		internalConfig.TemplatePaths = discoverTemplatePaths()
 		if len(internalConfig.TemplatePaths) > 0 {
 			internalConfig.EnableTemplates = true

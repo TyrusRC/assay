@@ -218,13 +218,12 @@ func (c *Client) SendPayloadAt(ctx context.Context, baseURL string, param core.P
 		return c.SendPayloadInPath(ctx, baseURL, param.SegmentIndex, payload, method)
 	case core.ParamLocationBody:
 		ct := strings.ToLower(param.ContentType)
-		if strings.Contains(ct, "json") || strings.Contains(param.Name, ".") {
-			return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
-		}
 		if strings.Contains(ct, "xml") {
 			return c.SendPayloadInXML(ctx, baseURL, param.Name, payload)
 		}
-		return c.sendPayloadDirect(ctx, baseURL, param.Name, payload, method)
+		// Default to JSON for body params. Most APIs expect JSON; sending
+		// form-urlencoded to a JSON endpoint produces 415.
+		return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
 	case core.ParamLocationLocalStorage, core.ParamLocationSessionStorage:
 		req := &Request{Method: "GET", URL: baseURL}
 		return c.Do(ctx, req)

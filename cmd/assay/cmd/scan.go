@@ -58,6 +58,8 @@ func init() {
 
 	scanCmd.Flags().DurationVarP(&timeout, "timeout", "t", 30*time.Minute, "Scan timeout")
 	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 3, "Number of concurrent tools")
+	scanCmd.Flags().StringArrayVar(&onlyTests, "test", nil, "Run only these detector classes (repeatable: --test sqli --test cmdi)")
+	scanCmd.Flags().StringArrayVar(&onlyParams, "param", nil, "Test only these parameter names (repeatable: --param username --param password)")
 	scanCmd.Flags().StringArrayVarP(&headers, "header", "H", nil, "Custom headers (can be specified multiple times)")
 	scanCmd.Flags().StringVar(&cookies, "cookie", "", "Cookie string")
 	scanCmd.Flags().StringVarP(&userAgent, "user-agent", "A", "", "Custom User-Agent for ALL scanner traffic")

@@ -63,11 +63,17 @@ func (s *InternalScanner) testSQLiWithClient(ctx context.Context, targetURL stri
 
 		resp, err := client.SendPayloadAt(ctx, targetURL, param, payload.Value, method)
 		if err != nil {
+			if s.config.Verbose {
+				fmt.Fprintf(os.Stderr, "[!] SQLi payload error on '%s': %v\n", paramName, err)
+			}
 			continue
 		}
 		testedCount++
 
 		analysis := s.sqliDetector.AnalyzeResponse(resp.Body)
+		if s.config.Verbose && analysis.IsVulnerable {
+			fmt.Fprintf(os.Stderr, "[+] SQLi FOUND in '%s' with payload: %s\n", paramName, payload.Value[:min(30, len(payload.Value))])
+		}
 		if analysis.IsVulnerable {
 			if s.config.Verbose {
 				fmt.Fprintf(os.Stderr, "[+] SQLi FOUND in '%s' with payload: %s\n", paramName, payload.Value[:min(30, len(payload.Value))])
