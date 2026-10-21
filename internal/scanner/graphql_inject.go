@@ -20,6 +20,7 @@ type gqlArg struct {
 	argName   string // e.g. "arg"
 	argType   string // e.g. "String", "Int"
 	isMut     bool   // true if this is a mutation
+	needsSub  bool   // true if the field returns an object (needs { __typename })
 }
 
 // runGraphQLInjection introspects the GraphQL schema, then injects payloads
@@ -87,17 +88,26 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			// Baseline: send a clean value to compare against SQLi responses.
+			// Baseline: send a clean value. Also detect if field needs subfields.
 			var baselineLen int
 			if a.argType != "Int" {
 				prefix := "query"
 				if a.isMut {
 					prefix = "mutation"
 				}
+				// First try without subfields.
 				bq := fmt.Sprintf(`%s { %s(%s: "assay_baseline_test") }`, prefix, a.fieldName, a.argName)
 				bb, _ := det.BuildGraphQLRequest(bq, nil)
 				if br, err := scanClient.PostJSON(ctx, gqlEndpoint, bb); err == nil && br != nil {
-					baselineLen = len(br.Body)
+					if strings.Contains(br.Body, "must have a selection") || strings.Contains(br.Body, "subfields") {
+						a.needsSub = true
+						bq = fmt.Sprintf(`%s { %s(%s: "assay_baseline_test") { __typename } }`, prefix, a.fieldName, a.argName)
+						bb, _ = det.BuildGraphQLRequest(bq, nil)
+						br, _ = scanClient.PostJSON(ctx, gqlEndpoint, bb)
+					}
+					if br != nil {
+						baselineLen = len(br.Body)
+					}
 				}
 			}
 
@@ -122,7 +132,14 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 					if a.isMut {
 						prefix = "mutation"
 					}
-					query = fmt.Sprintf(`%s { %s(%s: "%s") }`, prefix, a.fieldName, a.argName, escapeGQLString(p.value))
+					escaped := escapeGQLString(p.value)
+					// Try without subfields (scalar return). If the field
+					// returns an object, the server errors and we retry with
+					// __typename. Cached per field via needsSub.
+					query = fmt.Sprintf(`%s { %s(%s: "%s") }`, prefix, a.fieldName, a.argName, escaped)
+					if a.needsSub {
+						query = fmt.Sprintf(`%s { %s(%s: "%s") { __typename } }`, prefix, a.fieldName, a.argName, escaped)
+					}
 				}
 
 				reqBody, err := det.BuildGraphQLRequest(query, nil)
