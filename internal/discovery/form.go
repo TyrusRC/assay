@@ -59,6 +59,7 @@ func (f *FormDiscoverer) walkNode(n *html.Node, formMethod string, params *[]cor
 					Location: f.locationForMethod(formMethod),
 					Value:    f.getAttr(n, "value"),
 					Type:     "string",
+					Method:   strings.ToUpper(formMethod),
 				})
 			}
 		case "textarea":
@@ -69,6 +70,7 @@ func (f *FormDiscoverer) walkNode(n *html.Node, formMethod string, params *[]cor
 					Location: f.locationForMethod(formMethod),
 					Value:    f.textContent(n),
 					Type:     "string",
+					Method:   strings.ToUpper(formMethod),
 				})
 			}
 		case "select":
@@ -79,6 +81,7 @@ func (f *FormDiscoverer) walkNode(n *html.Node, formMethod string, params *[]cor
 					Location: f.locationForMethod(formMethod),
 					Value:    "",
 					Type:     "string",
+					Method:   strings.ToUpper(formMethod),
 				})
 			}
 		}

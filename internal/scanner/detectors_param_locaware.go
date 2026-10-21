@@ -81,11 +81,12 @@ func (s *InternalScanner) testSSRFWithClient(ctx context.Context, targetURL stri
 	}
 	det := ssrf.New(pc)
 	det.WithVerbose(s.config.Verbose)
-	result, err := det.Detect(ctx, targetURL, param.Name, method, ssrf.DetectOptions{
-		MaxPayloads:      s.config.MaxPayloadsPerParam,
-		IncludeWAFBypass: s.config.IncludeWAFBypass,
-		Timeout:          s.config.RequestTimeout,
-	})
+	opts := ssrf.DefaultOptions()
+	if s.config.MaxPayloadsPerParam > 0 {
+		opts.MaxPayloads = s.config.MaxPayloadsPerParam
+	}
+	opts.Timeout = s.config.RequestTimeout
+	result, err := det.Detect(ctx, targetURL, param.Name, method, opts)
 	if err != nil || !result.Vulnerable {
 		return nil
 	}

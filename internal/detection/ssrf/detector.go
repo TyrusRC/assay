@@ -56,6 +56,9 @@ func (d *Detector) initResponsePatterns() {
 		regexp.MustCompile(`(?i)"Code"\s*:\s*"Success"`),
 		regexp.MustCompile(`(?i)AccessKeyId["\s:=]+"?AKIA`),
 		regexp.MustCompile(`(?i)ec2\.internal`),
+		// AWS metadata directory listing (the category names are unique
+		// enough that no legitimate page contains this combination).
+		regexp.MustCompile(`(?s)ami-launch-index.*instance-life-cycle`),
 
 		// GCP (these appear only in actual metadata responses)
 		regexp.MustCompile(`(?i)Metadata-Flavor:\s*Google`),
@@ -226,7 +229,6 @@ func (d *Detector) isSSRFSuccess(resp, baseline *http.Response, payload ssrf.Pay
 	if patterns, ok := d.responsePatterns[payload.Target]; ok {
 		for _, pattern := range patterns {
 			if pattern.MatchString(body) {
-				// Make sure it's not in baseline
 				if baseline != nil && pattern.MatchString(baselineBody) {
 					continue
 				}

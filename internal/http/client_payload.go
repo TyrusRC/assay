@@ -52,6 +52,11 @@ func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload,
 	req := &Request{Method: method}
 	if method == "POST" || method == "PUT" || method == "PATCH" {
 		bodyParams := url.Values{}
+		for _, sp := range c.siblingParams {
+			if sp.Location == core.ParamLocationBody && sp.Name != param {
+				bodyParams.Set(sp.Name, "test")
+			}
+		}
 		bodyParams.Set(param, payload)
 		query.Del(param)
 		parsedURL.RawQuery = query.Encode()
@@ -249,9 +254,14 @@ func (c *Client) SendPayloadAt(ctx context.Context, baseURL string, param core.P
 		if strings.Contains(ct, "xml") {
 			return c.SendPayloadInXML(ctx, baseURL, param.Name, payload)
 		}
-		// Default to JSON for body params. Most APIs expect JSON; sending
-		// form-urlencoded to a JSON endpoint produces 415.
-		return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
+		if strings.Contains(ct, "json") {
+			return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
+		}
+		// Params from HTML forms (no ContentType or text/html) use
+		// form-urlencoded. Params from API specs with application/json
+		// use JSON. Default to form-urlencoded since HTML forms are
+		// more common than JSON APIs in general scanning.
+		return c.sendPayloadDirect(ctx, baseURL, param.Name, payload, method)
 	case core.ParamLocationLocalStorage, core.ParamLocationSessionStorage:
 		req := &Request{Method: "GET", URL: baseURL}
 		return c.Do(ctx, req)

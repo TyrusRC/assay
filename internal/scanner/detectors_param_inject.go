@@ -263,11 +263,12 @@ func (s *InternalScanner) testSSRF(ctx context.Context, targetURL string, param 
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Testing SSRF on param '%s'...\n", param.Name)
 	}
-	result, err := s.ssrfDetector.Detect(ctx, targetURL, param.Name, method, ssrf.DetectOptions{
-		MaxPayloads:      s.config.MaxPayloadsPerParam,
-		IncludeWAFBypass: s.config.IncludeWAFBypass,
-		Timeout:          s.config.RequestTimeout,
-	})
+	ssrfOpts := ssrf.DefaultOptions()
+	if s.config.MaxPayloadsPerParam > 0 {
+		ssrfOpts.MaxPayloads = s.config.MaxPayloadsPerParam
+	}
+	ssrfOpts.Timeout = s.config.RequestTimeout
+	result, err := s.ssrfDetector.Detect(ctx, targetURL, param.Name, method, ssrfOpts)
 	if err != nil || !result.Vulnerable {
 		return nil
 	}
