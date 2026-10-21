@@ -138,8 +138,15 @@ func (p *Pipeline) Run(ctx context.Context, targetURL string) (*DiscoveryResult,
 	outputCh := make(chan discoveryOutput, len(p.discoverers)*len(pages))
 	var wg sync.WaitGroup
 
-	for _, page := range pages {
+	for i, page := range pages {
 		for _, d := range p.discoverers {
+			// The reflected-param discoverer is expensive (65 HTTP
+			// probes) and app-wide — run it only on the root page.
+			if i > 0 {
+				if _, ok := d.(*ReflectedParamDiscoverer); ok {
+					continue
+				}
+			}
 			wg.Add(1)
 			go func(disc Discoverer, pageURL string, resp *http.Response) {
 				defer wg.Done()
