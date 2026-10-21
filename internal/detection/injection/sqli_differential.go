@@ -92,8 +92,15 @@ func (d *SQLiDetector) DetectDifferential(
 		}
 		brokenBody := analysis.StripDynamicContent(brokenResp.Body)
 
+		// Status code change (e.g. 200→500 on single-quote) is a strong
+		// SQLi signal even when body similarity is high. Many apps return
+		// a generic error page that shares the same template as the normal
+		// page — body similarity misses these.
+		statusChanged := cleanResp1.StatusCode != brokenResp.StatusCode &&
+			cleanResp1.StatusCode < 400 && brokenResp.StatusCode >= 500
+
 		cleanBrokenSim := analysis.ResponseSimilarity(clean1, brokenBody)
-		if cleanBrokenSim >= blindSQLiSimilarityThreshold {
+		if cleanBrokenSim >= blindSQLiSimilarityThreshold && !statusChanged {
 			continue
 		}
 
@@ -101,10 +108,17 @@ func (d *SQLiDetector) DetectDifferential(
 		// true/false boolean pair.
 		confirmed, trueP, falseP, conf := d.confirmDifferential(ctx, client, targetURL, param, method, clean1)
 		if !confirmed {
-			// No confirmation — still report at lower confidence based on
-			// the quote-break alone. A response change on metacharacter
-			// insertion that cannot be confirmed with boolean pairs is
-			// suspicious but not conclusive.
+			if statusChanged {
+				// Status code change on metacharacter is strong evidence
+				// even without boolean confirmation (the server crashes on
+				// the injected quote, proving it reached a SQL parser).
+				res.IsVulnerable = true
+				res.DetectionType = "error-differential"
+				res.Confidence = 0.75
+				res.TruePayload = qp.clean
+				res.FalsePayload = qp.broken
+				return res, nil
+			}
 			continue
 		}
 
