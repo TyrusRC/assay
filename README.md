@@ -29,7 +29,7 @@ well.
 
 ### Highlights
 
-- **Multi-technique SQL injection** — error-based, boolean-blind, UNION-based (binary-search column detection, multi-DB fingerprint), response-differential (catches custom JSON error wrappers), time-based blind, and **error-differential** (status-code change on metacharacter, e.g. 200→500 on `'`). Location-aware: works on query, JSON body, XML body, path, header, and cookie params. Length-ratio similarity catches table-heavy differentials that set-based Jaccard misses.
+- **Multi-technique SQL injection** — error-based, boolean-blind, UNION-based (binary-search column detection, multi-DB fingerprint), response-differential (catches custom JSON error wrappers), time-based blind, **error-differential** (status-code change on metacharacter), and **CTE bypass** (WITH clause evades WAFs that block UNION SELECT — MySQL 8+, PostgreSQL, MSSQL, SQLite, Oracle). Location-aware: works on query, JSON body, XML body, path, header, and cookie params. Length-ratio similarity catches table-heavy differentials that set-based Jaccard misses.
 - **OpenAPI-first API scanning** — YAML + JSON spec parsing, requestBody property extraction, sibling body-param injection (sends all fields so multi-field endpoints reach the SQL layer), per-endpoint method + URL routing.
 - **Command injection** — output-pattern detection (Linux + Windows), time-based blind, and **error-differential** (status-code change on command separators `;`, `|`, `` ` ``). Catches blind CMDI where output is suppressed.
 - **Code injection detection** — raw eval()/exec() detection via arithmetic probes (catches Python eval, Node vm, Ruby eval) alongside template-engine SSTI.
@@ -47,6 +47,7 @@ well.
 - **Auto template discovery** — loads `~/nuclei-templates` + `~/.local/share/assay/custom-nuclei-templates/templates` by default. Override with `--templates` or `ASSAY_TEMPLATES` env.
 - **Nuclei template parity** — 20 headless actions, file / workflow / code templates, unsafe-raw (smuggling), pipeline (HTTP/2 desync), interactsh OOB polling
 - **AI finding triage** — Haruspex adjudication scores each finding's "real vs noise" probability
+- **WAF bypass payloads** — per-class evasion variants: SQLi (inline comments, hex encoding, CTE WITH clause, scientific notation, whitespace alternatives, double URL encoding), SSRF (octal/hex/decimal/IPv6 IP encoding, DNS rebinding, Unicode IDNA), LFI (null byte, UTF-8 overlong, backslash), XSS (unicode normalization NFKC, SVG onload, event handler injection). Long-payload padding pushes injection past WAF body inspection limits (8KB AWS WAF, 128KB Cloudflare).
 - **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`, `xp_cmdshell`) require `--risk 3`
 - **Incremental results** — findings flush to disk after each scan phase, so early results survive if a later phase times out
 - **Authenticated API server** — `assay serve` with bearer-token auth, SSRF protection, concurrent scan limits
