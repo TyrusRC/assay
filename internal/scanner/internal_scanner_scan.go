@@ -186,6 +186,17 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		params = filtered
 	}
 
+	// Hard cap: keep the top-priority params to avoid multi-hour scans
+	// on apps with hundreds of pages and thousands of form fields.
+	maxParams := s.config.MaxParams
+	if maxParams <= 0 {
+		maxParams = 500
+	}
+	if len(params) > maxParams {
+		fmt.Fprintf(os.Stderr, "[*] Capping parameters from %d to %d (sorted by priority)\n", len(params), maxParams)
+		params = params[:maxParams]
+	}
+
 	// URL-level detectors (secheaders, TLS, cloud, smuggling, WS, etc.)
 	// must run regardless of how many parameters were discovered — they
 	// audit the host, not a parameter. Only the parameter-injection

@@ -202,6 +202,7 @@ type InternalScanConfig struct {
 	IncludeWAFBypass     bool
 	ParamConcurrency     int  // max params tested in parallel (default 10)
 	DetectorConcurrency  int  // max detector classes per param in parallel (default 3)
+	MaxParams            int  // hard cap on total params to test (default 500)
 	EnableTimeBasedSQLi  bool // enable time-based blind SQLi (slow, 3s+ per probe)
 
 	// Focused test mode: when set, only the named detectors and/or params run.
