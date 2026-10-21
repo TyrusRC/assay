@@ -3,8 +3,13 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/TyrusRC/assay/internal/tools/commix"
+	"github.com/TyrusRC/assay/internal/tools/dalfox"
+	"github.com/TyrusRC/assay/internal/tools/ghauri"
+	"github.com/TyrusRC/assay/internal/tools/nikto"
 	"github.com/TyrusRC/assay/internal/tools/nuclei"
 	"github.com/TyrusRC/assay/internal/tools/sqlmap"
+	"github.com/TyrusRC/assay/internal/tools/wpscan"
 	"github.com/spf13/cobra"
 )
 
@@ -65,9 +70,50 @@ func getRegisteredTools() []toolInfo {
 		description: "ProjectDiscovery Nuclei — runs community YAML templates against the target",
 	})
 
-	// TODO: Add more tools as implemented
-	// - ffuf
-	// - nikto
+	// Dalfox — XSS
+	df := dalfox.New()
+	tools = append(tools, toolInfo{
+		name:        df.Name(),
+		version:     df.Version(),
+		available:   df.IsAvailable(),
+		description: "XSS parameter analysis and scanning",
+	})
+
+	// Commix — command injection
+	cx := commix.New()
+	tools = append(tools, toolInfo{
+		name:        cx.Name(),
+		version:     cx.Version(),
+		available:   cx.IsAvailable(),
+		description: "Automated OS command injection detection and exploitation",
+	})
+
+	// Ghauri — fast SQLi
+	gh := ghauri.New()
+	tools = append(tools, toolInfo{
+		name:        gh.Name(),
+		version:     gh.Version(),
+		available:   gh.IsAvailable(),
+		description: "Fast SQL injection detection (alternative to sqlmap)",
+	})
+
+	// Nikto — web server scanner
+	nk := nikto.New()
+	tools = append(tools, toolInfo{
+		name:        nk.Name(),
+		version:     nk.Version(),
+		available:   nk.IsAvailable(),
+		description: "Web server vulnerability scanner",
+	})
+
+	// WPScan — WordPress scanner
+	wp := wpscan.New()
+	tools = append(tools, toolInfo{
+		name:        wp.Name(),
+		version:     wp.Version(),
+		available:   wp.IsAvailable(),
+		description: "WordPress vulnerability scanner",
+	})
 
 	return tools
 }

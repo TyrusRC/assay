@@ -8,8 +8,13 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/tools/commix"
+	"github.com/TyrusRC/assay/internal/tools/dalfox"
+	"github.com/TyrusRC/assay/internal/tools/ghauri"
+	"github.com/TyrusRC/assay/internal/tools/nikto"
 	"github.com/TyrusRC/assay/internal/tools/nuclei"
 	"github.com/TyrusRC/assay/internal/tools/sqlmap"
+	"github.com/TyrusRC/assay/internal/tools/wpscan"
 )
 
 // collectTargets gathers target URLs from CLI args, a file, or stdin.
@@ -94,9 +99,25 @@ func registerTools(s *scanner.Scanner) {
 		}
 	}
 
-	// TODO: Add more tools as they are implemented
-	// - ffuf
-	// - nikto
+	// Dalfox — XSS scanner
+	dalfoxTool := dalfox.New()
+	s.RegisterTool(dalfoxTool)
+
+	// Commix — command injection
+	commixTool := commix.New()
+	s.RegisterTool(commixTool)
+
+	// Ghauri — fast SQLi scanner (alternative to sqlmap)
+	ghauriTool := ghauri.New()
+	s.RegisterTool(ghauriTool)
+
+	// Nikto — web server scanner
+	niktoTool := nikto.New()
+	s.RegisterTool(niktoTool)
+
+	// WPScan — WordPress scanner
+	wpscanTool := wpscan.New()
+	s.RegisterTool(wpscanTool)
 }
 
 // parseHeaderArray parses repeated 'Key: Value' header flags into a map.
