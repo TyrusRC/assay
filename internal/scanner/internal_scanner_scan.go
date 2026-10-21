@@ -143,18 +143,17 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		}
 	}
 
-	// Prioritize spec-discovered params (SourceURL set) over generic
-	// built-in header probes. Without this, 12 built-in headers eat
-	// the first concurrency slots and body/path params from the OpenAPI
-	// spec never reach the detectors within the scan timeout.
+	// Prioritize params by source quality: spec-discovered first, then
+	// path/cookie/body params, then headers, then JS-extracted query params.
+	// Without this, JS-extracted noise eats concurrency slots and real
+	// injectable params (path IDs, form fields) never reach detectors.
 	sort.SliceStable(params, func(i, j int) bool {
-		iSpec := params[i].SourceURL != ""
-		jSpec := params[j].SourceURL != ""
-		return iSpec && !jSpec
+		return paramPriority(params[i]) < paramPriority(params[j])
 	})
 
 	// Filter out garbage params from JS minification. Real param names are
-	// short identifiers: alphanumeric + hyphens + underscores + dots.
+	// short identifiers: alphanumeric + hyphens + underscores. Dots in
+	// query params indicate JS property chains (e.g. e.elem.parentNode).
 	{
 		var clean []core.Parameter
 		for _, p := range params {
@@ -162,6 +161,9 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 				continue
 			}
 			if strings.ContainsAny(p.Name, "(){}[]|;=<>!&^~`$?#@+*%/\\:, \"'") {
+				continue
+			}
+			if strings.Contains(p.Name, ".") && p.Location == "query" && p.SourceURL == "" {
 				continue
 			}
 			clean = append(clean, p)
@@ -373,6 +375,28 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 
 	return result, nil
+}
+
+// paramPriority returns a sort key: lower = tested first.
+// 0: spec-discovered (SourceURL set) — from OpenAPI/Swagger
+// 1: path params — almost always real injectable IDs
+// 2: cookie/body params from discovery
+// 3: headers (built-in probes)
+// 4: query params without SourceURL (often JS noise)
+func paramPriority(p core.Parameter) int {
+	if p.SourceURL != "" {
+		return 0
+	}
+	if p.Location == "path" {
+		return 1
+	}
+	if p.Location == "cookie" || p.Location == "body" {
+		return 2
+	}
+	if p.Location == "header" {
+		return 3
+	}
+	return 4
 }
 
 // flushPartialFindings writes the current findings snapshot to
