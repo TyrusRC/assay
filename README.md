@@ -29,11 +29,12 @@ well.
 
 ### Highlights
 
-- **Multi-technique SQL injection** — error-based, boolean-blind, UNION-based (binary-search column detection, multi-DB fingerprint), response-differential (catches custom JSON error wrappers), time-based blind, and status-code differential. Location-aware: works on query, JSON body, XML body, path, header, and cookie params.
+- **Multi-technique SQL injection** — error-based, boolean-blind, UNION-based (binary-search column detection, multi-DB fingerprint), response-differential (catches custom JSON error wrappers), time-based blind, and **error-differential** (status-code change on metacharacter, e.g. 200→500 on `'`). Location-aware: works on query, JSON body, XML body, path, header, and cookie params.
 - **OpenAPI-first API scanning** — YAML + JSON spec parsing, requestBody property extraction, sibling body-param injection (sends all fields so multi-field endpoints reach the SQL layer), per-endpoint method + URL routing.
 - **Code injection detection** — raw eval()/exec() detection via arithmetic probes (catches Python eval, Node vm, Ruby eval) alongside template-engine SSTI.
 - **XXE with body replacement** — for XML-accepting endpoints, sends the full DOCTYPE + entity declaration as the request body with the correct element name from the API schema.
-- **Parallel detector pipeline** — configurable param concurrency (default 10) and per-param detector concurrency (default 3). Spec-discovered params run before generic built-in headers.
+- **Link-crawling discovery** — BFS crawl of same-origin pages (default 30), runs all 15 discoverers on each page. Finds form params, hidden inputs, and endpoints on subpages that a root-only fetch misses. Reflected-parameter brute-forcer probes ~65 common param names on the root page and detects hidden query params via value reflection.
+- **Parallel detector pipeline** — configurable param concurrency (default 5) and per-param detector concurrency (default 3). Spec-discovered params run before generic built-in headers. Param cap (default 200) prevents multi-hour scans on large apps.
 - **Stored XSS** — full inject → crawl → match → confirm workflow
 - **Native SAST** — `assay sast ./src` for secret scanning, dependency CVEs (OSV.dev), and config security
 - **Form auto-submission** — smart crawl discovers pages behind form gates (`--submit-forms`)
@@ -631,9 +632,11 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
   plugin needed).
 - **Session keepalive with auto-reauth** — detects logout via canary
   URL and re-authenticates so scans never silently degrade.
-- **13-source parameter auto-discovery** — forms, cookies, headers,
+- **15-source parameter auto-discovery** — forms, cookies, headers,
   JSON body, path segments, JS storage, XML body, robots/sitemap, HTML
-  comments, JS routes, multipart, OpenAPI, GraphQL introspection.
+  comments, JS routes, multipart, OpenAPI, GraphQL introspection,
+  **reflected-param brute-force** (hidden query params). All run per
+  crawled page (BFS link crawler, default 30 pages).
 - **postMessage origin validation** and **CSPT source→sink JS taint
   tracking** — unique DOM-aware probes.
 - **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`,
@@ -647,7 +650,7 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
 flowchart LR
     CLI -->|targets + config| Scanner
     CLI -->|paths| SAST[SAST engine]
-    Scanner --> Discovery[Discovery · 13 sources]
+    Scanner --> Discovery[Discovery · 15 sources + link crawler]
     Discovery --> Params[(Parameters)]
     Scanner --> Detection[110+ native detectors]
     Detection --> HTTP[HTTP client · scope · throttle]

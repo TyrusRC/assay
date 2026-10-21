@@ -66,22 +66,18 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		})
 	}
 	defer scanCancel()
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-scanCtx.Done():
-				return
-			case <-ticker.C:
-				if scanClient.ConnErrors() >= maxConnErr {
-					fmt.Fprintf(os.Stderr, "[!] Aborting scan — target appears down (%d consecutive connection failures)\n", scanClient.ConnErrors())
-					scanCancel()
-					return
-				}
-			}
+	// Check connection health at phase boundaries (below), not on a
+	// ticker. A 5s ticker cancelled the context mid-Phase-1a when
+	// transient Docker/WSL connection bursts spiked the counter,
+	// killing goroutines that had already found real vulnerabilities.
+	checkHealth := func(phase string) bool {
+		if scanClient.ConnErrors() >= maxConnErr {
+			fmt.Fprintf(os.Stderr, "[!] Aborting scan after %s — target appears down (%d consecutive connection failures)\n", phase, scanClient.ConnErrors())
+			scanCancel()
+			return false
 		}
-	}()
+		return true
+	}
 
 	// Reset the per-scan baseline cache. Each of the 7 bank-driven
 	// parameter-injection detectors fetches the target URL once as its
@@ -313,13 +309,15 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 	// Phase 1.5: URL-level tests with a hard 90s cap so slow targets
 	// (WebLogic, etc.) don't block the entire scan.
-	prog.SetPhase("url-level")
-	fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
-	urlCtx, urlCancel := context.WithTimeout(scanCtx, 90*time.Second)
-	s.runURLLevelTests(urlCtx, &wg, findingsChan, targetURL, scanConfig)
-	wg.Wait()
-	urlCancel()
-	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+	if checkHealth("Phase 1") {
+		prog.SetPhase("url-level")
+		fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
+		urlCtx, urlCancel := context.WithTimeout(scanCtx, 90*time.Second)
+		s.runURLLevelTests(urlCtx, &wg, findingsChan, targetURL, scanConfig)
+		wg.Wait()
+		urlCancel()
+		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+	}
 
 	// Phase 1.6: Template scanning (runs after URL-level to avoid WAF
 	// rate-limit conflicts, but no longer blocked by slow URL-level probes).
