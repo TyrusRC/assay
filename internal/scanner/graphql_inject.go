@@ -73,7 +73,7 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 	cmdiPattern := regexp.MustCompile(`uid=\d+\(\w+\)\s+gid=\d+`)
 	evalPattern := regexp.MustCompile(`\b9359\b`)
 
-	sem := make(chan struct{}, 3) // 3 concurrent args
+	sem := make(chan struct{}, 3)
 	for _, arg := range args {
 		select {
 		case <-ctx.Done():
@@ -86,6 +86,20 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 		go func(a gqlArg) {
 			defer wg.Done()
 			defer func() { <-sem }()
+
+			// Baseline: send a clean value to compare against SQLi responses.
+			var baselineLen int
+			if a.argType != "Int" {
+				prefix := "query"
+				if a.isMut {
+					prefix = "mutation"
+				}
+				bq := fmt.Sprintf(`%s { %s(%s: "assay_baseline_test") }`, prefix, a.fieldName, a.argName)
+				bb, _ := det.BuildGraphQLRequest(bq, nil)
+				if br, err := scanClient.PostJSON(ctx, gqlEndpoint, bb); err == nil && br != nil {
+					baselineLen = len(br.Body)
+				}
+			}
 
 			for _, p := range payloads {
 				select {
@@ -120,20 +134,35 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 					continue
 				}
 
-				// Check for SQLi
+				// Check for SQLi — error-based + differential
 				if p.class == "sqli" {
 					injResult := det.AnalyzeInjectionResponse(r.Body)
-					if injResult.Vulnerable {
+					isDiff := false
+					if !injResult.Vulnerable && p.value == "' OR '1'='1' --" && baselineLen > 0 {
+						// Differential: OR bypass returns more data than baseline.
+						diff := len(r.Body) - baselineLen
+						if diff > 50 && len(r.Body) > baselineLen*2 {
+							isDiff = true
+						}
+					}
+					if injResult.Vulnerable || isDiff {
 						f := core.NewFinding("SQL Injection (GraphQL)", core.SeverityCritical)
 						f.URL = gqlEndpoint
 						f.Parameter = a.fieldName + "." + a.argName
-						f.Description = fmt.Sprintf("SQL Injection in GraphQL %s '%s' argument '%s' (%s: %s)",
-							fieldType(a.isMut), a.fieldName, a.argName, injResult.InjectionType, injResult.DatabaseType)
-						f.Evidence = fmt.Sprintf("Query: %s\nEvidence: %s", query, injResult.Evidence)
+						evidence := ""
+						if injResult.Vulnerable {
+							evidence = fmt.Sprintf("Error-based (%s): %s", injResult.DatabaseType, injResult.Evidence)
+						} else {
+							evidence = fmt.Sprintf("Differential: baseline=%d bytes, OR-bypass=%d bytes (delta +%d)",
+								baselineLen, len(r.Body), len(r.Body)-baselineLen)
+						}
+						f.Description = fmt.Sprintf("SQL Injection in GraphQL %s '%s' argument '%s'",
+							fieldType(a.isMut), a.fieldName, a.argName)
+						f.Evidence = fmt.Sprintf("Query: %s\n%s", query, evidence)
 						f.Tool = "graphql-inject"
 						f.WithOWASPMapping([]string{"WSTG-INPV-05"}, []string{"A05:2025"}, []string{"CWE-89"})
 						emit(ctx, findingsChan, []*core.Finding{f})
-						return // one finding per arg
+						return
 					}
 				}
 
