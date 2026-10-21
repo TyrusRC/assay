@@ -302,6 +302,9 @@ func (s *InternalScanner) testXXEInParam(ctx context.Context, targetURL string, 
 	opts := xxe.DefaultOptions()
 	opts.MaxPayloads = s.config.MaxPayloadsPerParam
 	opts.Timeout = s.config.RequestTimeout
+	if s.oobClient != nil {
+		opts.CallbackURL = s.oobClient.GetURL()
+	}
 
 	if param.Location == core.ParamLocationBody && strings.Contains(strings.ToLower(param.ContentType), "xml") {
 		opts.ContentType = param.ContentType

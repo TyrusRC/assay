@@ -97,6 +97,7 @@ type DetectOptions struct {
 	TestTypes    []xxe.XXEType
 	TargetParser xxe.Parser
 	ContentType  string // application/xml, text/xml, etc.
+	CallbackURL  string // OOB callback URL for blind XXE (e.g. interactsh)
 }
 
 // DefaultOptions returns default detection options.
@@ -403,6 +404,24 @@ func (d *Detector) DetectInXMLBody(ctx context.Context, target, paramName, metho
 			return result, nil
 		}
 	}
+
+	// Blind/OOB XXE: when a callback URL is available, send payloads that
+	// trigger an outbound DNS/HTTP request to prove entity resolution.
+	if opts.CallbackURL != "" {
+		blindPayloads := xxe.GetPayloads(xxe.TypeBlind)
+		for _, bp := range blindPayloads {
+			select {
+			case <-ctx.Done():
+				return result, ctx.Err()
+			default:
+			}
+			result.TestedPayloads++
+			injected := strings.ReplaceAll(bp.Value, "ATTACKER_SERVER", opts.CallbackURL)
+			xmlBody := buildXXEBody(injected, paramName)
+			d.client.SendRawBody(ctx, target, method, xmlBody, ct)
+		}
+	}
+
 	return result, nil
 }
 

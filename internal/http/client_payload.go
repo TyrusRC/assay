@@ -72,13 +72,41 @@ func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload,
 }
 
 // SendPayloadInHeader sends a request with a payload injected as an HTTP header value.
+// When siblingParams include body params, a JSON body with default values is attached
+// so endpoints that require both header auth + JSON body reach the SQL/logic layer.
 func (c *Client) SendPayloadInHeader(ctx context.Context, baseURL, headerName, payload, method string) (*Response, error) {
 	req := &Request{
 		Method:  method,
 		URL:     baseURL,
 		Headers: map[string]string{headerName: payload},
 	}
+	if body := c.siblingBodyJSON(); body != "" {
+		req.Body = body
+		req.ContentType = "application/json"
+	}
 	return c.Do(ctx, req)
+}
+
+// siblingBodyJSON builds a JSON object from sibling body params with default values.
+// Returns "" when there are no body siblings.
+func (c *Client) siblingBodyJSON() string {
+	if len(c.siblingParams) == 0 {
+		return ""
+	}
+	fields := make(map[string]string)
+	for _, sp := range c.siblingParams {
+		if sp.Location == core.ParamLocationBody {
+			fields[sp.Name] = "test"
+		}
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // SendPayloadInCookie sends a request with a payload injected as a cookie value.
