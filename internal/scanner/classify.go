@@ -17,8 +17,19 @@ func ClassifyParameter(ctx context.Context, client *http.Client, targetURL strin
 	// Always set classification from name heuristics
 	param.Classify()
 
+	// Use the param's own method when set (body params from forms have
+	// Method=POST), falling back to the scan method.
+	probeMethod := method
+	if param.Method != "" {
+		probeMethod = param.Method
+	}
+	probeURL := targetURL
+	if param.SourceURL != "" {
+		probeURL = param.SourceURL
+	}
+
 	// Try to send canary to detect reflection
-	resp, err := client.SendPayload(ctx, targetURL, param.Name, canaryString, method)
+	resp, err := client.SendPayload(ctx, probeURL, param.Name, canaryString, probeMethod)
 	if err != nil {
 		return
 	}
@@ -28,7 +39,7 @@ func ClassifyParameter(ctx context.Context, client *http.Client, targetURL strin
 	// Retry with JSON; if it works, tag the param so all subsequent
 	// probes use JSON instead of form-urlencoded.
 	if resp.StatusCode == 500 && param.Location == core.ParamLocationBody && param.ContentType == "" {
-		jsonResp, jsonErr := client.SendPayloadInJSON(ctx, targetURL, param.Name, canaryString)
+		jsonResp, jsonErr := client.SendPayloadInJSON(ctx, probeURL, param.Name, canaryString)
 		if jsonErr == nil && jsonResp != nil && jsonResp.StatusCode != 500 {
 			resp = jsonResp
 			param.ContentType = "application/json"
