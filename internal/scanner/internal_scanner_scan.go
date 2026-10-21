@@ -236,6 +236,28 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		partialDir = scanConfig.OutputDir
 	}
 
+	// Phase 0: GraphQL introspection + injection. Runs FIRST because GraphQL
+	// targets often have hundreds of noise params from JS that bog down Phase 1.
+	if s.config.EnableGraphQL && s.graphqlDetector != nil {
+		prog.SetPhase("graphql")
+		gqlCtx, gqlCancel := context.WithTimeout(scanCtx, 15*time.Second)
+		gqlFindings := s.testGraphQL(gqlCtx, targetURL)
+		gqlCancel()
+		emit(scanCtx, findingsChan, gqlFindings)
+
+		gqlEndpoints, _ := s.graphqlDetector.DiscoverEndpoints(scanCtx, target.BaseURL())
+		if len(gqlEndpoints) > 0 {
+			gqlURL := gqlEndpoints[0]
+			fmt.Fprintf(os.Stderr, "[*] GraphQL injection on %s (%d endpoints)...\n", gqlURL, len(gqlEndpoints))
+			prog.SetPhase("graphql-inject")
+			gqlInjectCtx, gqlInjectCancel := context.WithTimeout(scanCtx, 60*time.Second)
+			s.runGraphQLInjection(gqlInjectCtx, &wg, findingsChan, gqlURL, scanClient)
+			wg.Wait()
+			gqlInjectCancel()
+		}
+		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+	}
+
 	// Phase 1: parameter-injection tests, only when we have params to inject into.
 	// Split into two batches: spec-discovered params (SourceURL set) run first
 	// to completion, then generic built-in headers. This prevents header probes
@@ -267,28 +289,7 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
-	// Priority probes: GraphQL introspection + injection runs before the
-	// capped URL-level phase so it isn't starved by 40+ competing detectors.
-	if s.config.EnableGraphQL && s.graphqlDetector != nil {
-		prog.SetPhase("graphql-probe")
-		gqlCtx, gqlCancel := context.WithTimeout(scanCtx, 15*time.Second)
-		gqlFindings := s.testGraphQL(gqlCtx, targetURL)
-		gqlCancel()
-		emit(scanCtx, findingsChan, gqlFindings)
-
-		// Discover the GraphQL endpoint URL, then inject into all args.
-		gqlEndpoints, _ := s.graphqlDetector.DiscoverEndpoints(scanCtx, target.BaseURL())
-		if len(gqlEndpoints) > 0 {
-			gqlURL := gqlEndpoints[0]
-			fmt.Fprintf(os.Stderr, "[*] GraphQL injection on %s...\n", gqlURL)
-			prog.SetPhase("graphql-inject")
-			gqlInjectCtx, gqlInjectCancel := context.WithTimeout(scanCtx, 60*time.Second)
-			s.runGraphQLInjection(gqlInjectCtx, &wg, findingsChan, gqlURL, scanClient)
-			wg.Wait()
-			gqlInjectCancel()
-		}
-		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
-	}
+	// (GraphQL probe already ran in Phase 0 above.)
 
 	// Phase 1.5: URL-level tests with a hard 90s cap so slow targets
 	// (WebLogic, etc.) don't block the entire scan.
