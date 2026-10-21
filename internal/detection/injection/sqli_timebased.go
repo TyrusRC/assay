@@ -77,6 +77,9 @@ func (d *SQLiDetector) DetectTimeBased(
 	baselineAvg := baselineTotal / 2
 
 	tolerance := 1 * time.Second
+	// The delayed response must exceed baseline by at least minDelta to
+	// distinguish a real SLEEP from normal network jitter.
+	minDelta := 2 * time.Second
 
 	for _, p := range timeBasedPayloads {
 		select {
@@ -99,6 +102,9 @@ func (d *SQLiDetector) DetectTimeBased(
 		if elapsed1 < p.delay-tolerance {
 			continue
 		}
+		if elapsed1-baselineAvg < minDelta {
+			continue
+		}
 
 		start2 := time.Now()
 		_, err = client.SendPayload(ctx, targetURL, param, p.value, method)
@@ -108,6 +114,9 @@ func (d *SQLiDetector) DetectTimeBased(
 		}
 
 		if elapsed2 < p.delay-tolerance {
+			continue
+		}
+		if elapsed2-baselineAvg < minDelta {
 			continue
 		}
 
@@ -155,6 +164,7 @@ func (d *SQLiDetector) DetectTimeBasedAt(
 	}
 	baselineAvg := baselineTotal / 2
 	tolerance := 1 * time.Second
+	minDelta := 2 * time.Second
 
 	for _, p := range timeBasedPayloads {
 		select {
@@ -174,6 +184,9 @@ func (d *SQLiDetector) DetectTimeBasedAt(
 		if elapsed1 < p.delay-tolerance {
 			continue
 		}
+		if elapsed1-baselineAvg < minDelta {
+			continue
+		}
 		start2 := time.Now()
 		_, err = send(ctx, p.value)
 		elapsed2 := time.Since(start2)
@@ -181,6 +194,9 @@ func (d *SQLiDetector) DetectTimeBasedAt(
 			continue
 		}
 		if elapsed2 < p.delay-tolerance {
+			continue
+		}
+		if elapsed2-baselineAvg < minDelta {
 			continue
 		}
 		res.IsVulnerable = true
