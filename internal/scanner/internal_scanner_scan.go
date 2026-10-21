@@ -254,6 +254,13 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 			s.runGraphQLInjection(gqlInjectCtx, &wg, findingsChan, gqlURL, scanClient)
 			wg.Wait()
 			gqlInjectCancel()
+
+			// Advanced GraphQL checks (IDOR, SSRF, stored XSS, DoS, info disclosure).
+			prog.SetPhase("graphql-advanced")
+			fmt.Fprintf(os.Stderr, "[*] GraphQL advanced checks on %s...\n", gqlURL)
+			gqlAdvCtx, gqlAdvCancel := context.WithTimeout(scanCtx, 45*time.Second)
+			s.runGraphQLAdvancedChecks(gqlAdvCtx, findingsChan, gqlURL, scanClient)
+			gqlAdvCancel()
 		}
 		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}

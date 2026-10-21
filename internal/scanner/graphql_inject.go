@@ -14,6 +14,9 @@ import (
 	assayhttp "github.com/TyrusRC/assay/internal/http"
 )
 
+var cmdiPattern = regexp.MustCompile(`uid=\d+\(\w+\)\s+gid=\d+`)
+var evalPattern = regexp.MustCompile(`\b9359\b`)
+
 // gqlArg represents a single injectable argument on a GraphQL field.
 type gqlArg struct {
 	fieldName string // e.g. "systemDebug"
@@ -71,8 +74,7 @@ func (s *InternalScanner) runGraphQLInjection(ctx context.Context, wg *sync.Wait
 		{"http://169.254.169.254/latest/meta-data/", "ssrf", "AWS metadata"},
 	}
 
-	cmdiPattern := regexp.MustCompile(`uid=\d+\(\w+\)\s+gid=\d+`)
-	evalPattern := regexp.MustCompile(`\b9359\b`)
+	// cmdiPattern and evalPattern are package-level vars above.
 
 	sem := make(chan struct{}, 3)
 	for _, arg := range args {
