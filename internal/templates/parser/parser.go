@@ -6,7 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/templates"
@@ -82,31 +84,59 @@ func (p *Parser) ParseBytes(data []byte) (*templates.Template, error) {
 
 // ParseDirectory parses all templates in a directory recursively.
 func (p *Parser) ParseDirectory(dir string) ([]*templates.Template, error) {
-	var tmpls []*templates.Template
-	var parseErrors []string
-
+	// Collect YAML file paths first, then parse in parallel.
+	var paths []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-
-		// Skip non-YAML files
-		if info.IsDir() || !isYAMLFile(path) {
-			return nil
+		if !info.IsDir() && isYAMLFile(path) {
+			paths = append(paths, path)
 		}
-
-		tmpl, err := p.ParseFile(path)
-		if err != nil {
-			parseErrors = append(parseErrors, fmt.Sprintf("%s: %v", path, err))
-			return nil // Continue parsing other files
-		}
-
-		tmpls = append(tmpls, tmpl)
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk directory: %w", err)
+	}
+
+	// Parse in parallel with a bounded worker pool.
+	workers := runtime.NumCPU()
+	if workers > 16 {
+		workers = 16
+	}
+
+	type result struct {
+		tmpl *templates.Template
+		err  string
+	}
+	results := make([]result, len(paths))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, workers)
+
+	for i, path := range paths {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int, p2 string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			tmpl, err := p.ParseFile(p2)
+			if err != nil {
+				results[idx] = result{err: fmt.Sprintf("%s: %v", p2, err)}
+			} else {
+				results[idx] = result{tmpl: tmpl}
+			}
+		}(i, path)
+	}
+	wg.Wait()
+
+	var tmpls []*templates.Template
+	var parseErrors []string
+	for _, r := range results {
+		if r.tmpl != nil {
+			tmpls = append(tmpls, r.tmpl)
+		} else if r.err != "" {
+			parseErrors = append(parseErrors, r.err)
+		}
 	}
 
 	if len(parseErrors) > 0 && len(tmpls) == 0 {
