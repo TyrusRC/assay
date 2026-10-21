@@ -101,6 +101,53 @@ func (r *ReflectedParamDiscoverer) Discover(ctx context.Context, targetURL strin
 		}
 	}
 
+	// POST probes: try each common param as a form-urlencoded body param,
+	// then as a JSON body param. Catches endpoints that only accept POST.
+	postBaseline, _ := r.client.Post(ctx, targetURL, "")
+	postBaseLen := 0
+	if postBaseline != nil {
+		postBaseLen = len(postBaseline.Body)
+	}
+
+	for _, name := range commonParams {
+		select {
+		case <-ctx.Done():
+			return params, nil
+		default:
+		}
+
+		// form-urlencoded POST
+		formResp, err := r.client.Post(ctx, targetURL, name+"="+marker)
+		if err == nil && formResp != nil {
+			if strings.Contains(formResp.Body, marker) || abs(len(formResp.Body)-postBaseLen) > 10 {
+				params = append(params, core.Parameter{
+					Name:      name,
+					Location:  core.ParamLocationBody,
+					Method:    "POST",
+					Type:      "string",
+					SourceURL: targetURL,
+				})
+				continue
+			}
+		}
+
+		// JSON POST
+		jsonBody := `{"` + name + `":"` + marker + `"}`
+		jsonResp, err := r.client.PostJSON(ctx, targetURL, jsonBody)
+		if err == nil && jsonResp != nil {
+			if strings.Contains(jsonResp.Body, marker) || abs(len(jsonResp.Body)-postBaseLen) > 10 {
+				params = append(params, core.Parameter{
+					Name:        name,
+					Location:    core.ParamLocationBody,
+					Method:      "POST",
+					ContentType: "application/json",
+					Type:        "string",
+					SourceURL:   targetURL,
+				})
+			}
+		}
+	}
+
 	return params, nil
 }
 

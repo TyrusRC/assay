@@ -139,8 +139,8 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 			continue
 		}
 
-		// Check if payload is reflected
-		if d.isPayloadReflected(testResp.Body, payload) {
+		// Check if payload is reflected AND unencoded (executable)
+		if d.isPayloadReflected(testResp.Body, payload) && d.isPayloadExecutable(testResp.Body, payload) {
 			finding := d.createFinding(target, param, payload, testResp)
 			result.Findings = append(result.Findings, finding)
 			result.Vulnerable = true
@@ -329,6 +329,42 @@ func (d *Detector) isPayloadReflected(body string, payload xss.Payload) bool {
 	}
 
 	return false
+}
+
+// isPayloadExecutable checks whether a reflected payload landed in an
+// executable context — i.e. its dangerous characters (<, >, ", ') were NOT
+// HTML-encoded. A payload that reflects as &lt;script&gt; is safe; one that
+// reflects as <script> is executable XSS.
+func (d *Detector) isPayloadExecutable(body string, payload xss.Payload) bool {
+	pv := payload.Value
+	if pv == "" {
+		return false
+	}
+
+	// If the payload contains no HTML-significant chars it's always
+	// "executable" (e.g. javascript: URI payloads, event-handler payloads
+	// that only use quotes).
+	hasAngleBracket := strings.ContainsAny(pv, "<>")
+	if !hasAngleBracket {
+		return true
+	}
+
+	// Check: does the literal payload appear in the body? If yes, the
+	// angle brackets survived unencoded → executable.
+	if strings.Contains(body, pv) {
+		return true
+	}
+
+	// The payload is reflected but with encoding — check whether the
+	// encoded form appears. If so, it is NOT executable.
+	encoded := strings.NewReplacer("<", "&lt;", ">", "&gt;").Replace(pv)
+	if strings.Contains(body, encoded) {
+		return false
+	}
+
+	// Partial encoding or transformation — conservatively call it executable
+	// so we don't miss edge cases (double-encoding, mixed contexts).
+	return true
 }
 
 // jsUnescape replaces common JS escape sequences with their literal characters.

@@ -166,6 +166,32 @@ func (d *Detector) detectImpl(ctx context.Context, target, param, method string,
 		}
 	}
 
+	// Status-code differential: a command separator (;) that crashes the
+	// shell or causes an unhandled error produces a 500 while clean input
+	// returns 200. This catches blind CMDI where output is suppressed.
+	if baselineResp.StatusCode >= 200 && baselineResp.StatusCode < 400 {
+		for _, sep := range []string{";", "|", "`"} {
+			probe := "baseline_test_value" + sep
+			resp, err := send(ctx, probe)
+			if err != nil || resp == nil {
+				continue
+			}
+			result.TestedPayloads++
+			if resp.StatusCode >= 500 {
+				finding := d.createFinding(target, param, cmdi.Payload{
+					Value:       probe,
+					Description: fmt.Sprintf("Command separator %q caused server error (status %d vs baseline %d)", sep, resp.StatusCode, baselineResp.StatusCode),
+					Platform:    cmdi.PlatformLinux,
+					Type:        cmdi.TypeDirect,
+				}, resp, "error-differential")
+				finding.Confidence = core.ConfidenceMedium
+				result.Findings = append(result.Findings, finding)
+				result.Vulnerable = true
+				return result, nil
+			}
+		}
+	}
+
 	// Test time-based payloads if enabled
 	if opts.EnableTimeBased {
 		timePayloads := cmdi.GetByType(opts.Platform, cmdi.TypeTimeBased)

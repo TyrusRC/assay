@@ -54,7 +54,7 @@ func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload,
 		bodyParams := url.Values{}
 		for _, sp := range c.siblingParams {
 			if sp.Location == core.ParamLocationBody && sp.Name != param {
-				bodyParams.Set(sp.Name, "test")
+				bodyParams.Set(sp.Name, siblingDefault(sp))
 			}
 		}
 		bodyParams.Set(param, payload)
@@ -93,6 +93,33 @@ func (c *Client) SendPayloadInHeader(ctx context.Context, baseURL, headerName, p
 	return c.Do(ctx, req)
 }
 
+// siblingDefault returns a sensible default value for a sibling parameter.
+// Uses the param's own discovered Value first, then a name-based heuristic.
+func siblingDefault(sp core.Parameter) string {
+	if sp.Value != "" {
+		return sp.Value
+	}
+	n := strings.ToLower(sp.Name)
+	switch {
+	case strings.Contains(n, "email"):
+		return "test@test.com"
+	case strings.Contains(n, "password") || strings.Contains(n, "pass") || n == "pwd":
+		return "Password1!"
+	case strings.Contains(n, "url") || strings.Contains(n, "link") || strings.Contains(n, "href") ||
+		strings.Contains(n, "redirect") || strings.Contains(n, "callback"):
+		return "https://example.com"
+	case n == "true" || n == "false" || strings.HasPrefix(n, "is_") ||
+		strings.Contains(n, "enabled") || strings.Contains(n, "active") || n == "admin":
+		return "true"
+	case strings.Contains(n, "id") || strings.Contains(n, "num") || strings.Contains(n, "count") ||
+		strings.Contains(n, "amount") || strings.Contains(n, "quantity") || n == "page" ||
+		n == "limit" || n == "offset" || n == "size" || n == "port":
+		return "1"
+	default:
+		return "test"
+	}
+}
+
 // siblingBodyJSON builds a JSON object from sibling body params with default values.
 // Returns "" when there are no body siblings.
 func (c *Client) siblingBodyJSON() string {
@@ -102,7 +129,7 @@ func (c *Client) siblingBodyJSON() string {
 	fields := make(map[string]string)
 	for _, sp := range c.siblingParams {
 		if sp.Location == core.ParamLocationBody {
-			fields[sp.Name] = "test"
+			fields[sp.Name] = siblingDefault(sp)
 		}
 	}
 	if len(fields) == 0 {
@@ -147,7 +174,7 @@ func (c *Client) SendPayloadInJSON(ctx context.Context, baseURL, fieldPath, payl
 	fields := make(map[string]string)
 	for _, sp := range c.siblingParams {
 		if sp.Location == core.ParamLocationBody && sp.Name != fieldPath {
-			fields[sp.Name] = "test"
+			fields[sp.Name] = siblingDefault(sp)
 		}
 	}
 	fields[fieldPath] = payload
@@ -256,6 +283,9 @@ func (c *Client) SendPayloadAt(ctx context.Context, baseURL string, param core.P
 			return c.SendPayloadInXML(ctx, baseURL, param.Name, payload)
 		}
 		if strings.Contains(ct, "json") {
+			return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
+		}
+		if strings.Contains(param.Name, ".") {
 			return c.SendPayloadInJSON(ctx, baseURL, param.Name, payload)
 		}
 		// Params from HTML forms (no ContentType or text/html) use

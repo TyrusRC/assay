@@ -672,8 +672,10 @@ func TestDetector_Detect_PayloadLimiting(t *testing.T) {
 		t.Fatalf("Detect() returned error: %v", err)
 	}
 
-	if result.TestedPayloads > 3 {
-		t.Errorf("Expected at most 3 tested payloads, got %d", result.TestedPayloads)
+	// MaxPayloads limits the output-based payload loop. The error-differential
+	// probes (3 command separators) run separately and add to the count.
+	if result.TestedPayloads > 3+3 {
+		t.Errorf("Expected at most 6 tested payloads (3 output + 3 error-diff), got %d", result.TestedPayloads)
 	}
 }
 
