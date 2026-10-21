@@ -250,27 +250,25 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	}
 	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
-	// Phase 1.5: URL-level tests (IDOR, CORS, StorageInj) - run once per URL, not per parameter
-	prog.SetPhase("url-level")
+	// Phase 1.5: URL-level tests + template scanning run in parallel.
+	// Templates no longer wait for URL-level to finish — on CVE-heavy
+	// targets (WebLogic, etc.) the template results are the primary value.
+	prog.SetPhase("url-level+templates")
 	fmt.Fprintf(os.Stderr, "[*] Phase 1.5: URL-level tests...\n")
 	s.runURLLevelTests(scanCtx, &wg, findingsChan, targetURL, scanConfig)
 
-	// Wait for URL-level tests
-	wg.Wait()
-	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
-
-	// Phase 1.75: Template scanning (after URL-level tests, before OOB)
 	if s.config.EnableTemplates && len(s.config.TemplatePaths) > 0 {
-		prog.SetPhase("templates")
-		fmt.Fprintf(os.Stderr, "[*] Phase 1.75: template scans...\n")
+		fmt.Fprintf(os.Stderr, "[*] Phase 1.5t: template scans (parallel)...\n")
 		proxyURL := ""
 		if scanConfig != nil {
 			proxyURL = scanConfig.ProxyURL
 		}
 		s.runTemplateTests(scanCtx, &wg, findingsChan, target, proxyURL, scanConfig)
-		wg.Wait()
-		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}
+
+	// Wait for both URL-level and template tests to complete.
+	wg.Wait()
+	flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 
 	// Phase 1.8: Stored XSS (inject→crawl→match→confirm). Runs after injection
 	// and URL-level phases so discovered parameters are available. Opt-in
