@@ -36,6 +36,14 @@ func (d *SQLiDetector) DetectBooleanAt(
 	}
 	baselineStripped := analysis.StripDynamicContent(baselineResp.Body)
 
+	// Also try with an empty send to establish what the endpoint returns
+	// when the header/body is just a benign value.
+	cleanResp, _ := send(ctx, "assay_baseline_probe")
+	if cleanResp != nil {
+		baselineResp = cleanResp
+		baselineStripped = analysis.StripDynamicContent(cleanResp.Body)
+	}
+
 	for _, pair := range booleanPayloadPairs {
 		select {
 		case <-ctx.Done():

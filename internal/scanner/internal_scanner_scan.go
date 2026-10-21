@@ -124,14 +124,17 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	// 3. Extract parameters from target config (query, cookie, path)
 	params := s.extractParametersWithConfig(target, scanConfig)
 
-	// Merge discovered params into params (deduplicate by Name+Location)
+	// Merge discovered params into params. Dedup by Name+Location+SourceURL
+	// so the same header on different endpoints (e.g. X-Auth-Token on /user
+	// vs /widget) is tested separately — each endpoint may have different
+	// SQL queries behind the same param name.
 	if len(discoveredParams) > 0 {
 		seen := make(map[string]bool)
 		for _, p := range params {
-			seen[p.Name+":"+p.Location] = true
+			seen[p.Name+":"+p.Location+":"+p.SourceURL] = true
 		}
 		for _, dp := range discoveredParams {
-			key := dp.Name + ":" + dp.Location
+			key := dp.Name + ":" + dp.Location + ":" + dp.SourceURL
 			if !seen[key] {
 				seen[key] = true
 				params = append(params, dp)
