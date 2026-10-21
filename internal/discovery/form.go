@@ -45,6 +45,13 @@ func (f *FormDiscoverer) walkNode(n *html.Node, formMethod string, params *[]cor
 		switch n.Data {
 		case "form":
 			formMethod = f.getAttr(n, "method")
+			if formMethod == "" {
+				// HTML spec defaults to GET, but real-world forms without
+				// an explicit method are almost always JS-driven (AJAX POST)
+				// or legacy forms that forgot the attribute. Default to POST
+				// to catch login forms, search forms, etc.
+				formMethod = "post"
+			}
 			// Process child elements within this form
 			for c := n.FirstChild; c != nil; c = c.NextSibling {
 				f.walkNode(c, formMethod, params)
