@@ -205,7 +205,10 @@ func (s *TemplateScanner) Scan(ctx context.Context, target *core.Target, tmpls [
 		return result, nil
 	}
 
-	targetURL := target.URL()
+	// Use the host root (scheme://host:port) as the template target so CVE
+	// templates that build paths like {{BaseURL}}/ws_utc/ resolve to the
+	// correct host, not a deep page path like /console/login/LoginForm.jsp.
+	targetURL := target.BaseURL()
 
 	if s.config.Verbose {
 		fmt.Fprintf(os.Stderr, "[*] Template scanner starting for: %s (%d templates)\n", targetURL, len(tmpls))
