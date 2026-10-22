@@ -271,6 +271,22 @@ type InternalScanner struct {
 	// uncached fetch).
 	baselineCache *paraminject.Cache
 	mu                      sync.Mutex
+
+	// Fields populated during Scan for the smart tool dispatcher.
+	Technologies        []string
+	discoveredURLs      []string
+	injectionCandidates []InjectionCandidate
+}
+
+// InjectionCandidate records a parameter where the native detector
+// observed anomalous behaviour but could not fully confirm.
+type InjectionCandidate struct {
+	URL       string
+	Parameter string
+	Method    string
+	Location  string
+	VulnClass string
+	Evidence  string
 }
 
 // NewInternalScanner creates a new internal scanner. The constructor

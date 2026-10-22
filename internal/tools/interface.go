@@ -59,6 +59,47 @@ type ToolRequest struct {
 
 	// Output directory for tool results
 	OutputDir string
+
+	// ScanContext carries discovery results from the internal scanner.
+	// Tools use this to focus on the right endpoints and parameters.
+	ScanContext *ScanContext
+}
+
+// ScanContext carries discovery and tech-detection results from the
+// internal scanner to external tools so they target the right surface.
+type ScanContext struct {
+	// Technologies detected on the target.
+	Technologies []string
+
+	// DiscoveredURLs are endpoints found by the crawler/discoverer.
+	DiscoveredURLs []string
+
+	// InjectionCandidates are params that showed anomalous behaviour
+	// during native detection — external tools should focus here.
+	InjectionCandidates []InjectionCandidate
+
+	// IsWordPress is true when WordPress was detected.
+	IsWordPress bool
+
+	// HasGraphQL is true when a GraphQL endpoint was found.
+	HasGraphQL bool
+
+	// HasAPI is true when an API (REST/gRPC) was detected.
+	HasAPI bool
+
+	// ServerSoftware is the web server (nginx, apache, IIS, etc.).
+	ServerSoftware string
+}
+
+// InjectionCandidate represents a parameter that the internal scanner
+// flagged as potentially injectable but could not confirm natively.
+type InjectionCandidate struct {
+	URL       string
+	Parameter string
+	Method    string
+	Location  string // query, body, header, cookie
+	VulnClass string // sqli, xss, cmdi, ssti, etc.
+	Evidence  string // what the native detector observed
 }
 
 // AuthConfig holds authentication configuration.

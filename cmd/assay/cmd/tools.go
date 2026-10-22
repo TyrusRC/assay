@@ -9,6 +9,7 @@ import (
 	"github.com/TyrusRC/assay/internal/tools/nikto"
 	"github.com/TyrusRC/assay/internal/tools/nuclei"
 	"github.com/TyrusRC/assay/internal/tools/sqlmap"
+	"github.com/TyrusRC/assay/internal/tools/tplmap"
 	"github.com/TyrusRC/assay/internal/tools/wpscan"
 	"github.com/spf13/cobra"
 )
@@ -95,6 +96,15 @@ func getRegisteredTools() []toolInfo {
 		version:     gh.Version(),
 		available:   gh.IsAvailable(),
 		description: "Fast SQL injection detection (alternative to sqlmap)",
+	})
+
+	// Tplmap — SSTI
+	tp := tplmap.New()
+	tools = append(tools, toolInfo{
+		name:        tp.Name(),
+		version:     tp.Version(),
+		available:   tp.IsAvailable(),
+		description: "Server-Side Template Injection detection",
 	})
 
 	// Nikto — web server scanner

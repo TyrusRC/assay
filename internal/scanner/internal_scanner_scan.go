@@ -101,6 +101,13 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		hint := s.techAwareConfig(techResult)
 		s.mu.Lock()
 		s.techHint = hint
+		// Populate Technologies for the smart tool dispatcher.
+		s.Technologies = s.Technologies[:0]
+		if techResult != nil {
+			for _, tech := range techResult.Technologies {
+				s.Technologies = append(s.Technologies, tech.Name)
+			}
+		}
 		s.mu.Unlock()
 	}
 
@@ -115,6 +122,14 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 			discoveredParams = discoveryResult.Parameters
 			fmt.Fprintf(os.Stderr, "[+] Discovery found %d parameters from %d sources\n",
 				len(discoveredParams), len(discoveryResult.Sources))
+			// Save discovered URLs for the smart tool dispatcher.
+			urls := make([]string, 0, len(discoveryResult.Sources))
+			for src := range discoveryResult.Sources {
+				urls = append(urls, src)
+			}
+			s.mu.Lock()
+			s.discoveredURLs = urls
+			s.mu.Unlock()
 		}
 	}
 
