@@ -189,8 +189,8 @@ func TechMatchesAny(techs []string, substr string) bool {
 	return false
 }
 
-// isAutonomous checks whether the request carries the autonomous marker.
-func isAutonomous(req *ToolRequest) bool {
+// IsAutonomous checks whether the request carries the autonomous marker.
+func IsAutonomous(req *ToolRequest) bool {
 	for _, a := range req.CustomArgs {
 		if a == "--assay-autonomous" {
 			return true

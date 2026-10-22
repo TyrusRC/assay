@@ -110,10 +110,13 @@ func isTplmapBlockedFlag(arg string) bool {
 	return false
 }
 
-// BuildArgs builds command line arguments.
+// BuildArgs builds command line arguments. Tplmap is Python and may
+// crash on IPv6 bracket notation, so the URL is normalized to IPv4.
 func (t *Tplmap) BuildArgs(req *tools.ToolRequest) []string {
+	target := tools.NormalizeURLForIPv4(req.Target)
+
 	args := []string{
-		"-u", req.Target,
+		"-u", target,
 	}
 
 	if req.Data != "" {
@@ -123,7 +126,7 @@ func (t *Tplmap) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "--cookie", req.Cookies)
 	}
 	if req.Proxy != "" {
-		args = append(args, "--proxy", req.Proxy)
+		args = append(args, "--proxy", tools.NormalizeURLForIPv4(req.Proxy))
 	}
 	for name, value := range req.Headers {
 		args = append(args, "-H", fmt.Sprintf("%s: %s", name, value))
@@ -135,7 +138,7 @@ func (t *Tplmap) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "-e", t.options.Engine)
 	}
 
-	for _, a := range req.CustomArgs {
+	for _, a := range tools.StripInternalFlags(req.CustomArgs) {
 		if isTplmapBlockedFlag(a) {
 			return nil
 		}

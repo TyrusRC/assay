@@ -182,16 +182,6 @@ func (r *ToolRequest) WithCustomArgs(args ...string) *ToolRequest {
 }
 
 // IsAutonomous returns true when the request has no focused parameter
-// (no ScanContext injection candidates targeting a specific param).
-// In autonomous mode, tools should do their own crawling and discovery.
-func IsAutonomous(r *ToolRequest) bool {
-	if r.ScanContext == nil {
-		return true
-	}
-	return len(r.ScanContext.InjectionCandidates) == 0
-}
-
-
 // ToolResult represents the result of a tool execution.
 type ToolResult struct {
 	// Tool name

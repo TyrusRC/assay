@@ -99,8 +99,11 @@ func registerTools(s *scanner.Scanner) {
 		}
 	}
 
-	// Dalfox — XSS scanner
-	dalfoxTool := dalfox.New()
+	// Dalfox — XSS scanner with config-aware workers
+	dalfoxTool := dalfox.New().WithOptions(dalfox.Options{
+		Timeout: 10,
+		Workers: concurrency,
+	})
 	s.RegisterTool(dalfoxTool)
 
 	// Commix — command injection
@@ -108,7 +111,11 @@ func registerTools(s *scanner.Scanner) {
 	s.RegisterTool(commixTool)
 
 	// Ghauri — fast SQLi scanner (alternative to sqlmap)
-	ghauriTool := ghauri.New()
+	ghauriTool := ghauri.New().WithOptions(ghauri.Options{
+		Level:   level,
+		Risk:    risk,
+		Threads: concurrency,
+	})
 	s.RegisterTool(ghauriTool)
 
 	// Nikto — web server scanner

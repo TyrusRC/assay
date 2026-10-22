@@ -30,6 +30,10 @@ type Config struct {
 	// Output settings
 	OutputDir string
 
+	// Thorough enables extra external tools (ghauri, commix, tplmap)
+	// in addition to the core set (sqlmap, dalfox, nikto, nuclei).
+	Thorough bool
+
 	// Resume settings. CheckpointPath, when set, records scan progress per
 	// target so an interrupted scan can resume. ResumePath, when set, loads a
 	// prior checkpoint: already-scanned targets are skipped and their findings

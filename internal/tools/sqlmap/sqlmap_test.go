@@ -197,13 +197,13 @@ func TestSQLMap_BuildArgs_OutputFormat(t *testing.T) {
 	// Should contain output directory
 	found := false
 	for i, arg := range args {
-		if arg == "-o" && i+1 < len(args) {
+		if arg == "--output-dir" && i+1 < len(args) {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("BuildArgs() should include -o flag for output")
+		t.Error("BuildArgs() should include --output-dir flag for output")
 	}
 }
 
@@ -733,7 +733,7 @@ func TestSQLMap_BuildArgs_AllOptions(t *testing.T) {
 		"-H":             false,
 		"--cookie":       false,
 		"--proxy":        false,
-		"-o":             false,
+		"--output-dir":   false,
 		"--technique":    false,
 		"--dbms":         false,
 		"--tamper":       false,

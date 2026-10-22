@@ -120,10 +120,13 @@ func isGhauriBlockedFlag(arg string) bool {
 	return false
 }
 
-// BuildArgs builds command line arguments.
+// BuildArgs builds command line arguments. Ghauri crashes on IPv6
+// bracket notation (splits on ':'), so the URL is normalized to IPv4.
 func (g *Ghauri) BuildArgs(req *tools.ToolRequest) []string {
+	target := tools.NormalizeURLForIPv4(req.Target)
+
 	args := []string{
-		"-u", req.Target,
+		"-u", target,
 		"--batch",
 		fmt.Sprintf("--level=%d", g.options.Level),
 		fmt.Sprintf("--risk=%d", g.options.Risk),
@@ -143,7 +146,7 @@ func (g *Ghauri) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "--cookie", req.Cookies)
 	}
 	if req.Proxy != "" {
-		args = append(args, "--proxy", req.Proxy)
+		args = append(args, "--proxy", tools.NormalizeURLForIPv4(req.Proxy))
 	}
 	if g.options.Technique != "" {
 		args = append(args, "--technique", g.options.Technique)
@@ -152,7 +155,7 @@ func (g *Ghauri) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "--dbms", g.options.DBMS)
 	}
 
-	for _, a := range req.CustomArgs {
+	for _, a := range tools.StripInternalFlags(req.CustomArgs) {
 		if isGhauriBlockedFlag(a) {
 			return nil
 		}

@@ -21,7 +21,7 @@ func TestBuildArgs(t *testing.T) {
 	if !strings.Contains(joined, "--proxy http://127.0.0.1:8080") {
 		t.Error("missing proxy in args")
 	}
-	if !strings.Contains(joined, "--cookie session=abc") {
+	if !strings.Contains(joined, "-C session=abc") {
 		t.Error("missing cookie in args")
 	}
 	if !strings.Contains(joined, "--silence") {

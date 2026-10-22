@@ -119,7 +119,7 @@ func (n *Nikto) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "-Plugins", n.options.Plugins)
 	}
 
-	args = append(args, req.CustomArgs...)
+	args = append(args, tools.StripInternalFlags(req.CustomArgs)...)
 	return args
 }
 
@@ -293,8 +293,35 @@ func (n *Nikto) classifySeverity(desc string) core.Severity {
 	}
 	if strings.Contains(lower, "xss") ||
 		strings.Contains(lower, "redirect") ||
-		strings.Contains(lower, "disclosure") {
+		strings.Contains(lower, "credential") ||
+		strings.Contains(lower, ".env file") {
 		return core.SeverityMedium
 	}
 	return core.SeverityLow
+}
+
+// classifySeverityByID uses both the nikto ID prefix and the
+// description text to map severity. ID ranges observed:
+// 007xxx = sensitive file exposure (high), 6xxxxx = version/info (low),
+// 013xxx = missing headers (info/low), 000xxx = general (medium).
+func (n *Nikto) classifySeverityByID(id, desc string) core.Severity {
+	// Description-based takes priority for known vuln keywords.
+	descSev := n.classifySeverity(desc)
+	if descSev == core.SeverityCritical || descSev == core.SeverityHigh {
+		return descSev
+	}
+
+	if len(id) >= 3 {
+		prefix := id[:3]
+		switch {
+		case prefix == "007":
+			return core.SeverityHigh
+		case strings.HasPrefix(id, "6"):
+			return core.SeverityLow
+		case prefix == "013":
+			return core.SeverityLow
+		}
+	}
+
+	return descSev
 }

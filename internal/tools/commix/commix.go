@@ -109,10 +109,13 @@ func isCommixBlockedFlag(arg string) bool {
 	return false
 }
 
-// BuildArgs builds command line arguments.
+// BuildArgs builds command line arguments. Commix may crash on IPv6
+// bracket notation, so the URL is normalized to IPv4.
 func (c *Commix) BuildArgs(req *tools.ToolRequest) []string {
+	target := tools.NormalizeURLForIPv4(req.Target)
+
 	args := []string{
-		fmt.Sprintf("--url=%s", req.Target),
+		fmt.Sprintf("--url=%s", target),
 		"--batch",
 		fmt.Sprintf("--level=%d", c.options.Level),
 	}
@@ -124,7 +127,7 @@ func (c *Commix) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, fmt.Sprintf("--cookie=%s", req.Cookies))
 	}
 	if req.Proxy != "" {
-		args = append(args, fmt.Sprintf("--proxy=%s", req.Proxy))
+		args = append(args, fmt.Sprintf("--proxy=%s", tools.NormalizeURLForIPv4(req.Proxy)))
 	}
 	if req.OutputDir != "" {
 		args = append(args, fmt.Sprintf("--output-dir=%s", req.OutputDir))
@@ -133,7 +136,7 @@ func (c *Commix) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, fmt.Sprintf("--header=%s: %s", name, value))
 	}
 
-	for _, a := range req.CustomArgs {
+	for _, a := range tools.StripInternalFlags(req.CustomArgs) {
 		if isCommixBlockedFlag(a) {
 			return nil
 		}

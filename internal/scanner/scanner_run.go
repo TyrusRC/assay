@@ -160,8 +160,7 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 	// Phase 2: Smart dispatch — use discovery results to select the right
 	// external tools for each target, instead of running all tools blindly.
 	registry := tools.NewRegistry(registeredTools)
-	thorough := config.Concurrency >= 5 // thorough profile uses higher concurrency
-	dispatcher := tools.NewDispatcher(registry, config.Verbose, thorough)
+	dispatcher := tools.NewDispatcher(registry, config.Verbose, config.Thorough)
 
 	for _, target := range targets {
 		select {

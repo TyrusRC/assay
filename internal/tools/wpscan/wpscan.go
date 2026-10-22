@@ -127,7 +127,7 @@ func (w *WPScan) BuildArgs(req *tools.ToolRequest) []string {
 		args = append(args, "--output", req.OutputDir+"/wpscan.json")
 	}
 
-	args = append(args, req.CustomArgs...)
+	args = append(args, tools.StripInternalFlags(req.CustomArgs)...)
 	return args
 }
 

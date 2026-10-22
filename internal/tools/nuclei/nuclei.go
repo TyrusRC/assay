@@ -185,6 +185,12 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 		"-no-color", // strip ANSI from any non-JSONL output we capture
 		"-disable-update-check",
 	}
+
+	// In autonomous mode enable DAST fuzzing templates for active web scanning.
+	if tools.IsAutonomous(req) {
+		args = append(args, "-dast")
+	}
+
 	if n.options.Silent {
 		args = append(args, "-silent")
 	}
@@ -242,7 +248,7 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	if req.Proxy != "" {
 		args = append(args, "-proxy", req.Proxy)
 	}
-	for _, a := range req.CustomArgs {
+	for _, a := range tools.StripInternalFlags(req.CustomArgs) {
 		if isNucleiBlockedFlag(a) {
 			return nil
 		}
@@ -251,9 +257,10 @@ func (n *Nuclei) BuildArgs(req *tools.ToolRequest) []string {
 	return args
 }
 
-// nucleiBlockedFlags are flags that enable arbitrary code execution or
-// dangerous capabilities in nuclei.
-var nucleiBlockedFlags = []string{"-code", "-dast", "-signed"}
+// nucleiBlockedFlags are flags that enable arbitrary code execution.
+// NOTE: -dast is NOT blocked — it enables nuclei's fuzzing/DAST
+// templates which is exactly what we want for web scanning.
+var nucleiBlockedFlags = []string{"-code", "-signed"}
 
 func isNucleiBlockedFlag(arg string) bool {
 	a := strings.SplitN(arg, "=", 2)[0]
