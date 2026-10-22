@@ -65,7 +65,7 @@ func (d *Dalfox) findBinary() {
 	}
 }
 
-func (d *Dalfox) Name() string    { return "dalfox" }
+func (d *Dalfox) Name() string      { return "dalfox" }
 func (d *Dalfox) IsAvailable() bool { return d.binaryPath != "" }
 
 func (d *Dalfox) Version() string {
@@ -104,24 +104,33 @@ func (d *Dalfox) WithOptions(opts Options) *Dalfox {
 }
 
 // BuildArgs builds command line arguments for Dalfox.
+// Real dalfox flags (v2.13+): -X (method), -d (data), -C (cookie),
+// -H (header), -p (param), -w (workers), --proxy, --blind, --format.
 func (d *Dalfox) BuildArgs(req *tools.ToolRequest) []string {
 	args := []string{
 		"url", req.Target,
 		"--silence",
 		"--format", "json",
+		"--skip-headless",
+	}
+
+	// In autonomous mode, enable param mining (default on, but explicit).
+	// In focused mode, --skip-discovery is passed via CustomArgs.
+	if tools.IsAutonomous(req) {
+		args = append(args, "--mining-dict", "--mining-dom")
 	}
 
 	if req.Method != "" && req.Method != "GET" {
-		args = append(args, "--method", req.Method)
+		args = append(args, "-X", req.Method)
 	}
 	if req.Data != "" {
-		args = append(args, "--data", req.Data)
+		args = append(args, "-d", req.Data)
 	}
 	for name, value := range req.Headers {
-		args = append(args, "--header", fmt.Sprintf("%s: %s", name, value))
+		args = append(args, "-H", fmt.Sprintf("%s: %s", name, value))
 	}
 	if req.Cookies != "" {
-		args = append(args, "--cookie", req.Cookies)
+		args = append(args, "-C", req.Cookies)
 	}
 	if req.Proxy != "" {
 		args = append(args, "--proxy", req.Proxy)
@@ -141,23 +150,32 @@ func (d *Dalfox) BuildArgs(req *tools.ToolRequest) []string {
 	if d.options.OnlyPoC {
 		args = append(args, "--only-poc", "r,v")
 	}
-
 	if req.OutputDir != "" {
 		args = append(args, "--output", req.OutputDir+"/dalfox.json")
 	}
 
-	args = append(args, req.CustomArgs...)
+	for _, a := range tools.StripInternalFlags(req.CustomArgs) {
+		args = append(args, a)
+	}
 	return args
 }
 
-// dalfoxResult represents a single Dalfox JSON output line.
+// dalfoxResult represents one finding in dalfox's JSON output.
+// Real format: {"type":"V","inject_type":"inHTML-URL","poc_type":"plain",
+// "method":"GET","data":"http://...?q=<payload>","param":"q",
+// "payload":"<payload>","evidence":"<payload>","cwe":"CWE-79",
+// "severity":"High","message_str":"..."}
 type dalfoxResult struct {
 	Type       string `json:"type"`
-	Severity   string `json:"severity"`
-	Param      string `json:"param"`
-	PoC        string `json:"poc"`
 	InjectType string `json:"inject_type"`
+	PoCType    string `json:"poc_type"`
+	Method     string `json:"method"`
+	Data       string `json:"data"`
+	Param      string `json:"param"`
+	Payload    string `json:"payload"`
+	Evidence   string `json:"evidence"`
 	CWE        string `json:"cwe"`
+	Severity   string `json:"severity"`
 	Message    string `json:"message_str"`
 }
 
@@ -198,55 +216,112 @@ func (d *Dalfox) Execute(ctx context.Context, req *tools.ToolRequest) (*tools.To
 	return result, nil
 }
 
-// ParseOutput parses Dalfox JSON output and extracts findings.
+// ParseOutput parses Dalfox JSON output. Dalfox --format json emits a
+// JSON ARRAY (not JSONL): [{...}, {...}]. This parser handles both the
+// array format and JSONL for forward compatibility.
 func (d *Dalfox) ParseOutput(output, target string) *tools.ToolResult {
 	result := tools.NewToolResult(d.Name())
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return result
+	}
 
+	// Try JSON array first (dalfox --format json).
+	if strings.HasPrefix(output, "[") {
+		var items []dalfoxResult
+		if err := json.Unmarshal([]byte(output), &items); err == nil {
+			for _, dr := range items {
+				if f := d.resultToFinding(dr, target); f != nil {
+					result.AddFinding(f)
+				}
+			}
+			return result
+		}
+	}
+
+	// Fallback: JSONL (--format jsonl or future versions).
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || !strings.HasPrefix(line, "{") {
+		if line == "" || line[0] != '{' {
 			continue
 		}
 		var dr dalfoxResult
 		if err := json.Unmarshal([]byte(line), &dr); err != nil {
 			continue
 		}
-		if dr.Type == "" && dr.PoC == "" {
-			continue
+		if f := d.resultToFinding(dr, target); f != nil {
+			result.AddFinding(f)
 		}
-
-		sev := d.mapSeverity(dr)
-		finding := core.NewFinding("Cross-Site Scripting (XSS)", sev)
-		finding.URL = target
-		finding.Parameter = dr.Param
-		finding.Evidence = dr.PoC
-		finding.Tool = d.Name()
-
-		desc := "XSS"
-		switch strings.ToLower(dr.InjectType) {
-		case "r", "reflected":
-			desc = "Reflected XSS"
-		case "v", "verified":
-			desc = "Verified XSS (PoC confirmed)"
-		case "g", "grep":
-			desc = "Potential XSS (grep match)"
-		}
-		finding.Description = fmt.Sprintf("%s in parameter '%s'", desc, dr.Param)
-		finding.WithOWASPMapping(
-			[]string{"WSTG-INPV-01", "WSTG-INPV-02"},
-			[]string{"A05:2025"},
-			[]string{"CWE-79"},
-		)
-		result.AddFinding(finding)
 	}
 	return result
 }
 
+func (d *Dalfox) resultToFinding(dr dalfoxResult, target string) *core.Finding {
+	// Skip empty entries (dalfox emits {} in the array when nothing found).
+	if dr.Type == "" && dr.Payload == "" && dr.Param == "" {
+		return nil
+	}
+
+	sev := d.mapSeverity(dr)
+	finding := core.NewFinding("Cross-Site Scripting (XSS)", sev)
+
+	if dr.Data != "" {
+		finding.URL = dr.Data
+	} else {
+		finding.URL = target
+	}
+
+	finding.Parameter = dr.Param
+	finding.Tool = d.Name()
+
+	if dr.Evidence != "" {
+		finding.Evidence = dr.Evidence
+	} else if dr.Payload != "" {
+		finding.Evidence = dr.Payload
+	}
+
+	desc := "XSS"
+	switch strings.ToUpper(dr.Type) {
+	case "V":
+		desc = "Verified XSS"
+	case "R":
+		desc = "Reflected XSS"
+	case "G":
+		desc = "Potential XSS (grep match)"
+	}
+	if dr.InjectType != "" {
+		desc += " (" + dr.InjectType + ")"
+	}
+	if dr.Param != "" {
+		desc += " in parameter '" + dr.Param + "'"
+	}
+	finding.Description = desc
+
+	finding.WithOWASPMapping(
+		[]string{"WSTG-INPV-01", "WSTG-INPV-02"},
+		[]string{"A05:2025"},
+		[]string{"CWE-79"},
+	)
+	return finding
+}
+
 func (d *Dalfox) mapSeverity(dr dalfoxResult) core.Severity {
-	switch strings.ToLower(dr.InjectType) {
-	case "v", "verified":
+	// Use dalfox's own severity if present.
+	switch strings.ToLower(dr.Severity) {
+	case "critical":
+		return core.SeverityCritical
+	case "high":
 		return core.SeverityHigh
-	case "r", "reflected":
+	case "medium":
+		return core.SeverityMedium
+	case "low":
+		return core.SeverityLow
+	}
+	// Fall back to type-based mapping.
+	switch strings.ToUpper(dr.Type) {
+	case "V":
+		return core.SeverityHigh
+	case "R":
 		return core.SeverityMedium
 	default:
 		return core.SeverityMedium

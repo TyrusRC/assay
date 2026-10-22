@@ -130,15 +130,16 @@ type niktoItem struct {
 	Method      string `json:"method"`
 	Description string `json:"msg"`
 	URL         string `json:"url"`
-	NameItem    string `json:"nameitem"`
+	References  string `json:"references"`
 }
 
-// niktoOutput represents the Nikto JSON output structure.
+// niktoOutput represents one host entry in the Nikto JSON output.
+// Nikto emits a JSON array: [{host, ip, port, vulnerabilities}, ...].
 type niktoOutput struct {
 	Host         string      `json:"host"`
 	IP           string      `json:"ip"`
-	Port         string      `json:"port"`
-	Banner       string      `json:"banner"`
+	Port         json.Number `json:"port"`
+	Banner       string      `json:"server_banner"`
 	Vulnerbility []niktoItem `json:"vulnerabilities"`
 }
 
@@ -216,37 +217,66 @@ func (n *Nikto) ParseOutput(output, target string) *tools.ToolResult {
 	return result
 }
 
-// ParseJSONOutput parses Nikto JSON output.
+// ParseJSONOutput parses Nikto JSON output. Nikto emits a JSON array
+// of host objects: [{host, vulnerabilities:[...]}, ...].
 func (n *Nikto) ParseJSONOutput(data []byte, target string) *tools.ToolResult {
 	result := tools.NewToolResult(n.Name())
 
-	var output niktoOutput
-	if err := json.Unmarshal(data, &output); err != nil {
+	// Try array first (actual nikto format).
+	var hosts []niktoOutput
+	if err := json.Unmarshal(data, &hosts); err == nil {
+		for _, host := range hosts {
+			for _, item := range host.Vulnerbility {
+				if f := n.itemToFinding(item, target); f != nil {
+					result.AddFinding(f)
+				}
+			}
+		}
 		return result
 	}
 
-	for _, item := range output.Vulnerbility {
-		sev := n.classifySeverity(item.Description)
-		f := core.NewFinding("Web Server Misconfiguration", sev)
-		if item.URL != "" {
-			f.URL = item.URL
-		} else {
-			f.URL = target
+	// Fallback: single object (older nikto or different build).
+	var single niktoOutput
+	if err := json.Unmarshal(data, &single); err == nil {
+		for _, item := range single.Vulnerbility {
+			if f := n.itemToFinding(item, target); f != nil {
+				result.AddFinding(f)
+			}
 		}
-		f.Description = item.Description
-		if item.OSVDBID != "" && item.OSVDBID != "0" {
-			f.Evidence = "OSVDB-" + item.OSVDBID
-		}
-		f.Tool = n.Name()
-		f.WithOWASPMapping(
-			[]string{"WSTG-CONF-06"},
-			[]string{"A05:2025"},
-			[]string{},
-		)
-		result.AddFinding(f)
 	}
 
 	return result
+}
+
+func (n *Nikto) itemToFinding(item niktoItem, target string) *core.Finding {
+	// Skip FAIL connection items.
+	if item.ID == "FAIL" {
+		return nil
+	}
+
+	sev := n.classifySeverityByID(item.ID, item.Description)
+	f := core.NewFinding("Web Server Misconfiguration", sev)
+	if item.URL != "" && item.URL != "/" {
+		f.URL = target + item.URL
+	} else {
+		f.URL = target
+	}
+	f.Description = item.Description
+	f.Tool = n.Name()
+
+	if item.ID != "" {
+		f.Evidence = "Nikto-" + item.ID
+	}
+	if item.OSVDBID != "" && item.OSVDBID != "0" {
+		f.Evidence = "OSVDB-" + item.OSVDBID
+	}
+
+	f.WithOWASPMapping(
+		[]string{"WSTG-CONF-06"},
+		[]string{"A05:2025"},
+		[]string{},
+	)
+	return f
 }
 
 func (n *Nikto) classifySeverity(desc string) core.Severity {

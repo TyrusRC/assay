@@ -2,10 +2,20 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
 )
+
+// NormalizeURLForIPv4 replaces IPv6 loopback [::1] with 127.0.0.1 in
+// URLs. Some tools (ghauri, commix, tplmap) crash on IPv6 bracket
+// notation because they split on ':' naively.
+func NormalizeURLForIPv4(u string) string {
+	u = strings.ReplaceAll(u, "[::1]", "127.0.0.1")
+	u = strings.ReplaceAll(u, "[::]", "0.0.0.0")
+	return u
+}
 
 // DefaultTimeout is the default timeout for tool execution.
 const DefaultTimeout = 5 * time.Minute
@@ -170,6 +180,17 @@ func (r *ToolRequest) WithCustomArgs(args ...string) *ToolRequest {
 	r.CustomArgs = append(r.CustomArgs, args...)
 	return r
 }
+
+// IsAutonomous returns true when the request has no focused parameter
+// (no ScanContext injection candidates targeting a specific param).
+// In autonomous mode, tools should do their own crawling and discovery.
+func IsAutonomous(r *ToolRequest) bool {
+	if r.ScanContext == nil {
+		return true
+	}
+	return len(r.ScanContext.InjectionCandidates) == 0
+}
+
 
 // ToolResult represents the result of a tool execution.
 type ToolResult struct {
