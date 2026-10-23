@@ -67,7 +67,7 @@ func FromEnv() Config {
 	}
 	baseEnv := strings.TrimSpace(os.Getenv("ASSAY_DECISION_BASE_URL"))
 	// Enable on an explicit key, ASSAY_DECIDE, or a self-hosted local engine URL.
-	enabled := truthy(os.Getenv("ASSAY_DECIDE")) || key != "" || isLocal(baseEnv)
+	enabled := truthy(os.Getenv("ASSAY_DECIDE")) || key != "" || IsLocal(baseEnv)
 	top := 0
 	if v := strings.TrimSpace(os.Getenv("ASSAY_DECIDE_TOP")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -93,9 +93,9 @@ func truthy(s string) bool {
 	return false
 }
 
-// isLocal reports whether a base URL points at a self-hosted loopback engine —
+// IsLocal reports whether a base URL points at a self-hosted loopback engine —
 // which needs no key (the key authenticates a remote hosted gateway only).
-func isLocal(rawURL string) bool {
+func IsLocal(rawURL string) bool {
 	if rawURL == "" {
 		return false
 	}
@@ -139,7 +139,7 @@ func Rank(ctx context.Context, cfg Config, techTokens []string, items []Item) []
 func score(ctx context.Context, cfg Config, techTokens []string, items []Item) []float64 {
 	// Use the Jev HTTP engine when a hosted key is set OR a self-hosted local
 	// engine is configured (keyless); fall back to deterministic on any error.
-	if cfg.APIKey != "" || isLocal(cfg.BaseURL) {
+	if cfg.APIKey != "" || IsLocal(cfg.BaseURL) {
 		if s, err := jevScore(ctx, cfg, techTokens, items); err == nil {
 			return s
 		}
@@ -257,11 +257,16 @@ func jevScore(ctx context.Context, cfg Config, techTokens []string, items []Item
 // candidate, it only scores one. Each Item.Text should carry the finding's verified
 // evidence so the model adjudicates on proof, not a lead.
 func Adjudicate(ctx context.Context, cfg Config, items []Item) ([]*float64, error) {
-	if !cfg.Enabled || len(items) == 0 {
+	if len(items) == 0 {
 		return nil, nil
 	}
-	if cfg.APIKey == "" && !isLocal(cfg.BaseURL) {
-		return nil, nil
+	if !cfg.Enabled {
+		// No ML engine configured — use heuristic scoring so standalone
+		// assay users still get a baseline confidence signal.
+		return heuristicAdjudicate(items), nil
+	}
+	if cfg.APIKey == "" && !IsLocal(cfg.BaseURL) {
+		return heuristicAdjudicate(items), nil
 	}
 	// One round trip per finding: the evidence goes in `state` and the question +
 	// true/false `criteria` are fixed — this matches how the model was trained

@@ -67,9 +67,14 @@ func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {
 // leaves every finding exactly as emitted.
 func adjudicateFindings(ctx context.Context, findings core.Findings) {
 	cfg := decision.FromEnv()
-	if !cfg.Enabled || len(findings) == 0 {
+	if len(findings) == 0 {
 		return
 	}
+	engine := "heuristic"
+	if cfg.Enabled && (cfg.APIKey != "" || decision.IsLocal(cfg.BaseURL)) {
+		engine = "haruspex"
+	}
+	fmt.Fprintf(os.Stderr, "[*] Finding adjudication (%s): scoring %d findings...\n", engine, len(findings))
 	items := make([]decision.Item, len(findings))
 	for i, f := range findings {
 		ev := f.Evidence
@@ -87,8 +92,12 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 	}
 	probs, err := decision.Adjudicate(ctx, cfg, items)
 	if err != nil || probs == nil || len(probs) != len(findings) {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[!] Haruspex adjudication failed (findings unchanged): %v\n", err)
+		}
 		return // fail-open: keep every finding untouched
 	}
+	reviewed := 0
 	for i, f := range findings {
 		p := probs[i]
 		if p == nil {
@@ -104,6 +113,10 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 		if *p < 0.5 && !f.Verified {
 			f.Metadata["haruspex_triage"] = "review"
 		}
+		reviewed++
+	}
+	if reviewed > 0 {
+		fmt.Fprintf(os.Stderr, "[+] Haruspex adjudication: scored %d/%d findings\n", reviewed, len(findings))
 	}
 }
 
@@ -328,7 +341,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// "real finding" probability (and flags likely noise for review) AFTER verification.
 	// It only annotates — it never drops or reorders a finding, so it cannot cause a
 	// missed finding. No engine configured / unreachable -> findings untouched.
-	adjudicateFindings(ctx, result.Findings)
+	// Use a fresh context — the scan context may already be expired.
+	adjCtx, adjCancel := context.WithTimeout(context.Background(), 90*time.Second)
+	adjudicateFindings(adjCtx, result.Findings)
+	adjCancel()
 
 	// FP feedback: downgrade findings that match past false positives.
 	if fpDatabasePath != "" {
