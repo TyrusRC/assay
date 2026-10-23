@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/iast"
 	"github.com/TyrusRC/assay/internal/detection/xss"
 	"github.com/TyrusRC/assay/internal/payloads/paraminject"
 )
@@ -35,6 +36,25 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 	if s.config.EnableOOB {
 		s.startOOBClientAsync()
 		fmt.Fprintf(os.Stderr, "[*] OOB initialization started in background...\n")
+	}
+
+	// Start the IAST callback server when enabled. Sensors deployed in the
+	// target app POST SinkHit reports here when a taint marker reaches a
+	// dangerous function (sql_query, sys_command, file_open, etc.).
+	if s.config.EnableIAST {
+		addr := s.config.IASTCallbackAddr
+		if addr == "" {
+			addr = iast.DefaultAddr
+		}
+		s.iastServer = iast.NewServer(addr)
+		iastCtx, iastCancel := context.WithCancel(ctx)
+		defer iastCancel()
+		go func() {
+			if err := s.iastServer.Start(iastCtx); err != nil {
+				fmt.Fprintf(os.Stderr, "[!] IAST callback server: %v\n", err)
+			}
+		}()
+		fmt.Fprintf(os.Stderr, "[*] IAST callback server listening on %s\n", addr)
 	}
 
 	// Apply per-scan settings (proxy, headers, cookies, UA, insecure) to

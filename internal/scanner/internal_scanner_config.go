@@ -239,6 +239,13 @@ type InternalScanConfig struct {
 	// SessionCheckInterval is how often the keepalive polls the canary. Zero
 	// uses the session package default.
 	SessionCheckInterval time.Duration
+
+	// IAST — Interactive Application Security Testing. When enabled, assay
+	// starts a callback server and wraps DAST payloads with taint markers.
+	// A deployed sensor (PHP/Node/Python) reports back when a marker reaches
+	// a dangerous sink, upgrading the finding confidence to "confirmed".
+	EnableIAST       bool   // Start the IAST callback server during the scan
+	IASTCallbackAddr string // Listen address for the callback server (default :7880)
 }
 
 // DefaultInternalConfig returns a reasonable default configuration.

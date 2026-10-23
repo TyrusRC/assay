@@ -8,6 +8,9 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/detection/adminpath"
+	"github.com/TyrusRC/assay/internal/iast"
+	// blank line kept so the import block is not one giant line
+
 	"github.com/TyrusRC/assay/internal/detection/apispec"
 	"github.com/TyrusRC/assay/internal/detection/apiversion"
 	"github.com/TyrusRC/assay/internal/detection/auth"
@@ -271,7 +274,8 @@ type InternalScanner struct {
 	// start of every Scan call; nil is safe (detectors fall through to
 	// uncached fetch).
 	baselineCache *paraminject.Cache
-	mu                      sync.Mutex
+	iastServer    *iast.Server
+	mu            sync.Mutex
 
 	// Fields populated during Scan for the smart tool dispatcher.
 	Technologies        []string
