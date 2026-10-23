@@ -54,10 +54,13 @@ type Finding struct {
 }
 
 // NewFinding creates a new Finding with the given type and severity.
+// Title defaults to vulnType so both the "type" and "title" JSON fields
+// carry a human-readable label when the caller does not set Title explicitly.
 func NewFinding(vulnType string, severity Severity) *Finding {
 	return &Finding{
 		ID:         uuid.New().String(),
 		Type:       vulnType,
+		Title:      vulnType,
 		Severity:   severity,
 		Confidence: ConfidenceMedium,
 		Timestamp:  time.Now(),

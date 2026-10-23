@@ -270,6 +270,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Smart auto-configuration: probe the target and auto-enable features.
+	// Runs BEFORE validation so profile-derived level/risk are set first.
+	autoConfig(cmd, targets)
+
 	if level < 1 || level > 5 {
 		return fmt.Errorf("level must be between 1 and 5, got %d", level)
 	}
@@ -466,6 +470,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// It only annotates — it never drops or reorders a finding, so it cannot cause a
 	// missed finding. No engine configured / unreachable -> findings untouched.
 	adjudicateFindings(ctx, result.Findings)
+
+	// Coverage summary: show what was tested and what was skipped so the
+	// result is never silently incomplete.
+	printCoverageSummary(result, internalConfig)
 
 	report := reporting.NewReport(result)
 	if err := writeReports(report, formats, outputDir); err != nil {

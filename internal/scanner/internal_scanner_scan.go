@@ -402,25 +402,50 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 }
 
 // paramPriority returns a sort key: lower = tested first.
-// 0: spec-discovered (SourceURL set) — from OpenAPI/Swagger
-// 1: path params — almost always real injectable IDs
-// 2: cookie/body params from discovery
-// 3: headers (built-in probes)
-// 4: query params without SourceURL (often JS noise)
+// Body params and semantic names go first because they are the most
+// likely injection targets. Headers and single-letter query noise go
+// last. Spec-discovered params (SourceURL set) get a bonus within
+// their location tier.
+//
+//	0: body params with semantic names (username, password, email, id, ...)
+//	1: body params (other)
+//	2: path params
+//	3: query params with semantic names (id, file, search, redirect, ...)
+//	4: cookie params
+//	5: query params (multi-char, non-semantic)
+//	6: spec-discovered headers (SourceURL set)
+//	7: built-in header probes
+//	8: single-char query params and noise
 func paramPriority(p core.Parameter) int {
-	if p.SourceURL != "" {
-		return 0
-	}
-	if p.Location == "path" {
+	switch p.Location {
+	case "body":
+		if p.IsPotentiallyVulnerable() {
+			return 0
+		}
 		return 1
-	}
-	if p.Location == "cookie" || p.Location == "body" {
+	case "path":
 		return 2
+	case "query":
+		if p.IsPotentiallyVulnerable() {
+			return 3
+		}
+		if len(p.Name) > 2 {
+			return 5
+		}
+		return 8
+	case "cookie":
+		return 4
+	case "header":
+		if p.SourceURL != "" {
+			return 6
+		}
+		return 7
+	default:
+		if p.SourceURL != "" {
+			return 3
+		}
+		return 8
 	}
-	if p.Location == "header" {
-		return 3
-	}
-	return 4
 }
 
 // flushPartialFindings writes the current findings snapshot to
