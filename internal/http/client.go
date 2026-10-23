@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,12 +108,30 @@ func NewClient() *Client {
 	return c
 }
 
+// loopbackDialContext tries IPv6 (::1) first for loopback addresses. On WSL2
+// with Docker Desktop, containers bind [::]:port and IPv4 127.0.0.1 can time
+// out while [::1] connects instantly. Go's default dialer resolves "localhost"
+// to 127.0.0.1 only, which silently times out every request.
+func loopbackDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+	if host == "127.0.0.1" || host == "localhost" {
+		if conn, err := (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "tcp6", net.JoinHostPort("::1", port)); err == nil {
+			return conn, nil
+		}
+	}
+	return (&net.Dialer{}).DialContext(ctx, network, addr)
+}
+
 // buildHTTPClient constructs the underlying http.Client.
 func (c *Client) buildHTTPClient() {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: c.insecure,
 		},
+		DialContext:         loopbackDialContext,
 		MaxIdleConns:        100,
 		MaxConnsPerHost:     20,
 		MaxIdleConnsPerHost: 10,
