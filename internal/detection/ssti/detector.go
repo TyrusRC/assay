@@ -131,6 +131,16 @@ func (d *Detector) Detect(ctx context.Context, target, param, method string, opt
 		result.Vulnerable = true
 		result.DetectedEngine = mathResult.engine
 		result.EngineConfidence = mathResult.confidence
+
+		finding := d.createFinding(target, param, ssti.Payload{
+			Value:           mathResult.expression,
+			Engine:          mathResult.engine,
+			Type:            ssti.TypeDetection,
+			Description:     fmt.Sprintf("SSTI via math expression (engine: %s)", mathResult.engine),
+			ExpectedOutput:  mathResult.result,
+			DetectionMethod: ssti.MethodMath,
+		}, nil, mathResult.engine)
+		result.Findings = append(result.Findings, finding)
 	}
 
 	// Phase 3: Error-based detection
