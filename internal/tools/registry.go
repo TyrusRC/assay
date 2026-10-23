@@ -42,13 +42,15 @@ func (r *Registry) ByName(name string) Tool {
 // classTools maps a vulnerability class name to the tool names that
 // test it best. First entry is preferred; the rest are fallbacks.
 var classTools = map[string][]string{
-	"sqli":  {"sqlmap", "ghauri"},
-	"xss":   {"dalfox"},
-	"cmdi":  {"commix"},
-	"ssti":  {"tplmap"},
-	"misc":  {"nikto"},
-	"wp":    {"wpscan"},
-	"nuclei": {"nuclei"},
+	"sqli":      {"sqlmap", "ghauri"},
+	"xss":       {"dalfox"},
+	"cmdi":      {"commix"},
+	"ssti":      {"tplmap"},
+	"misc":      {"nikto"},
+	"wp":        {"wpscan"},
+	"nuclei":    {"nuclei"},
+	"discovery": {"feroxbuster", "katana", "gau"},
+	"params":    {"arjun"},
 }
 
 // ForClass returns the available tools for a vulnerability class,

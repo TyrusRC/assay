@@ -274,8 +274,9 @@ type InternalScanner struct {
 	// start of every Scan call; nil is safe (detectors fall through to
 	// uncached fetch).
 	baselineCache *paraminject.Cache
-	iastServer    *iast.Server
-	mu            sync.Mutex
+	iastServer      *iast.Server
+	coverageTracker *CoverageTracker
+	mu              sync.Mutex
 
 	// Fields populated during Scan for the smart tool dispatcher.
 	Technologies        []string
@@ -358,7 +359,9 @@ func NewInternalScanner(config *InternalScanConfig) (*InternalScanner, error) {
 		fmt.Fprintf(os.Stderr, "[!] Tech stack detection unavailable: %v\n", techErr)
 	}
 
-	scanner := &InternalScanner{}
+	scanner := &InternalScanner{
+		coverageTracker: NewCoverageTracker(),
+	}
 	scanner.initDetectors(httpClient, config, techDetector)
 
 	if config.EnableDiscovery {
@@ -385,6 +388,11 @@ func (s *InternalScanner) Close() {
 		s.headlessPool.Close()
 		s.headlessPool = nil
 	}
+}
+
+// CoverageData returns the coverage tracker for external consumption.
+func (s *InternalScanner) CoverageData() *CoverageTracker {
+	return s.coverageTracker
 }
 
 // InternalScanResult contains results from internal scanning.

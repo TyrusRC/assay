@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/scanner"
 	"github.com/TyrusRC/assay/internal/tools/commix"
 	"github.com/TyrusRC/assay/internal/tools/dalfox"
@@ -165,4 +166,26 @@ func printScanHeader(target string) {
 	fmt.Println()
 	fmt.Println("Scanning...")
 	fmt.Println()
+}
+
+// filterByConfidence removes findings whose confidence is below the
+// given threshold. The ranking is: confirmed > high > medium > low.
+func filterByConfidence(findings core.Findings, threshold string) core.Findings {
+	rank := map[core.Confidence]int{
+		core.ConfidenceConfirmed: 4,
+		core.ConfidenceHigh:     3,
+		core.ConfidenceMedium:   2,
+		core.ConfidenceLow:      1,
+	}
+	minRank := rank[core.Confidence(threshold)]
+	if minRank == 0 {
+		return findings // unknown threshold, return all
+	}
+	var out core.Findings
+	for _, f := range findings {
+		if rank[f.Confidence] >= minRank {
+			out = append(out, f)
+		}
+	}
+	return out
 }

@@ -203,6 +203,20 @@ type ToolResult struct {
 
 	// Errors encountered
 	Errors []string
+
+	// Discovery results (for tools like arjun, katana, feroxbuster that
+	// discover new endpoints/params rather than finding vulnerabilities).
+	IsDiscovery     bool
+	DiscoveredURLs  []string
+	DiscoveredParams []DiscoveredParam
+}
+
+// DiscoveredParam represents a parameter found by a discovery tool.
+type DiscoveredParam struct {
+	Name     string `json:"name"`
+	Location string `json:"location"` // query, body, header
+	URL      string `json:"url"`
+	Method   string `json:"method"`
 }
 
 // NewToolResult creates a new ToolResult.

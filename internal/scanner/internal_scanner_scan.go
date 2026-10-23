@@ -309,32 +309,59 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 	}
 
-	// Phase 1: parameter-injection tests, only when we have params to inject into.
-	// Split into two batches: spec-discovered params (SourceURL set) run first
-	// to completion, then generic built-in headers. This prevents header probes
-	// from starving the API params that carry the real findings.
+	// Phase 1: parameter-injection tests in 3 tiers by priority.
+	// Tier 1 (body params) get ALL detectors — highest injection value.
+	// Tier 2 (query/path/cookie) get the top 5 classes (sqli, xss, cmdi, ssrf, lfi).
+	// Tier 3 (headers/noise) get sqli + cmdi only.
+	// This ensures body params are fully tested even under time pressure.
 	if len(params) > 0 {
 		prog.SetPhase("parameter-injection")
 		ClassifyParameters(scanCtx, scanClient, targetURL, params, method)
 
-		var specParams, genericParams []core.Parameter
+		var tier1, tier2, tier3 []core.Parameter
 		for _, p := range params {
-			if p.SourceURL != "" {
-				specParams = append(specParams, p)
-			} else {
-				genericParams = append(genericParams, p)
+			pri := paramPriority(p)
+			switch {
+			case pri <= 1:
+				tier1 = append(tier1, p)
+			case pri <= 5:
+				tier2 = append(tier2, p)
+			default:
+				tier3 = append(tier3, p)
 			}
 		}
+		if len(tier1) > 30 {
+			tier1 = tier1[:30]
+		}
+		if len(tier2) > 30 {
+			tier2 = tier2[:30]
+		}
+		if len(tier3) > 15 {
+			tier3 = tier3[:15]
+		}
 
-		if len(specParams) > 0 {
-			fmt.Fprintf(os.Stderr, "[*] Phase 1a: spec-discovered params (%d)...\n", len(specParams))
-			s.runParameterTests(scanCtx, &wg, findingsChan, specParams, targetURL, method, scanClient, prog)
+		tier2Filter := map[string]bool{
+			"sqli": true, "xss": true, "cmdi": true, "ssrf": true, "lfi": true,
+		}
+		tier3Filter := map[string]bool{
+			"sqli": true, "cmdi": true,
+		}
+
+		if len(tier1) > 0 {
+			fmt.Fprintf(os.Stderr, "[*] Phase 1a: body params — all detectors (%d)...\n", len(tier1))
+			s.runParameterTests(scanCtx, &wg, findingsChan, tier1, targetURL, method, scanClient, prog, nil)
 			wg.Wait()
 			flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
 		}
-		if len(genericParams) > 0 {
-			fmt.Fprintf(os.Stderr, "[*] Phase 1b: generic header params (%d)...\n", len(genericParams))
-			s.runParameterTests(scanCtx, &wg, findingsChan, genericParams, targetURL, method, scanClient, prog)
+		if len(tier2) > 0 {
+			fmt.Fprintf(os.Stderr, "[*] Phase 1b: query/path/cookie — top 5 detectors (%d)...\n", len(tier2))
+			s.runParameterTests(scanCtx, &wg, findingsChan, tier2, targetURL, method, scanClient, prog, tier2Filter)
+			wg.Wait()
+			flushPartialFindings(&findingsMu, &collectedFindings, partialDir)
+		}
+		if len(tier3) > 0 {
+			fmt.Fprintf(os.Stderr, "[*] Phase 1c: headers/noise — sqli+cmdi only (%d)...\n", len(tier3))
+			s.runParameterTests(scanCtx, &wg, findingsChan, tier3, targetURL, method, scanClient, prog, tier3Filter)
 			wg.Wait()
 		}
 	}

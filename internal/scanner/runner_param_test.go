@@ -34,7 +34,7 @@ func TestRunParameterTests_DrivesProgress(t *testing.T) {
 	ch := make(chan *core.Finding, len(params))
 
 	var wg sync.WaitGroup
-	s.runParameterTests(context.Background(), &wg, ch, params, "http://example.invalid", "GET", s.client, prog)
+	s.runParameterTests(context.Background(), &wg, ch, params, "http://example.invalid", "GET", s.client, prog, nil)
 	wg.Wait()
 	close(ch)
 

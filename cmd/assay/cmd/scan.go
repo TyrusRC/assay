@@ -164,6 +164,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what the scan would do without sending any traffic")
 	scanCmd.Flags().BoolVar(&iastEnabled, "iast", false, "Enable IAST: start the callback server for taint-marker sink confirmation (deploy a sensor to the target first — see 'assay iast deploy')")
 	scanCmd.Flags().StringVar(&iastAddr, "iast-addr", ":7880", "IAST callback server listen address")
+	scanCmd.Flags().StringVar(&minConfidence, "min-confidence", "", "Filter out findings below this confidence level: confirmed, high, medium, low (default: report all)")
+	scanCmd.Flags().StringVar(&coveragePath, "coverage", "", "Write coverage data (tested/skipped params × detectors) to this JSON file")
 }
 
 func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {
@@ -473,9 +475,32 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// missed finding. No engine configured / unreachable -> findings untouched.
 	adjudicateFindings(ctx, result.Findings)
 
+	// Confidence threshold: filter out low-confidence findings for enterprise.
+	if minConfidence != "" {
+		before := len(result.Findings)
+		result.Findings = filterByConfidence(result.Findings, minConfidence)
+		if verbose && before != len(result.Findings) {
+			fmt.Fprintf(os.Stderr, "[*] Confidence filter (>=%s): %d → %d findings\n",
+				minConfidence, before, len(result.Findings))
+		}
+	}
+
 	// Coverage summary: show what was tested and what was skipped so the
 	// result is never silently incomplete.
 	printCoverageSummary(result, internalConfig)
+
+	// Write detailed coverage data if requested.
+	if coveragePath != "" {
+		if ct := s.CoverageData(); ct != nil {
+			if err := ct.WriteJSON(coveragePath); err != nil {
+				fmt.Fprintf(os.Stderr, "[!] Coverage write failed: %v\n", err)
+			} else if verbose {
+				sum := ct.Summary()
+				fmt.Fprintf(os.Stderr, "[*] Coverage data: %d params × %d detectors → %s\n",
+					sum.UniqueParams, len(sum.DetectorsUsed), coveragePath)
+			}
+		}
+	}
 
 	report := reporting.NewReport(result)
 	if err := writeReports(report, formats, outputDir); err != nil {

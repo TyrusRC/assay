@@ -121,6 +121,8 @@ var (
 	dryRun               bool
 	iastEnabled          bool
 	iastAddr             string
+	minConfidence        string
+	coveragePath         string
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.

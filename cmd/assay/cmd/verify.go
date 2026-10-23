@@ -23,9 +23,10 @@ func runVerification(ctx context.Context, findings core.Findings, headerMap map[
 		WithInsecure(insecure)
 
 	engine := verification.NewEngine(client)
-	sum := engine.VerifyAll(ctx, findings)
+	rounds := 3 // multi-round proof-based scanning
+	sum := engine.VerifyMultiRound(ctx, findings, rounds)
 	if sum.Attempted > 0 {
-		fmt.Fprintf(os.Stderr, "[*] Verification: confirmed %d/%d findings with a reproducible proof\n",
-			sum.Confirmed, sum.Attempted)
+		fmt.Fprintf(os.Stderr, "[*] Verification (%d rounds): confirmed %d/%d findings\n",
+			rounds, sum.Confirmed, sum.Attempted)
 	}
 }

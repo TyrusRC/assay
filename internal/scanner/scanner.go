@@ -210,6 +210,17 @@ func (s *Scanner) Close() {
 	}
 }
 
+// CoverageData returns the internal scanner's coverage tracker, or nil
+// if the internal scanner was not enabled.
+func (s *Scanner) CoverageData() *CoverageTracker {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.internalScanner == nil {
+		return nil
+	}
+	return s.internalScanner.CoverageData()
+}
+
 // Config returns the current configuration.
 func (s *Scanner) Config() *Config {
 	s.mu.RLock()

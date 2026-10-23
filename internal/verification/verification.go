@@ -89,18 +89,55 @@ func (e *Engine) Verify(ctx context.Context, f *core.Finding) (*Proof, bool) {
 	return proof, true
 }
 
-// VerifyAll confirms every finding that has a registered verifier and returns a
-// summary of the pass.
+// VerifyAll confirms every finding with a single round. For proof-based
+// scanning with fewer false positives, use VerifyMultiRound instead.
 func (e *Engine) VerifyAll(ctx context.Context, findings core.Findings) Summary {
+	return e.VerifyMultiRound(ctx, findings, 1)
+}
+
+// VerifyMultiRound replays each finding `rounds` times. The confidence
+// upgrade depends on how many rounds confirm:
+//
+//	>= 2/3 rounds → ConfidenceConfirmed
+//	  1/3 rounds → ConfidenceHigh (suspected but flaky)
+//	  0/3 rounds → ConfidenceLow (likely false positive)
+//
+// Findings without a registered verifier are left untouched.
+func (e *Engine) VerifyMultiRound(ctx context.Context, findings core.Findings, rounds int) Summary {
+	if rounds < 1 {
+		rounds = 1
+	}
 	var sum Summary
 	for _, f := range findings {
-		proof, attempted := e.Verify(ctx, f)
-		if !attempted {
+		v, ok := e.verifiers[f.Type]
+		if !ok {
 			continue
 		}
 		sum.Attempted++
-		if proof != nil && proof.Confirmed {
+		confirmed := 0
+		for r := 0; r < rounds; r++ {
+			if ctx.Err() != nil {
+				break
+			}
+			proof, err := v.Verify(ctx, f, e.client)
+			if err == nil && proof != nil && proof.Confirmed {
+				confirmed++
+				if confirmed == 1 {
+					applyProof(f, proof)
+				}
+			}
+		}
+		switch {
+		case confirmed >= 2:
+			f.Confidence = core.ConfidenceConfirmed
+			f.Verified = true
 			sum.Confirmed++
+		case confirmed == 1:
+			f.Confidence = core.ConfidenceHigh
+			f.Verified = true
+			sum.Confirmed++
+		case confirmed == 0 && rounds > 1:
+			f.Confidence = core.ConfidenceLow
 		}
 	}
 	return sum

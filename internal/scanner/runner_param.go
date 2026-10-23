@@ -3,16 +3,22 @@ package scanner
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/http"
+	"github.com/TyrusRC/assay/internal/iast"
 )
 
 // runParameterTests launches goroutines for all parameter-level injection
 // tests, bounded by a semaphore so a target with many parameters doesn't
 // flood the server with hundreds of concurrent requests. Each parameter is
 // reported to prog as tested once its detectors finish.
-func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress) {
+//
+// tierFilter, when non-nil, restricts which detector classes run. Pass
+// nil to run all applicable detectors (full tier). This enables tiered
+// testing: body params get all detectors, headers get only sqli+cmdi.
+func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGroup, findingsChan chan<- *core.Finding, params []core.Parameter, targetURL, method string, scanClient *http.Client, prog *Progress, tierFilter map[string]bool) {
 	concurrency := s.config.ParamConcurrency
 	if concurrency <= 0 {
 		concurrency = 5
@@ -52,7 +58,7 @@ func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGr
 				injMethod = p.Method
 			}
 			siblings := epParams[epKey{injURL, injMethod}]
-			s.runParamDetectors(ctx, findingsChan, injURL, p, injMethod, scanClient, siblings)
+			s.runParamDetectors(ctx, findingsChan, injURL, p, injMethod, scanClient, siblings, tierFilter)
 			if prog != nil {
 				prog.IncrementTested()
 			}
@@ -151,7 +157,7 @@ func (s *InternalScanner) applicableTests(param core.Parameter) []paramTest {
 // routes through SendPayloadAt, injecting the payload at the correct
 // location (JSON body, path segment, header, XML, cookie, query) without
 // any detector code changes.
-func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan chan<- *core.Finding, targetURL string, param core.Parameter, method string, scanClient *http.Client, siblings []core.Parameter) {
+func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan chan<- *core.Finding, targetURL string, param core.Parameter, method string, scanClient *http.Client, siblings []core.Parameter, tierFilter map[string]bool) {
 	pc := scanClient.ForParam(param).WithSiblings(siblings)
 
 	runners := map[string]func() []*core.Finding{
@@ -185,6 +191,17 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 
 	applicable := s.applicableTests(param)
 
+	// Tier filter: restrict detectors per param tier (body=all, query=top5, header=sqli+cmdi).
+	if tierFilter != nil {
+		var filtered []paramTest
+		for _, t := range applicable {
+			if tierFilter[t.name] {
+				filtered = append(filtered, t)
+			}
+		}
+		applicable = filtered
+	}
+
 	// --test filter: run only named detector classes.
 	if len(s.config.OnlyTests) > 0 {
 		allowed := make(map[string]bool, len(s.config.OnlyTests))
@@ -212,6 +229,12 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 
 	for _, t := range applicable {
 		if s.confirmed.shouldSkip(param.Name, t.name) {
+			if s.coverageTracker != nil {
+				s.coverageTracker.Record(CoverageRecord{
+					URL: targetURL, Parameter: param.Name,
+					Location: param.Location, Detector: t.name, Status: "skipped",
+				})
+			}
 			continue
 		}
 		runner, ok := runners[t.name]
@@ -223,15 +246,71 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 		go func(name string, run func() []*core.Finding) {
 			defer detWg.Done()
 			defer func() { <-detSem }()
+			start := time.Now()
 			findings := run()
+			elapsed := time.Since(start)
+			status := "tested"
+			if ctx.Err() != nil {
+				status = "timeout"
+			}
+			if s.coverageTracker != nil {
+				s.coverageTracker.Record(CoverageRecord{
+					URL:       targetURL,
+					Parameter: param.Name,
+					Location:  param.Location,
+					Detector:  name,
+					Status:    status,
+					Findings:  len(findings),
+					Duration:  elapsed,
+				})
+			}
 			if len(findings) > 0 {
 				s.confirmed.confirm(param.Name, name)
 				emit(ctx, findingsChan, findings)
-				// Record as injection candidate for the smart tool dispatcher.
-				// sqlmap/dalfox/commix get the exact param + evidence from here.
 				s.recordInjectionCandidate(targetURL, param, method, name, findings[0])
 			}
 		}(t.name, runner)
 	}
 	detWg.Wait()
+
+	// IAST taint probe: if the callback server is running, send one
+	// marker-wrapped payload per high-value sink type. If the sensor
+	// reports the marker reached the sink, record a confirmed candidate.
+	if s.iastServer != nil && param.Location == core.ParamLocationBody {
+		s.probeIASTSinks(ctx, targetURL, param, method, pc)
+	}
+}
+
+// probeIASTSinks sends taint-marker payloads for the 4 highest-value
+// sink types and waits briefly for the deployed sensor to call back.
+func (s *InternalScanner) probeIASTSinks(ctx context.Context, targetURL string, param core.Parameter, method string, pc *http.Client) {
+	sinkTypes := []struct {
+		sink    string
+		payload string
+	}{
+		{iast.SinkSQLQuery, "' OR '1'='1"},
+		{iast.SinkSysCommand, ";id"},
+		{iast.SinkFileOpen, "../../../../etc/passwd"},
+		{iast.SinkUnserialize, "O:8:\"stdClass\":0:{}"},
+	}
+
+	for _, st := range sinkTypes {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		markerID, _ := iast.GenerateMarker(st.sink)
+		fullPayload := iast.WrapPayload(st.payload, markerID, st.sink)
+		_, _ = pc.SendPayload(ctx, targetURL, param.Name, fullPayload, method)
+
+		hit := s.iastServer.WaitForHit(markerID, 2*time.Second)
+		if hit != nil {
+			s.recordInjectionCandidate(targetURL, param, method, st.sink, &core.Finding{
+				Evidence:    "IAST: taint marker reached " + hit.SinkType + " sink",
+				Description: "IAST sensor confirmed payload reached " + hit.SinkType + " sink. Stack: " + hit.StackTrace,
+				Confidence:  core.ConfidenceConfirmed,
+			})
+		}
+	}
 }

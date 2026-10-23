@@ -60,11 +60,17 @@ func (d *Dispatcher) Dispatch(baseReq *ToolRequest, ctx *ScanContext) []ToolTask
 		tasks = append(tasks, d.autonomous(baseReq, "wpscan", "WordPress detected")...)
 	}
 
-	// Thorough profile adds extra tools unconditionally
+	// Thorough profile adds extra scanning + discovery tools
 	if d.thorough {
 		tasks = append(tasks, d.autonomous(baseReq, "ghauri", "thorough: fast SQLi")...)
 		tasks = append(tasks, d.autonomous(baseReq, "commix", "thorough: command injection")...)
 		tasks = append(tasks, d.autonomous(baseReq, "tplmap", "thorough: SSTI detection")...)
+
+		// Discovery tools: feed new endpoints and params into the scan
+		tasks = append(tasks, d.autonomous(baseReq, "feroxbuster", "thorough: directory discovery")...)
+		tasks = append(tasks, d.autonomous(baseReq, "arjun", "thorough: hidden parameter discovery")...)
+		tasks = append(tasks, d.autonomous(baseReq, "katana", "thorough: advanced web crawl")...)
+		tasks = append(tasks, d.autonomous(baseReq, "gau", "thorough: historical URL discovery")...)
 	}
 
 	// ── Focus tasks: additive, pinned to native-flagged candidates ──

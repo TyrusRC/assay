@@ -3,9 +3,13 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/TyrusRC/assay/internal/tools/arjun"
 	"github.com/TyrusRC/assay/internal/tools/commix"
 	"github.com/TyrusRC/assay/internal/tools/dalfox"
+	"github.com/TyrusRC/assay/internal/tools/feroxbuster"
+	"github.com/TyrusRC/assay/internal/tools/gau"
 	"github.com/TyrusRC/assay/internal/tools/ghauri"
+	"github.com/TyrusRC/assay/internal/tools/katana"
 	"github.com/TyrusRC/assay/internal/tools/nikto"
 	"github.com/TyrusRC/assay/internal/tools/nuclei"
 	"github.com/TyrusRC/assay/internal/tools/sqlmap"
