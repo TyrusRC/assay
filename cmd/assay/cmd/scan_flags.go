@@ -94,6 +94,7 @@ var (
 	noSSIInj             bool
 	noStorage            bool
 	noNuclei             bool
+	internalOnly         bool
 	nucleiTags           string
 	nucleiSev            string
 	authACookie          string

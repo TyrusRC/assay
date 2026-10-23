@@ -342,9 +342,10 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 
 		tier2Filter := map[string]bool{
 			"sqli": true, "xss": true, "cmdi": true, "ssrf": true, "lfi": true,
+			"ssti": true, "nosql": true, "redirect": true,
 		}
 		tier3Filter := map[string]bool{
-			"sqli": true, "cmdi": true,
+			"sqli": true, "cmdi": true, "ssti": true,
 		}
 
 		if len(tier1) > 0 {

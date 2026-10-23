@@ -44,6 +44,9 @@ func (s *InternalScanner) runParameterTests(ctx context.Context, wg *sync.WaitGr
 	}
 
 	for _, param := range params {
+		if param.Fixed {
+			continue // submit buttons / fixed hidden fields are siblings only, not injection targets
+		}
 		wg.Add(1)
 		go func(p core.Parameter) {
 			defer wg.Done()

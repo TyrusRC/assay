@@ -114,6 +114,7 @@ func (c *Client) buildHTTPClient() {
 			InsecureSkipVerify: c.insecure,
 		},
 		MaxIdleConns:        100,
+		MaxConnsPerHost:     20,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 	}

@@ -80,3 +80,4 @@ docs/superpowers/
 
 # Scan results output
 scan-output/
+nikto_*.json

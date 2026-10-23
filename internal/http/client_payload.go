@@ -64,6 +64,13 @@ func (c *Client) sendPayloadDirect(ctx context.Context, baseURL, param, payload,
 		req.Body = bodyParams.Encode()
 		req.ContentType = "application/x-www-form-urlencoded"
 	} else {
+		for _, sp := range c.siblingParams {
+			if sp.Location == core.ParamLocationQuery && sp.Name != param {
+				if !query.Has(sp.Name) {
+					query.Set(sp.Name, siblingDefault(sp))
+				}
+			}
+		}
 		query.Set(param, payload)
 		parsedURL.RawQuery = query.Encode()
 		req.URL = parsedURL.String()

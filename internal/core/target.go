@@ -161,6 +161,7 @@ type Parameter struct {
 	SegmentIndex   int    `json:"segment_index,omitempty"`  // for path params, the segment position
 	SourceURL      string `json:"source_url,omitempty"`     // endpoint URL this param belongs to (from OpenAPI/crawl); injection targets this URL
 	Method         string `json:"method,omitempty"`         // HTTP method for this endpoint (GET/POST/PUT/DELETE)
+	Fixed          bool   `json:"fixed,omitempty"`          // true for submit buttons / hidden fields that must be sent but not injected into
 }
 
 // Parameter classification constants.

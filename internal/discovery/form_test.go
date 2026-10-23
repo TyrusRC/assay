@@ -77,18 +77,21 @@ func TestFormDiscoverer_Discover(t *testing.T) {
 			},
 		},
 		{
-			name: "skips file and button inputs",
+			name: "skips file/image/reset but keeps submit/button as fixed",
 			body: `<html><body>
 				<form method="POST" action="/upload">
 					<input type="text" name="title">
 					<input type="file" name="attachment">
 					<input type="button" name="btn">
+					<input type="submit" name="Submit" value="Submit">
 					<input type="image" name="img">
 					<input type="reset" name="rst">
 				</form>
 			</body></html>`,
 			expectedParams: []core.Parameter{
 				{Name: "title", Location: core.ParamLocationBody, Type: "string"},
+				{Name: "btn", Location: core.ParamLocationBody, Type: "string", Fixed: true},
+				{Name: "Submit", Location: core.ParamLocationBody, Value: "Submit", Type: "string", Fixed: true},
 			},
 		},
 		{
@@ -148,6 +151,9 @@ func TestFormDiscoverer_Discover(t *testing.T) {
 						found = true
 						if expected.Value != "" && p.Value != expected.Value {
 							t.Errorf("param %q value = %q, want %q", expected.Name, p.Value, expected.Value)
+						}
+						if p.Fixed != expected.Fixed {
+							t.Errorf("param %q Fixed = %v, want %v", expected.Name, p.Fixed, expected.Fixed)
 						}
 						break
 					}

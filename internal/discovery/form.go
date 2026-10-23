@@ -75,7 +75,23 @@ func (f *FormDiscoverer) walkNode(n *html.Node, formMethod, formAction, pageURL 
 		case "input":
 			name := f.getAttr(n, "name")
 			inputType := strings.ToLower(f.getAttr(n, "type"))
-			if name != "" && inputType != "file" && inputType != "submit" && inputType != "button" && inputType != "image" && inputType != "reset" {
+			if name == "" || inputType == "file" || inputType == "image" || inputType == "reset" {
+				break
+			}
+			if inputType == "submit" || inputType == "button" {
+				// Submit/button inputs are not injection targets but must
+				// be sent alongside sibling params (e.g. DVWA requires
+				// Submit=Submit for the backend to process the form).
+				*params = append(*params, core.Parameter{
+					Name:      name,
+					Location:  f.locationForMethod(formMethod),
+					Value:     f.getAttr(n, "value"),
+					Type:      "string",
+					Method:    strings.ToUpper(formMethod),
+					SourceURL: formAction,
+					Fixed:     true,
+				})
+			} else {
 				*params = append(*params, core.Parameter{
 					Name:      name,
 					Location:  f.locationForMethod(formMethod),

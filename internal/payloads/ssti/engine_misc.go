@@ -46,10 +46,10 @@ var mustachePayloads = []Payload{
 // Polyglot payloads that work across multiple engines.
 var polyglotPayloads = []Payload{
 	{
-		Value:           "{{7*7}}${7*7}<%= 7*7 %>${{7*7}}#{7*7}",
+		Value:           "{{7*7}}${7*7}<%= 7*7 %>${{7*7}}#{7*7}%{7*7}",
 		Engine:          EngineUnknown,
 		Type:            TypeDetection,
-		Description:     "Multi-engine math polyglot",
+		Description:     "Multi-engine math polyglot (includes OGNL %{})",
 		DetectionMethod: MethodMath,
 		ExpectedOutput:  "49",
 	},

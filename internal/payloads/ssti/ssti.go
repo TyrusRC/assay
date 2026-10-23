@@ -43,6 +43,8 @@ const (
 	EngineTornado TemplateEngine = "tornado"
 	// EngineJSPEL represents Java JSP / EL (Expression Language).
 	EngineJSPEL TemplateEngine = "jsp_el"
+	// EngineOGNL represents Apache Struts2 / OGNL expression language.
+	EngineOGNL TemplateEngine = "ognl"
 	// EngineUnknown represents an unknown template engine.
 	EngineUnknown TemplateEngine = "unknown"
 )
@@ -126,6 +128,8 @@ func GetPayloads(engine TemplateEngine) []Payload {
 		return tornadoPayloads
 	case EngineJSPEL:
 		return jspELPayloads
+	case EngineOGNL:
+		return ognlPayloads
 	default:
 		return GetAllPayloads()
 	}
@@ -206,6 +210,7 @@ func GetAllPayloads() []Payload {
 	all = append(all, razorPayloads...)
 	all = append(all, tornadoPayloads...)
 	all = append(all, jspELPayloads...)
+	all = append(all, ognlPayloads...)
 	all = append(all, polyglotPayloads...)
 	return all
 }

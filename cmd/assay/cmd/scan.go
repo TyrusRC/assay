@@ -143,6 +143,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&noSSIInj, "no-ssi", false, "Disable Server-Side Includes injection probe")
 	scanCmd.Flags().BoolVar(&noStorage, "no-storage", false, "Disable cookie / session-management audit")
 	scanCmd.Flags().BoolVar(&noNuclei, "no-nuclei", false, "Skip the Nuclei binary even when it's on PATH")
+	scanCmd.Flags().BoolVar(&internalOnly, "internal-only", false, "Run only the internal scanner, skip all external tools (sqlmap, dalfox, nuclei, etc.)")
 	scanCmd.Flags().StringVar(&nucleiTags, "nuclei-tags", "", "Comma-separated tag filter passed to Nuclei (e.g. cve,rce)")
 	scanCmd.Flags().StringVar(&nucleiSev, "nuclei-severity", "", "Comma-separated severity filter for Nuclei (info,low,medium,high,critical)")
 	scanCmd.Flags().StringVar(&authACookie, "auth-a-cookie", "", "Cookie header for identity A (two-identity IDOR/BOLA probe)")
@@ -429,7 +430,9 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	registerTools(s)
+	if !internalOnly {
+		registerTools(s)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

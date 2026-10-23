@@ -107,6 +107,10 @@ func (d *Detector) detectMathExpression(ctx context.Context, target, param, meth
 
 		// Freemarker numeric
 		{wrap("#{7*7}"), expect("49"), ssti.EngineFreemarker},
+
+		// OGNL style (Struts2 S2-001 through S2-062)
+		{wrap("%{7*7}"), expect("49"), ssti.EngineOGNL},
+		{wrap("%{3+4}"), expect("7"), ssti.EngineOGNL},
 	}
 
 	for _, test := range mathTests {
@@ -159,11 +163,13 @@ func (d *Detector) detectByError(ctx context.Context, target, param, method stri
 		"${",
 		"<%",
 		"{#",
+		"%{",
 		"{{''.__class__}}",
 		"{{undefined_var}}",
 		"${undefined}",
 		"<%= undefined %>",
 		"#set($x=",
+		"%{#foo}",
 	}
 
 	// Engine-specific error patterns
@@ -210,6 +216,14 @@ func (d *Detector) detectByError(ctx context.Context, target, param, method stri
 			"ERB::Error",
 			"SyntaxError",
 			"NameError",
+		},
+		ssti.EngineOGNL: {
+			"ognl.OgnlException",
+			"ognl.ExpressionSyntax",
+			"com.opensymphony.xwork2",
+			"org.apache.struts2",
+			"ActionSupport",
+			"ValueStack",
 		},
 	}
 
