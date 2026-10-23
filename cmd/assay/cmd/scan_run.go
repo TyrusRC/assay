@@ -78,16 +78,31 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 	items := make([]decision.Item, len(findings))
 	for i, f := range findings {
 		ev := f.Evidence
-		if len(ev) > 800 {
-			ev = ev[:800]
+		if len(ev) > 600 {
+			ev = ev[:600]
 		}
-		verified := ""
+		var tags []string
+		tags = append(tags, string(f.Severity))
+		tags = append(tags, string(f.Confidence))
 		if f.Verified {
-			verified = " [verified]"
+			tags = append(tags, "verified-by-replay")
+		} else {
+			tags = append(tags, "unverified")
+		}
+		if f.Tool != "" {
+			tags = append(tags, "tool:"+f.Tool)
+		}
+		// For low-value classes, append impact context when unverified.
+		// This helps the ML engine distinguish real exploits from mere
+		// reflections that programs mark as informational.
+		qualifier := ""
+		if !f.Verified {
+			qualifier = impactQualifier(f.Type)
 		}
 		items[i] = decision.Item{
-			Key:  f.ID,
-			Text: fmt.Sprintf("%s on %s param %q%s: %s", f.Type, f.URL, f.Parameter, verified, ev),
+			Key: f.ID,
+			Text: fmt.Sprintf("%s on %s param %q [%s]: %s%s",
+				f.Type, f.URL, f.Parameter, strings.Join(tags, ","), ev, qualifier),
 		}
 	}
 	probs, err := decision.Adjudicate(ctx, cfg, items)
@@ -118,6 +133,30 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 	if reviewed > 0 {
 		fmt.Fprintf(os.Stderr, "[+] Haruspex adjudication: scored %d/%d findings\n", reviewed, len(findings))
 	}
+}
+
+// impactQualifier returns a context suffix for finding types where reflection
+// alone does not prove exploitability. This helps the ML engine discriminate
+// real exploits from noise that programs mark as informational.
+func impactQualifier(findingType string) string {
+	lower := strings.ToLower(findingType)
+	switch {
+	case strings.Contains(lower, "css injection"):
+		return " No impact demonstrated — CSS reflection only."
+	case strings.Contains(lower, "email") && strings.Contains(lower, "injection"):
+		return " No SMTP interaction observed — header reflection only."
+	case strings.Contains(lower, "ssi injection"):
+		return " SSI directive reflected but server-side execution not confirmed."
+	case strings.Contains(lower, "http parameter pollution"), strings.Contains(lower, "hpp"):
+		return " Duplicate parameter accepted. No security impact demonstrated."
+	case strings.Contains(lower, "html injection"):
+		return " HTML content injected without script execution context."
+	case strings.Contains(lower, "format string"):
+		return " Format string reflected. No memory disclosure or crash confirmed."
+	case strings.Contains(lower, "dom clobbering"):
+		return " DOM element overwritten. No downstream security impact proven."
+	}
+	return ""
 }
 
 func runScan(cmd *cobra.Command, args []string) error {

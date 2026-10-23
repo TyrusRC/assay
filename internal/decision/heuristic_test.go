@@ -10,50 +10,84 @@ func TestHeuristicScore(t *testing.T) {
 		wantMax float64
 	}{
 		{
-			name:    "verified sqli",
-			text:    "SQL Injection on /api/users param \"id\" [verified]: syntax error near 'OR'",
-			wantMin: 0.8,
+			name:    "verified sqli critical",
+			text:    `SQL Injection on http://x param "id" [critical,confirmed,verified-by-replay,tool:sqli-detector]: syntax error near 'OR'`,
+			wantMin: 0.90,
 			wantMax: 1.0,
 		},
 		{
-			name:    "unverified xss",
-			text:    "Cross-Site Scripting (XSS) on /search param \"q\": reflected <script>alert(1)</script>",
-			wantMin: 0.5,
-			wantMax: 0.75,
+			name:    "unverified xss medium",
+			text:    `Cross-Site Scripting (XSS) on http://x param "q" [high,low,unverified,tool:xss-detector]: <script>alert(1)</script>`,
+			wantMin: 0.30,
+			wantMax: 0.50,
 		},
 		{
-			name:    "missing header noise",
-			text:    "Missing header X-Frame-Options on /login",
-			wantMin: 0.0,
+			name:    "verified ssti",
+			text:    `Server-Side Template Injection (SSTI) on http://x param "name" [high,confirmed,verified-by-replay,tool:ssti-detector]: sentinel st12349st123`,
+			wantMin: 0.90,
+			wantMax: 1.0,
+		},
+		{
+			name:    "css injection noise",
+			text:    `CSS Injection on http://x param "p" [medium,low,unverified,tool:cssinj-detector]: background:url(http://evil)`,
+			wantMin: 0.10,
 			wantMax: 0.35,
 		},
 		{
-			name:    "ssti confirmed",
-			text:    "Server-Side Template Injection (SSTI) on /render param \"name\" [verified]: sentinel st12349st123 confirmed",
-			wantMin: 0.85,
-			wantMax: 1.0,
+			name:    "hpp noise",
+			text:    `HTTP Parameter Pollution on http://x param "p" [medium,low,unverified,tool:hpp-detector]: duplicate param`,
+			wantMin: 0.10,
+			wantMax: 0.35,
+		},
+		{
+			name:    "ssi injection noise",
+			text:    `SSI Injection on http://x param "p" [high,low,unverified,tool:ssi-detector]: exec cmd=echo`,
+			wantMin: 0.10,
+			wantMax: 0.35,
+		},
+		{
+			name:    "missing header deep noise",
+			text:    `Missing header X-Frame-Options on http://x param "" [low,low,unverified]: no clickjacking protection`,
+			wantMin: 0.0,
+			wantMax: 0.20,
 		},
 		{
 			name:    "known cve unverified",
-			text:    "Known CVE: CVE-2023-24329 in Python",
-			wantMin: 0.3,
-			wantMax: 0.5,
+			text:    `Known CVE: CVE-2023-24329 in Python on http://x param "" [high,low,unverified,tool:techstack-cve-correlator]`,
+			wantMin: 0.15,
+			wantMax: 0.40,
+		},
+		{
+			name:    "email injection noise",
+			text:    `Email Header Injection on http://x param "p" [medium,low,unverified,tool:emailinj-detector]: cc header injected`,
+			wantMin: 0.10,
+			wantMax: 0.35,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := heuristicScore(tt.text)
 			if got < tt.wantMin || got > tt.wantMax {
-				t.Errorf("heuristicScore(%q) = %.2f, want [%.2f, %.2f]", tt.text, got, tt.wantMin, tt.wantMax)
+				t.Errorf("heuristicScore() = %.3f, want [%.2f, %.2f]\n  text: %s", got, tt.wantMin, tt.wantMax, tt.text)
 			}
 		})
 	}
 }
 
+func TestHeuristicSeparation(t *testing.T) {
+	real := heuristicScore(`SQL Injection on http://x param "id" [critical,confirmed,verified-by-replay,tool:sqli-detector]: syntax error PostgreSQL`)
+	noise := heuristicScore(`CSS Injection on http://x param "p" [medium,low,unverified,tool:cssinj-detector]: background:url()`)
+
+	gap := real - noise
+	if gap < 0.50 {
+		t.Errorf("real(%.3f) - noise(%.3f) = %.3f, want gap >= 0.50", real, noise, gap)
+	}
+}
+
 func TestHeuristicAdjudicate(t *testing.T) {
 	items := []Item{
-		{Key: "f1", Text: "SQL Injection on /api param id [verified]: error"},
-		{Key: "f2", Text: "Missing header X-Frame-Options on /"},
+		{Key: "f1", Text: `SQL Injection on http://x param "id" [critical,confirmed,verified-by-replay]: error`},
+		{Key: "f2", Text: `CSS Injection on http://x param "p" [medium,low,unverified]: style`},
 	}
 	probs := heuristicAdjudicate(items)
 	if len(probs) != len(items) {
@@ -65,6 +99,6 @@ func TestHeuristicAdjudicate(t *testing.T) {
 		}
 	}
 	if *probs[0] <= *probs[1] {
-		t.Errorf("SQLi should score higher than missing header: %.2f vs %.2f", *probs[0], *probs[1])
+		t.Errorf("SQLi should score higher than CSS injection: %.3f vs %.3f", *probs[0], *probs[1])
 	}
 }
