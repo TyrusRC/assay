@@ -166,6 +166,9 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	if chromePath != "" {
 		internalConfig.ChromePath = chromePath
 	}
+	if lsrPath != "" {
+		internalConfig.LSRPath = lsrPath
+	}
 	if crawl {
 		internalConfig.EnableSPACrawl = true
 		internalConfig.CrawlMaxDepth = crawlDepth
