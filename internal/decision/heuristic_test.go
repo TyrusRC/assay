@@ -18,8 +18,8 @@ func TestHeuristicScore(t *testing.T) {
 		{
 			name:    "unverified xss medium",
 			text:    `Cross-Site Scripting (XSS) on http://x param "q" [high,low,unverified,tool:xss-detector]: <script>alert(1)</script>`,
-			wantMin: 0.30,
-			wantMax: 0.50,
+			wantMin: 0.35,
+			wantMax: 0.55,
 		},
 		{
 			name:    "verified ssti",
@@ -62,6 +62,30 @@ func TestHeuristicScore(t *testing.T) {
 			text:    `Email Header Injection on http://x param "p" [medium,low,unverified,tool:emailinj-detector]: cc header injected`,
 			wantMin: 0.10,
 			wantMax: 0.35,
+		},
+		{
+			name:    "unverified xss high severity",
+			text:    `Cross-Site Scripting (XSS) on http://x param "q" [high,high,unverified,tool:xss-detector]: <script>alert(1)</script> reflected in response body`,
+			wantMin: 0.40,
+			wantMax: 0.65,
+		},
+		{
+			name:    "verified xss",
+			text:    `Cross-Site Scripting (XSS) on http://x param "q" [high,confirmed,verified-by-replay,tool:xss-detector]: <script>alert(1)</script> executed in DOM`,
+			wantMin: 0.85,
+			wantMax: 1.0,
+		},
+		{
+			name:    "reverse tabnabbing noise",
+			text:    `Reverse Tabnabbing on http://x param "" [low,low,unverified,tool:link-checker]: target=_blank without rel=noopener`,
+			wantMin: 0.0,
+			wantMax: 0.30,
+		},
+		{
+			name:    "content spoofing noise",
+			text:    `Content Spoofing on http://x param "msg" [low,low,unverified,tool:reflect-detector]: text reflected in page`,
+			wantMin: 0.0,
+			wantMax: 0.30,
 		},
 	}
 	for _, tt := range tests {

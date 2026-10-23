@@ -53,6 +53,7 @@ func heuristicScore(text string) float64 {
 	}
 
 	// === Finding class: high-impact (program pays for these) ===
+	isHighImpact := false
 	highImpact := []string{
 		"sql injection", "command injection",
 		"remote code execution", "rce",
@@ -65,11 +66,13 @@ func heuristicScore(text string) float64 {
 	for _, h := range highImpact {
 		if strings.Contains(lower, h) {
 			score += 0.15
+			isHighImpact = true
 			break
 		}
 	}
 
 	// Medium-impact classes
+	isMediumImpact := false
 	mediumImpact := []string{
 		"cross-site scripting", "xss",
 		"cross-site request forgery", "csrf",
@@ -80,6 +83,7 @@ func heuristicScore(text string) float64 {
 	for _, m := range mediumImpact {
 		if strings.Contains(lower, m) {
 			score += 0.05
+			isMediumImpact = true
 			break
 		}
 	}
@@ -140,9 +144,13 @@ func heuristicScore(text string) float64 {
 		score -= 0.15
 	}
 
-	// Unverified finding — moderate penalty
+	// Unverified finding — moderate penalty, but skip for high/medium-impact
+	// classes where the class itself has inherent value (an unverified XSS
+	// is still worth investigating; an unverified CSS injection is not).
 	if strings.Contains(lower, "unverified") && !strings.Contains(lower, "confirmed") {
-		score -= 0.05
+		if !isHighImpact && !isMediumImpact {
+			score -= 0.05
+		}
 	}
 
 	// Clamp to [0, 1]
