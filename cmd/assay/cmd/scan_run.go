@@ -92,6 +92,14 @@ func adjudicateFindings(ctx context.Context, findings core.Findings) {
 		if f.Tool != "" {
 			tags = append(tags, "tool:"+f.Tool)
 		}
+		if f.Metadata != nil {
+			if rounds, ok := f.Metadata["verification_rounds"]; ok {
+				tags = append(tags, fmt.Sprintf("vrounds:%v", rounds))
+			}
+			if confirmed, ok := f.Metadata["verification_confirmed"]; ok {
+				tags = append(tags, fmt.Sprintf("vconfirmed:%v", confirmed))
+			}
+		}
 		// For low-value classes, append impact context when unverified.
 		// This helps the ML engine distinguish real exploits from mere
 		// reflections that programs mark as informational.
