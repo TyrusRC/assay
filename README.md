@@ -7,14 +7,20 @@
 [![Issues](https://img.shields.io/github/issues/TyrusRC/assay)](https://github.com/TyrusRC/assay/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-A Go-native, CLI web-application security scanner that combines **110+
-context-aware native detectors**, a **Nuclei-compatible template engine
-with full protocol parity**, optional **upstream tool integrations**
-(Nuclei binary, SQLMap), a **headless-browser pool** for DOM- and
-origin-aware checks, and a **native SAST engine** (secret scanning, SCA,
-config audits). Findings are mapped to OWASP **WSTG**, **Top 10 (2025)**,
-**API Security Top 10**, and compliance frameworks (**PCI DSS**, **HIPAA**,
+A Go-native, CLI web-application security scanner that combines **108
+context-aware native detectors**, **8 third-party tool integrations**
+(SQLMap, Dalfox, Commix, Ghauri, Nikto, WPScan, Nuclei, Tplmap) with
+**smart auto-dispatch**, a **Nuclei-compatible template engine with full
+protocol parity**, a **headless-browser pool** for DOM- and origin-aware
+checks, and a **native SAST engine** (secret scanning, SCA, config
+audits). Findings are mapped to OWASP **WSTG**, **Top 10 (2025)**, **API
+Security Top 10**, and compliance frameworks (**PCI DSS**, **HIPAA**,
 **SOC 2**).
+
+`assay scan https://target.com` works with **zero flags** — smart
+defaults auto-detect the target's tech stack, API spec, SPA framework,
+and choose the right detectors and tools. No need to learn complex flag
+combinations.
 
 assay focuses on the categories Nuclei templates structurally cannot
 reach — stateful business-logic bugs, two-identity IDOR/BOLA, race
@@ -40,7 +46,9 @@ well.
 - **Reflected-parameter brute-forcer** — probes ~65 common param names via GET, POST form-urlencoded, and POST JSON on the root page. Detects hidden params via value reflection or body-size change.
 - **Content-type negotiation** — during param classification, if form-urlencoded POST returns 500, automatically retries with JSON. Tags the param so all subsequent probes use the correct encoding.
 - **Type-aware sibling defaults** — multi-field forms send realistic values for sibling params (numeric IDs, email format, password format, booleans) instead of a generic "test" that fails validation.
-- **Parallel detector pipeline** — configurable param concurrency (default 5) and per-param detector concurrency (default 3). Spec-discovered params run before generic built-in headers. Param cap (default 200) prevents multi-hour scans on large apps.
+- **Body-first parameter priority** — body params with semantic names (username, password, email, id) are tested first; single-letter JS query noise tested last. Ensures the most injectable params get tested even under time constraints.
+- **Parallel detector pipeline** — configurable param concurrency (default 5) and per-param detector concurrency (default 3). Param cap (default 200) prevents multi-hour scans on large apps.
+- **Smart tool dispatch** — native detectors find injection points in seconds, then automatically launch focused tool runs (sqlmap with `--dbms` hint, dalfox with `--param` targeting) for deep exploitation. No user interaction needed. Autonomous mode runs core tools (sqlmap, dalfox, nikto, nuclei) at full strength in parallel.
 - **Stored XSS** — full inject → crawl → match → confirm workflow
 - **Native SAST** — `assay sast ./src` for secret scanning, dependency CVEs (OSV.dev), and config security
 - **Form auto-submission** — smart crawl discovers pages behind form gates (`--submit-forms`)
@@ -553,21 +561,34 @@ assay scan https://api.example.com/v1/users/42 \
 
 ## External tool integrations
 
-assay ships in-process implementations for everything in
-[Detection coverage](#detection-coverage-dast) plus a **built-in Nuclei-compatible
-template engine** with full protocol parity (HTTP, DNS, Network, SSL,
-WebSocket, WHOIS, Headless with 20 actions, File, Workflow). The external
-wrappers are opt-in additions for breadth.
+assay ships 108 in-process detectors plus 8 external tool wrappers. The
+**smart dispatcher** runs tools automatically based on what the native
+detectors discover — no manual tool selection needed.
 
-| Tool | Status | Purpose |
-|---|---|---|
-| **Built-in template engine** | native (`internal/templates`) | Nuclei-compatible: all protocols, unsafe-raw (smuggling), pipeline (HTTP/2 desync), interactsh OOB, 20 headless actions |
-| **Nuclei** | wrapped (`internal/tools/nuclei`) | Runs upstream community templates (15,000+) with `-jsonl`; findings parsed into the unified report |
-| **SQLMap** | wrapped (`internal/tools/sqlmap`) | Deep SQL-injection exploitation when in-process UNION / boolean / time-based isn't enough |
+**Two modes run together:**
+- **Autonomous** — core tools (SQLMap, Dalfox, Nikto, Nuclei) always run
+  at full strength with their own crawl and parameter mining. WPScan runs
+  when WordPress is detected. Ghauri/Commix/Tplmap run in thorough mode.
+- **Focused** — when the native scanner confirms a vulnerability, the
+  dispatcher launches a pinned tool run on that exact parameter with
+  context hints (e.g., `sqlmap -p username --dbms=PostgreSQL`). Focused
+  mode is additive — it never replaces autonomous.
 
-`assay tools list` shows availability and version of each. `assay tools
-check` runs a health check and prints a green/red status. Missing
-binaries are not fatal — the scan proceeds without them.
+| Tool | Status | Purpose | Dispatch |
+|---|---|---|---|
+| **Built-in template engine** | native | Nuclei-compatible: all protocols, unsafe-raw, pipeline, interactsh OOB, 20 headless actions | Always |
+| **Nuclei** | wrapped | Upstream community templates (15,000+) + DAST fuzzing (`-dast`) | Always (autonomous) |
+| **SQLMap** | wrapped | Deep SQLi with `--crawl --forms --smart` | Always + focused with `--dbms` hint |
+| **Dalfox** | wrapped | XSS scanning with param mining and DOM analysis | Always + focused with `--param` |
+| **Nikto** | wrapped | Web server misconfig, outdated software, sensitive files | Always (autonomous) |
+| **WPScan** | wrapped | WordPress plugin/theme/core CVEs | When WordPress detected |
+| **Commix** | wrapped | OS command injection exploitation | Thorough + focused |
+| **Ghauri** | wrapped | Fast SQLi detection (sqlmap alternative) | Thorough + focused |
+| **Tplmap** | wrapped | SSTI template engine detection | Thorough + focused |
+
+`assay tools list` shows availability and version. `assay tools check`
+runs a health check. Missing binaries are not fatal — the scan proceeds
+without them. Install tools to expand coverage.
 
 ---
 
@@ -619,36 +640,50 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
 
 | Capability | assay | Nuclei | Burp Suite Pro | Acunetix |
 |---|:---:|:---:|:---:|:---:|
-| **Injection classes** | 30+ (incl. UNION SQLi, stored XSS) | 20+ (template-based) | 15+ native | 12+ native |
-| **Auth / access testing** | Native IDOR/BOLA, BAC, 403 bypass, JWT, OAuth, MFA, session lifecycle | Template-only | Extensions (Autorize) | Basic |
-| **Protocol attacks** | Smuggling, HTTP/2 desync, H/2 rapid-reset, H/3, race conditions | Partial (templates) | Good (extensions) | Minimal |
-| **Client-side / DOM** | postMessage, CSPT taint, DOM clobber, XS-Leaks, prototype pollution | Partial | Good | Good |
-| **API testing** | GraphQL (introspection + DoS + injection), OpenAPI semantic, ORM leak | Templates | API scanning | API scanning |
+| **Injection classes** | 108 native detectors + 8 tools | 20+ (template) | 15+ native | 52 PerScheme |
+| **Auth / access testing** | IDOR/BOLA, BAC, 403 bypass, JWT, OAuth, MFA, session lifecycle | Template-only | Extensions | Basic |
+| **Protocol attacks** | Smuggling, HTTP/2 desync, H/2 rapid-reset, H/3, race conditions | Partial | Good | Minimal |
+| **Client-side / DOM** | postMessage, CSPT taint, DOM clobber, XS-Leaks, prototype pollution | Partial | Good | Good (DeepScan) |
+| **API testing** | GraphQL (introspection + DoS + injection), OpenAPI semantic, ORM leak | Templates | API scanning | 7 API checks |
+| **Tool orchestration** | Smart dispatch: auto sqlmap/dalfox/commix with DBMS hint | None | Extensions | None (monolith) |
 | **Template ecosystem** | Built-in engine + Nuclei 15K+ | 15,000+ community | BApp Store | None |
 | **SAST** | Secrets + SCA + config | File templates only | None | SCA add-on |
 | **AI finding triage** | Haruspex adjudication | None | None | None |
+| **Smart defaults** | Zero-flag scanning, auto-detect API spec/SPA/tech | Manual config | Wizard | Profile-based |
 | **CI/CD** | SARIF, JUnit, GitLab, GitHub Action, baseline diff | Good | Plugin | Good |
-| **Authenticated scanning** | Form + headless login, session keepalive | Headers only | Macro recorder | Full |
+| **Authenticated scanning** | Form + headless login, session keepalive | Headers only | Macro recorder | LSR recorder |
+| **IAST** | Planned (taint markers + sink hooks) | None | None | AcuSensor |
 | **Cost** | Free (Apache 2.0) | Free (MIT) | $449/yr | $4,495+/yr |
 
 ### Unique to assay
 
+- **Smart tool orchestration** — native detectors find injection points
+  in seconds, then auto-dispatch sqlmap/dalfox/commix with the exact
+  parameter and DBMS hint. No manual tool selection or flag tuning.
+- **Zero-flag scanning** — `assay scan <url>` auto-detects API specs
+  (OpenAPI/Swagger), SPA frameworks (React/Angular/Vue), and tech stack.
+  Enables the right detectors, crawl mode, and tools automatically.
+- **Coverage summary** — every scan reports what was tested and what was
+  skipped (and why), so the result is never silently incomplete.
 - **AI-based finding triage** (Haruspex) — per-finding "real vs noise"
   probability scoring, reducing manual triage.
-- **Two-identity IDOR/BOLA** as a first-class, native capability (no
-  plugin needed).
+- **Two-identity IDOR/BOLA** as a first-class, native capability.
 - **Session keepalive with auto-reauth** — detects logout via canary
-  URL and re-authenticates so scans never silently degrade.
-- **17-source parameter auto-discovery** — forms (with action URL
-  resolution), cookies, headers, JSON body, path segments, JS storage,
-  XML body, robots/sitemap, HTML comments, JS routes, multipart, OpenAPI,
-  GraphQL introspection, **reflected-param brute-force** (GET + POST +
-  JSON), **JS fetch/axios/jQuery extraction**, and **link query params**.
-  All run per crawled page (BFS link crawler, default 30 pages).
-- **postMessage origin validation** and **CSPT source→sink JS taint
-  tracking** — unique DOM-aware probes.
-- **Risk-gated payloads** — destructive SQL payloads (`DROP TABLE`,
-  `xp_cmdshell`) require explicit `--risk 3`.
+  URL and re-authenticates.
+- **17-source parameter auto-discovery** — forms, cookies, headers,
+  JSON body, path segments, JS storage, XML body, robots/sitemap, HTML
+  comments, JS routes, multipart, OpenAPI, GraphQL introspection,
+  reflected-param brute-force, JS fetch/axios/jQuery extraction, and
+  link query params. All run per crawled page (BFS, default 30 pages).
+- **Body-first param priority** — body params (username, password, email)
+  tested first; JS noise and headers tested last. Ensures injectable
+  params are reached even under time constraints.
+- **40+ framework-specific weak secrets** — Flask, Django, Express,
+  Rails, Laravel, Tornado, Yii2, Play, Spring Boot, Next.js cookie/JWT
+  secret brute-force.
+- **Acunetix-derived payloads** — math-based boolean differential
+  (`5*5=25 vs 5*5=26`), XOR sysdate MySQL time-based, PostgreSQL
+  SELECT-match time-based.
 
 ---
 
@@ -656,15 +691,20 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
 
 ```mermaid
 flowchart LR
-    CLI -->|targets + config| Scanner
+    CLI -->|targets + config| AutoConfig[Auto-Config]
+    AutoConfig -->|detect API spec, SPA, tech| Scanner
     CLI -->|paths| SAST[SAST engine]
     Scanner --> Discovery[Discovery · 17 sources + link crawler]
     Discovery --> Params[(Parameters)]
-    Scanner --> Detection[110+ native detectors]
+    Scanner --> Detection[108 native detectors]
     Detection --> HTTP[HTTP client · scope · throttle]
     Detection --> Headless[Headless pool · go-rod]
     Detection --> OOB[Interactsh OOB]
+    Detection -->|injection candidates| Dispatcher[Smart Dispatcher]
     Scanner --> Templates[Nuclei template engine]
+    Dispatcher -->|autonomous| Tools[SQLMap · Dalfox · Nikto · Nuclei]
+    Dispatcher -->|focused -p param --dbms| SQLMap[SQLMap / Ghauri]
+    Dispatcher -->|focused -p param| Dalfox[Dalfox / Commix]
     Templates -->|HTTP · DNS · File · Headless · Workflow| HTTP
     Scanner --> Tools[External tools]
     Tools --> NucleiBin[nuclei]
@@ -792,6 +832,37 @@ Issues and pull requests are welcome.
    `docs:`, `chore:`) — see `git log` for in-repo style.
 
 Run `make check` locally before opening a PR.
+
+---
+
+## Roadmap
+
+### In progress
+- **Headless crawl for SPAs** — full headless-browser crawl with
+  client-side route discovery for React/Angular/Vue applications
+- **Coverage tracking** — record every (endpoint, param, detector) tuple
+  tested and surface untested areas in the coverage summary
+- **Additional tool integrations** — feroxbuster (directory fuzzing),
+  arjun (hidden param discovery), katana (advanced crawling)
+
+### Planned
+- **IAST (Interactive Application Security Testing)** — lightweight
+  taint-marker sensor (PHP/Node/Python) that hooks sinks
+  (SQL_Query, Sys_Command, File_Open, URL_Open, Unserialize, etc.)
+  and confirms payloads reach dangerous functions. Raises confidence
+  from "medium" to "confirmed" when the marker reaches the sink.
+  Architecture: inject taint markers in DAST payloads → sensor in the
+  target app detects marker at sink → reports back via HTTP callback.
+  Not a full code-level IAST — a focused sink-confirmation layer.
+- **Proof-based scanning** — multi-round verification: DAST detection →
+  replay confirmation → OOB callback → stored-XSS revisit → IAST
+  sink confirmation. Each layer raises confidence.
+- **Session maintenance loop** — auto-detect logout and re-authenticate
+  during long scans (framework exists via `--login-*` + `--session-check-url`)
+- **Incremental scanning** — diff against a prior scan, report only new
+  findings, skip endpoints that haven't changed
+- **Tech-to-CVE correlation** — map detected tech stack + version to
+  known CVEs (4,717 fingerprints extracted from Acunetix DB available)
 
 ---
 
