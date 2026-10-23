@@ -62,6 +62,11 @@ func heuristicScore(text string) float64 {
 		"xml external entity", "xxe",
 		"deserialization", "idor", "broken access",
 		"authentication bypass", "privilege escalation",
+		"ldap injection", "xpath injection", "xslt injection",
+		"nosql injection", "request smuggling",
+		"prototype pollution", "file upload",
+		"prompt injection", "mcp tool poisoning",
+		"saml", "grpc", "race condition",
 	}
 	for _, h := range highImpact {
 		if strings.Contains(lower, h) {
@@ -79,6 +84,10 @@ func heuristicScore(text string) float64 {
 		"path traversal", "local file inclusion",
 		"open redirect", "session fixation",
 		"jwt", "mass assignment",
+		"cors", "websocket hijacking",
+		"oauth", "oidc", "subdomain takeover",
+		"dns rebinding", "cache poisoning",
+		"sse injection", "graphql injection",
 	}
 	for _, m := range mediumImpact {
 		if strings.Contains(lower, m) {
@@ -131,6 +140,12 @@ func heuristicScore(text string) float64 {
 		"sleep", "time-based", "blind",
 		"unique marker", "3/3 replays",
 		"response diff", "baseline delta",
+		"metadata endpoint", "aws instance",
+		"uid=", "root", "www-data",
+		"dom mutation", "executed in dom",
+		"signature wrapping", "assertion replay",
+		"system prompt", "hidden instructions",
+		"grpc reflection", "internal service",
 	}
 	for _, e := range strongEvidence {
 		if strings.Contains(lower, e) {
