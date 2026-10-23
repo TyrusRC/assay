@@ -162,6 +162,8 @@ func init() {
 	scanCmd.Flags().StringVar(&checkpointPath, "checkpoint", "", "Record scan progress per target to this file so an interrupted scan can resume")
 	scanCmd.Flags().StringVar(&resumePath, "resume", "", "Resume from a checkpoint file: skip already-scanned targets and carry their findings forward (usually the same path as --checkpoint)")
 	scanCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what the scan would do without sending any traffic")
+	scanCmd.Flags().BoolVar(&iastEnabled, "iast", false, "Enable IAST: start the callback server for taint-marker sink confirmation (deploy a sensor to the target first — see 'assay iast deploy')")
+	scanCmd.Flags().StringVar(&iastAddr, "iast-addr", ":7880", "IAST callback server listen address")
 }
 
 func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {

@@ -119,6 +119,8 @@ var (
 	checkpointPath       string
 	resumePath           string
 	dryRun               bool
+	iastEnabled          bool
+	iastAddr             string
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.
@@ -313,6 +315,11 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 		internalConfig.NVDAPIKey = nvdAPIKey
 	} else if env := os.Getenv("NVD_API_KEY"); env != "" {
 		internalConfig.NVDAPIKey = env
+	}
+
+	if iastEnabled {
+		internalConfig.EnableIAST = true
+		internalConfig.IASTCallbackAddr = iastAddr
 	}
 	return nil
 }

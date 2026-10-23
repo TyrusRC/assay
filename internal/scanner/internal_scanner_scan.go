@@ -409,6 +409,32 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		os.Remove(filepath.Join(partialDir, "assay-partial.json"))
 	}
 
+	// IAST confidence upgrade: check the callback server for sink hits and
+	// match them to findings. A sink hit means the payload reached the
+	// dangerous function, which is the strongest possible confirmation.
+	if s.iastServer != nil {
+		upgraded := 0
+		hits := s.iastServer.Hits()
+		for _, hit := range hits {
+			for _, f := range result.Findings {
+				if f.Confidence == core.ConfidenceConfirmed {
+					continue
+				}
+				evidence := f.Evidence + " " + f.Description
+				if hit.MarkerID != "" && strings.Contains(evidence, hit.MarkerID) {
+					f.Confidence = core.ConfidenceConfirmed
+					f.Evidence += fmt.Sprintf(" [IAST] Marker %s reached %s sink: %s",
+						hit.MarkerID, hit.SinkType, hit.StackTrace)
+					upgraded++
+				}
+			}
+		}
+		if len(hits) > 0 || upgraded > 0 {
+			fmt.Fprintf(os.Stderr, "[*] IAST: %d sink hits, %d findings upgraded to confirmed\n",
+				len(hits), upgraded)
+		}
+	}
+
 	fmt.Fprintf(os.Stderr, "[+] Internal scan finished for %s — %d findings\n", targetURL, len(result.Findings))
 
 	// Surface baseline-cache effectiveness. Quiet on verbose-off when the
