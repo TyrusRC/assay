@@ -201,7 +201,9 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		params = clean
 	}
 
-	// --param filter: test only the named parameters.
+	// --param filter: test only the named parameters. If discovery returned
+	// none of the named params, synthesize them as query parameters so the
+	// user's explicit instruction is always honoured.
 	if len(s.config.OnlyParams) > 0 {
 		allowed := make(map[string]bool, len(s.config.OnlyParams))
 		for _, n := range s.config.OnlyParams {
@@ -211,6 +213,15 @@ func (s *InternalScanner) Scan(ctx context.Context, target *core.Target, scanCon
 		for _, p := range params {
 			if allowed[p.Name] {
 				filtered = append(filtered, p)
+			}
+		}
+		if len(filtered) == 0 {
+			for _, n := range s.config.OnlyParams {
+				filtered = append(filtered, core.Parameter{
+					Name:      n,
+					Location:  "query",
+					SourceURL: targetURL,
+				})
 			}
 		}
 		params = filtered
