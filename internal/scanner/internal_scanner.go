@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/TyrusRC/assay/internal/core"
@@ -279,7 +280,9 @@ type InternalScanner struct {
 }
 
 // InjectionCandidate records a parameter where the native detector
-// observed anomalous behaviour but could not fully confirm.
+// found or suspected a vulnerability. The smart tool dispatcher uses
+// these to launch focused sqlmap/dalfox/commix runs on the exact
+// param instead of crawling the whole site.
 type InjectionCandidate struct {
 	URL       string
 	Parameter string
@@ -287,6 +290,42 @@ type InjectionCandidate struct {
 	Location  string
 	VulnClass string
 	Evidence  string
+	DBMS      string // database type if detected (PostgreSQL, MySQL, etc.)
+}
+
+// recordInjectionCandidate appends a candidate from a confirmed native
+// detector finding. Thread-safe.
+func (s *InternalScanner) recordInjectionCandidate(targetURL string, param core.Parameter, method, vulnClass string, finding *core.Finding) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	evidence := ""
+	dbms := ""
+	if finding != nil {
+		evidence = finding.Evidence
+		// Extract DBMS hint from finding description/evidence for sqlmap
+		desc := strings.ToLower(finding.Description + " " + finding.Evidence)
+		switch {
+		case strings.Contains(desc, "postgresql") || strings.Contains(desc, "pg_"):
+			dbms = "PostgreSQL"
+		case strings.Contains(desc, "mysql") || strings.Contains(desc, "mariadb"):
+			dbms = "MySQL"
+		case strings.Contains(desc, "mssql") || strings.Contains(desc, "microsoft sql"):
+			dbms = "MSSQL"
+		case strings.Contains(desc, "oracle") || strings.Contains(desc, "ora-"):
+			dbms = "Oracle"
+		case strings.Contains(desc, "sqlite"):
+			dbms = "SQLite"
+		}
+	}
+	s.injectionCandidates = append(s.injectionCandidates, InjectionCandidate{
+		URL:       targetURL,
+		Parameter: param.Name,
+		Method:    method,
+		Location:  param.Location,
+		VulnClass: vulnClass,
+		Evidence:  evidence,
+		DBMS:      dbms,
+	})
 }
 
 // NewInternalScanner creates a new internal scanner. The constructor

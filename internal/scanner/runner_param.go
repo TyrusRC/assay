@@ -227,6 +227,9 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 			if len(findings) > 0 {
 				s.confirmed.confirm(param.Name, name)
 				emit(ctx, findingsChan, findings)
+				// Record as injection candidate for the smart tool dispatcher.
+				// sqlmap/dalfox/commix get the exact param + evidence from here.
+				s.recordInjectionCandidate(targetURL, param, method, name, findings[0])
 			}
 		}(t.name, runner)
 	}

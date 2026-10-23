@@ -132,8 +132,14 @@ func (d *Dispatcher) focused(base *ToolRequest, cand InjectionCandidate, toolNam
 		switch name {
 		case "sqlmap":
 			req.CustomArgs = append(req.CustomArgs, "-p", cand.Parameter)
+			if cand.DBMS != "" {
+				req.CustomArgs = append(req.CustomArgs, "--dbms="+cand.DBMS)
+			}
 		case "ghauri":
 			req.CustomArgs = append(req.CustomArgs, "-p", cand.Parameter)
+			if cand.DBMS != "" {
+				req.CustomArgs = append(req.CustomArgs, "--dbms="+cand.DBMS)
+			}
 		case "dalfox":
 			req.CustomArgs = append(req.CustomArgs, "-p", cand.Parameter, "--skip-discovery")
 		case "commix":

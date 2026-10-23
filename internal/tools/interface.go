@@ -101,8 +101,9 @@ type ScanContext struct {
 	ServerSoftware string
 }
 
-// InjectionCandidate represents a parameter that the internal scanner
-// flagged as potentially injectable but could not confirm natively.
+// InjectionCandidate represents a parameter where the native scanner
+// confirmed or suspected a vulnerability. The dispatcher uses this to
+// launch focused tool runs (sqlmap -p <param> --dbms=<hint>).
 type InjectionCandidate struct {
 	URL       string
 	Parameter string
@@ -110,6 +111,7 @@ type InjectionCandidate struct {
 	Location  string // query, body, header, cookie
 	VulnClass string // sqli, xss, cmdi, ssti, etc.
 	Evidence  string // what the native detector observed
+	DBMS      string // database type hint for SQLi tools (PostgreSQL, MySQL, etc.)
 }
 
 // AuthConfig holds authentication configuration.

@@ -277,6 +277,7 @@ func (s *Scanner) buildScanContext(target *core.Target) *tools.ScanContext {
 				Location:  c.Location,
 				VulnClass: c.VulnClass,
 				Evidence:  c.Evidence,
+				DBMS:      c.DBMS,
 			})
 		}
 	}
