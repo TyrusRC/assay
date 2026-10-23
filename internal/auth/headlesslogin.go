@@ -136,7 +136,13 @@ func (h HeadlessLogin) waitForLogin(ctx context.Context, page LoginPage) (string
 	if h.Success != "" {
 		body, berr := page.EvalJS(ctx, `(document.body ? document.body.innerText : "")`)
 		if berr == nil && !strings.Contains(body, h.Success) {
-			return "", fmt.Errorf("headless login: success marker %q not found after submit", h.Success)
+			// Auto-detect success: check if the page navigated away from the
+			// login URL (redirect = likely success even without the marker).
+			currentURL, uerr := page.EvalJS(ctx, `window.location.href`)
+			if uerr == nil && currentURL != "" && currentURL != h.LoginURL {
+				return header, nil
+			}
+			return "", fmt.Errorf("headless login: success marker %q not found after submit (page: %s)", h.Success, currentURL)
 		}
 	}
 	return header, nil
