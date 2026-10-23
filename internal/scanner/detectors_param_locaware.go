@@ -23,6 +23,7 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/deser"
 	"github.com/TyrusRC/assay/internal/detection/domclobber"
 	"github.com/TyrusRC/assay/internal/detection/emailinj"
+	"github.com/TyrusRC/assay/internal/detection/fmtstr"
 	"github.com/TyrusRC/assay/internal/detection/headerinj"
 	"github.com/TyrusRC/assay/internal/detection/hpp"
 	"github.com/TyrusRC/assay/internal/detection/htmlinj"
@@ -467,6 +468,18 @@ func (s *InternalScanner) testSSIWithClient(ctx context.Context, targetURL strin
 		MaxPayloads: s.config.MaxPayloadsPerParam,
 		Timeout:     s.config.RequestTimeout,
 	})
+	if err != nil || !result.Vulnerable {
+		return nil
+	}
+	return result.Findings
+}
+
+func (s *InternalScanner) testFmtStrWithClient(ctx context.Context, targetURL string, param core.Parameter, method string, pc *http.Client) []*core.Finding {
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing format-string on param '%s'...\n", param.Name)
+	}
+	det := fmtstr.New(pc).WithVerbose(s.config.Verbose)
+	result, err := det.Detect(ctx, targetURL, param.Name, method)
 	if err != nil || !result.Vulnerable {
 		return nil
 	}

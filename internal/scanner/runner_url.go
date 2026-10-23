@@ -83,6 +83,15 @@ func (s *InternalScanner) launchURLAuthFlow(ctx context.Context, wg *sync.WaitGr
 		func() { emit(ctx, findingsChan, s.testMFABypass(ctx)) })
 	s.launchIf(wg, c.EnablePaddingOracle && c.PaddingOracleToken != "" && c.PaddingOracleParam != "",
 		func() { emit(ctx, findingsChan, s.testPaddingOracle(ctx, targetURL)) })
+	// WSTG gap-fill detectors
+	s.launchIf(wg, c.EnableSessTimeout,
+		func() { emit(ctx, findingsChan, s.testSessTimeout(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableAutocomplete,
+		func() { emit(ctx, findingsChan, s.testAutocomplete(ctx, targetURL)) })
+	s.launchIf(wg, c.EnableWeakPwd && c.RegistrationURL != "",
+		func() { emit(ctx, findingsChan, s.testWeakPwd(ctx)) })
+	s.launchIf(wg, c.EnableDupReg && c.RegistrationURL != "",
+		func() { emit(ctx, findingsChan, s.testDupReg(ctx)) })
 }
 
 // launchURLClassic dispatches the classic OWASP-Top-10 URL-level probes:

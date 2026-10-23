@@ -109,6 +109,7 @@ func (s *InternalScanner) applicableTests(param core.Parameter) []paramTest {
 		{"massassign", s.config.EnableMassAssign},
 		{"protopollserver", s.config.EnableProtoPollServer},
 		{"ssi", s.config.EnableSSI},
+		{"fmtstr", s.config.EnableFmtStr},
 	}
 
 	var applicableNames map[string]bool
@@ -190,6 +191,7 @@ func (s *InternalScanner) runParamDetectors(ctx context.Context, findingsChan ch
 		"massassign":      func() []*core.Finding { return s.testMassAssignWithClient(ctx, targetURL, param, method, pc) },
 		"protopollserver": func() []*core.Finding { return s.testProtoPollServerWithClient(ctx, targetURL, param, method, pc) },
 		"ssi":             func() []*core.Finding { return s.testSSIWithClient(ctx, targetURL, param, method, pc) },
+		"fmtstr":          func() []*core.Finding { return s.testFmtStrWithClient(ctx, targetURL, param, method, pc) },
 	}
 
 	applicable := s.applicableTests(param)

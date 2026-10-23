@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/autocomplete"
 	"github.com/TyrusRC/assay/internal/detection/auth"
+	"github.com/TyrusRC/assay/internal/detection/dupreg"
 	"github.com/TyrusRC/assay/internal/detection/dnsrebinding"
 	"github.com/TyrusRC/assay/internal/detection/http2advanced"
 	"github.com/TyrusRC/assay/internal/detection/longpwd"
@@ -17,8 +19,10 @@ import (
 	"github.com/TyrusRC/assay/internal/detection/paddingoracle"
 	"github.com/TyrusRC/assay/internal/detection/passwordreset"
 	"github.com/TyrusRC/assay/internal/detection/sessionfixation"
+	"github.com/TyrusRC/assay/internal/detection/sesstimeout"
 	"github.com/TyrusRC/assay/internal/detection/sessionlifecycle"
 	"github.com/TyrusRC/assay/internal/detection/stacktrace"
+	"github.com/TyrusRC/assay/internal/detection/weakpwd"
 )
 
 // testTimingEnum runs the statistical paired-arm timing oracle on the
@@ -277,4 +281,54 @@ func (s *InternalScanner) testPaddingOracle(ctx context.Context, targetURL strin
 // "invalid" user string across runs against the same target.
 func nonceLite() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano()%100000)
+}
+
+func (s *InternalScanner) testSessTimeout(ctx context.Context, targetURL string) []*core.Finding {
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing session timeout on '%s'...\n", targetURL)
+	}
+	det := sesstimeout.New(s.client)
+	findings, err := det.Detect(ctx, targetURL, 5*time.Second)
+	if err != nil {
+		return nil
+	}
+	return findings
+}
+
+func (s *InternalScanner) testAutocomplete(ctx context.Context, targetURL string) []*core.Finding {
+	if s.config.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing password autocomplete on '%s'...\n", targetURL)
+	}
+	det := autocomplete.New(s.client)
+	findings, err := det.Detect(ctx, targetURL)
+	if err != nil {
+		return nil
+	}
+	return findings
+}
+
+func (s *InternalScanner) testWeakPwd(ctx context.Context) []*core.Finding {
+	c := s.config
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing weak password policy on '%s'...\n", c.RegistrationURL)
+	}
+	det := weakpwd.New(s.client)
+	findings, err := det.Detect(ctx, c.RegistrationURL)
+	if err != nil {
+		return nil
+	}
+	return findings
+}
+
+func (s *InternalScanner) testDupReg(ctx context.Context) []*core.Finding {
+	c := s.config
+	if c.Verbose {
+		fmt.Fprintf(os.Stderr, "[*] Testing duplicate registration on '%s'...\n", c.RegistrationURL)
+	}
+	det := dupreg.New(s.client)
+	findings, err := det.Detect(ctx, c.RegistrationURL)
+	if err != nil {
+		return nil
+	}
+	return findings
 }

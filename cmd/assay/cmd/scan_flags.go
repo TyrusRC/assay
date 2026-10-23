@@ -103,6 +103,10 @@ var (
 	authBHdr             []string
 	idorURL              string
 	noPostMsg            bool
+	noAutocomplete       bool
+	noWeakPwd            bool
+	noDupReg             bool
+	registrationURL      string
 	verifyFindings       bool
 	complianceSpec       string
 	githubRepo           string
@@ -300,6 +304,18 @@ func applyCLIFlags(internalConfig *scanner.InternalScanConfig) error {
 	}
 	if noPostMsg {
 		internalConfig.EnablePostMsg = false
+	}
+	if noAutocomplete {
+		internalConfig.EnableAutocomplete = false
+	}
+	if registrationURL != "" {
+		internalConfig.RegistrationURL = registrationURL
+		if !noWeakPwd {
+			internalConfig.EnableWeakPwd = true
+		}
+		if !noDupReg {
+			internalConfig.EnableDupReg = true
+		}
 	}
 
 	hdrsA, err := parseHeaderArray(authAHdr)

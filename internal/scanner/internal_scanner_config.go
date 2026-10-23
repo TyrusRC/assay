@@ -252,6 +252,14 @@ type InternalScanConfig struct {
 	// a dangerous sink, upgrading the finding confidence to "confirmed".
 	EnableIAST       bool   // Start the IAST callback server during the scan
 	IASTCallbackAddr string // Listen address for the callback server (default :7880)
+
+	// WSTG gap-fill detectors
+	EnableFmtStr       bool   // Format-string injection (WSTG-INPV-13)
+	EnableSessTimeout  bool   // Session timeout check (WSTG-SESS-07)
+	EnableAutocomplete bool   // Password autocomplete audit (WSTG-ATHN-05)
+	EnableWeakPwd      bool   // Weak password policy probe (WSTG-ATHN-07)
+	EnableDupReg       bool   // Duplicate registration probe (WSTG-IDNT-02)
+	RegistrationURL    string // Registration/signup URL for weak-pwd and dup-reg probes
 }
 
 // DefaultInternalConfig returns a reasonable default configuration.
@@ -392,5 +400,10 @@ func DefaultInternalConfig() *InternalScanConfig {
 		OOBPollTimeout:        10 * time.Second,
 		RateLimitPerSec:       20, // safe default; --rate overrides
 		Verbose:               false,
+		EnableFmtStr:          true,
+		EnableSessTimeout:     true,
+		EnableAutocomplete:    true,
+		EnableWeakPwd:         false, // opt-in: submits to registration endpoint
+		EnableDupReg:          false, // opt-in: submits to registration endpoint
 	}
 }
