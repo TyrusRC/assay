@@ -7,7 +7,7 @@
 [![Issues](https://img.shields.io/github/issues/TyrusRC/assay)](https://github.com/TyrusRC/assay/issues)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-A Go-native, CLI web-application security scanner that combines **108
+A Go-native, CLI web-application security scanner that combines **113
 context-aware native detectors**, **8 third-party tool integrations**
 (SQLMap, Dalfox, Commix, Ghauri, Nikto, WPScan, Nuclei, Tplmap) with
 **smart auto-dispatch**, a **Nuclei-compatible template engine with full
@@ -561,7 +561,7 @@ assay scan https://api.example.com/v1/users/42 \
 
 ## External tool integrations
 
-assay ships 108 in-process detectors plus 8 external tool wrappers. The
+assay ships 113 in-process detectors plus 8 external tool wrappers. The
 **smart dispatcher** runs tools automatically based on what the native
 detectors discover — no manual tool selection needed.
 
@@ -640,7 +640,7 @@ assay scan "$TARGET_URL" --format json,junit --output-dir report \
 
 | Capability | assay | Nuclei | Burp Suite Pro | Acunetix |
 |---|:---:|:---:|:---:|:---:|
-| **Injection classes** | 108 native detectors + 8 tools | 20+ (template) | 15+ native | 52 PerScheme |
+| **Injection classes** | 113 native detectors + 8 tools | 20+ (template) | 15+ native | 52 PerScheme |
 | **Auth / access testing** | IDOR/BOLA, BAC, 403 bypass, JWT, OAuth, MFA, session lifecycle | Template-only | Extensions | Basic |
 | **Protocol attacks** | Smuggling, HTTP/2 desync, H/2 rapid-reset, H/3, race conditions | Partial | Good | Minimal |
 | **Client-side / DOM** | postMessage, CSPT taint, DOM clobber, XS-Leaks, prototype pollution | Partial | Good | Good (DeepScan) |
@@ -696,7 +696,7 @@ flowchart LR
     CLI -->|paths| SAST[SAST engine]
     Scanner --> Discovery[Discovery · 17 sources + link crawler]
     Discovery --> Params[(Parameters)]
-    Scanner --> Detection[108 native detectors]
+    Scanner --> Detection[113 native detectors]
     Detection --> HTTP[HTTP client · scope · throttle]
     Detection --> Headless[Headless pool · go-rod]
     Detection --> OOB[Interactsh OOB]
