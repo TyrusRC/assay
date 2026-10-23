@@ -258,10 +258,10 @@ var allPayloads = []Payload{
 		InjectedHeader: "",
 	},
 	{
-		Value:          "\r\nHTTP/1.1 200 OK\r\nContent-Type:text/html\r\n\r\nSplitResponse",
+		Value:          "%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Length:13%0d%0a%0d%0aSplitResponse",
 		InjectionType:  InjectionResponseSplit,
-		EncodingType:   EncodingNone,
-		Description:    "Raw CRLF response split",
+		EncodingType:   EncodingURL,
+		Description:    "HTTP response split with Content-Length (WSTG-INPV-16)",
 		InjectedHeader: "",
 	},
 
