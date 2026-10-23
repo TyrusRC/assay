@@ -129,6 +129,44 @@ func getRegisteredTools() []toolInfo {
 		description: "WordPress vulnerability scanner",
 	})
 
+	// ── Discovery tools ──
+
+	// Feroxbuster — directory fuzzing
+	fb := feroxbuster.New()
+	tools = append(tools, toolInfo{
+		name:        fb.Name(),
+		version:     fb.Version(),
+		available:   fb.IsAvailable(),
+		description: "Directory and file discovery via fuzzing (thorough profile)",
+	})
+
+	// Arjun — hidden parameter discovery
+	aj := arjun.New()
+	tools = append(tools, toolInfo{
+		name:        aj.Name(),
+		version:     aj.Version(),
+		available:   aj.IsAvailable(),
+		description: "Hidden HTTP parameter discovery (thorough profile)",
+	})
+
+	// Katana — web crawler
+	kt := katana.New()
+	tools = append(tools, toolInfo{
+		name:        kt.Name(),
+		version:     kt.Version(),
+		available:   kt.IsAvailable(),
+		description: "Advanced web crawler with headless support (thorough profile)",
+	})
+
+	// Gau — historical URL discovery
+	gu := gau.New()
+	tools = append(tools, toolInfo{
+		name:        gu.Name(),
+		version:     gu.Version(),
+		available:   gu.IsAvailable(),
+		description: "Historical URL discovery from Wayback/CommonCrawl/OTX (thorough profile)",
+	})
+
 	return tools
 }
 

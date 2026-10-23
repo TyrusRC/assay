@@ -48,6 +48,7 @@ var (
 	loginPassField       string
 	loginSuccess         string
 	loginHeadless        bool
+	lsrPath              string
 	baselinePath         string
 	failOnNew            bool
 	targetList           string
@@ -123,6 +124,8 @@ var (
 	iastAddr             string
 	minConfidence        string
 	coveragePath         string
+	fpDatabasePath       string
+	incremental          bool
 )
 
 // applyCLIFlags merges parsed CLI flag state into the internalConfig.

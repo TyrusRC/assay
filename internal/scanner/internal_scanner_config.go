@@ -171,6 +171,7 @@ type InternalScanConfig struct {
 	EnableDiscovery     bool   // Auto-discover injectable points (default true)
 	EnableStorageInj    bool   // Test storage injection (default false, needs Chrome)
 	EnableDOMXSS        bool   // Test DOM-based XSS via headless browser (needs Chrome)
+	EnableDeepDOMXSS    bool   // Deep DOM XSS: fragment/postMessage/storage injection with headless confirmation (needs Chrome)
 	EnableProtoPoll     bool   // Test client-side prototype pollution via headless browser (needs Chrome)
 	EnableDOMRedirect   bool   // Test DOM-based open redirection via headless browser (needs Chrome)
 	HeadlessMaxBrowsers int    // Max browser contexts (default 3)
@@ -184,6 +185,11 @@ type InternalScanConfig struct {
 	CrawlMaxDepth    int  // BFS depth from each seed (0 = seed page only)
 	CrawlMaxPages    int  // Cap on navigated pages (0 = built-in safety limit)
 	SubmitForms      bool // Submit discovered forms with test data during crawl (opt-in)
+
+	// Login Sequence Recorder (LSR) — JSON file describing a multi-step
+	// login flow: actions (navigate/type/click/submit), session-alive
+	// detection rule, and restricted URLs the crawler must never replay.
+	LSRPath string // path to LSR JSON file (empty = use --login-* flags instead)
 
 	// Additional configuration for specific detectors
 	Subdomains []subtakeover.SubdomainInfo // Subdomain list for takeover detection

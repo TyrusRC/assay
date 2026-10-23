@@ -81,6 +81,7 @@ func init() {
 	scanCmd.Flags().StringVar(&loginPassField, "login-pass-field", "", "Login form password field name (auto-detected if empty)")
 	scanCmd.Flags().StringVar(&loginSuccess, "login-success", "", "Substring expected in the post-login response to confirm success")
 	scanCmd.Flags().BoolVar(&loginHeadless, "login-headless", false, "Log in via a real browser (for SPA/JS logins); --login-user-field/--login-pass-field act as CSS selectors")
+	scanCmd.Flags().StringVar(&lsrPath, "lsr", "", "Login sequence recording file (JSON) — multi-step login with session-alive detection and URL restrictions")
 	scanCmd.Flags().StringVar(&baselinePath, "baseline", "", "Prior assay JSON report to diff against; prints new/fixed findings")
 	scanCmd.Flags().BoolVar(&failOnNew, "fail-on-new", false, "With --baseline and --fail-on, gate only on findings new since the baseline")
 	scanCmd.Flags().BoolVar(&verifyFindings, "verify", false, "Safely re-exercise findings to confirm them, upgrading reproduced findings to 'confirmed' (proof-based scanning)")
@@ -166,6 +167,8 @@ func init() {
 	scanCmd.Flags().StringVar(&iastAddr, "iast-addr", ":7880", "IAST callback server listen address")
 	scanCmd.Flags().StringVar(&minConfidence, "min-confidence", "", "Filter out findings below this confidence level: confirmed, high, medium, low (default: report all)")
 	scanCmd.Flags().StringVar(&coveragePath, "coverage", "", "Write coverage data (tested/skipped params × detectors) to this JSON file")
+	scanCmd.Flags().StringVar(&fpDatabasePath, "fp-database", "", "FP feedback database path (.assay-fp.json); known FPs get confidence=low")
+	scanCmd.Flags().BoolVar(&incremental, "incremental", false, "With --baseline, skip scanning endpoints whose response matches the baseline")
 }
 
 func printDryRun(targets []string, cfg *scanner.InternalScanConfig) {
@@ -474,6 +477,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// It only annotates — it never drops or reorders a finding, so it cannot cause a
 	// missed finding. No engine configured / unreachable -> findings untouched.
 	adjudicateFindings(ctx, result.Findings)
+
+	// FP feedback: downgrade findings that match past false positives.
+	if fpDatabasePath != "" {
+		fpDB := scanner.LoadFPFeedback(fpDatabasePath)
+		suppressed := fpDB.ApplyToFindings(result.Findings)
+		if verbose && suppressed > 0 {
+			fmt.Fprintf(os.Stderr, "[*] FP feedback: suppressed %d known false positives from %s\n",
+				suppressed, fpDatabasePath)
+		}
+	}
 
 	// Confidence threshold: filter out low-confidence findings for enterprise.
 	if minConfidence != "" {

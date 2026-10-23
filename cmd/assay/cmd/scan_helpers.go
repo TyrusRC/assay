@@ -9,9 +9,13 @@ import (
 
 	"github.com/TyrusRC/assay/internal/core"
 	"github.com/TyrusRC/assay/internal/scanner"
+	"github.com/TyrusRC/assay/internal/tools/arjun"
 	"github.com/TyrusRC/assay/internal/tools/commix"
 	"github.com/TyrusRC/assay/internal/tools/dalfox"
+	"github.com/TyrusRC/assay/internal/tools/feroxbuster"
+	"github.com/TyrusRC/assay/internal/tools/gau"
 	"github.com/TyrusRC/assay/internal/tools/ghauri"
+	"github.com/TyrusRC/assay/internal/tools/katana"
 	"github.com/TyrusRC/assay/internal/tools/nikto"
 	"github.com/TyrusRC/assay/internal/tools/nuclei"
 	"github.com/TyrusRC/assay/internal/tools/sqlmap"
@@ -126,6 +130,20 @@ func registerTools(s *scanner.Scanner) {
 	// WPScan — WordPress scanner
 	wpscanTool := wpscan.New()
 	s.RegisterTool(wpscanTool)
+
+	// ── Discovery tools (thorough profile dispatches these) ──
+
+	// Feroxbuster — directory fuzzing
+	s.RegisterTool(feroxbuster.New())
+
+	// Arjun — hidden parameter discovery
+	s.RegisterTool(arjun.New())
+
+	// Katana — advanced web crawler
+	s.RegisterTool(katana.New())
+
+	// Gau — historical URL discovery
+	s.RegisterTool(gau.New())
 }
 
 // parseHeaderArray parses repeated 'Key: Value' header flags into a map.

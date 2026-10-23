@@ -90,6 +90,7 @@ func ThoroughProfile() *Profile {
 	config.RateLimitPerSec = 50     // higher for engagement-class scans; --rate overrides
 	config.EnableCachePoisoning = true  // opt-in for thorough
 	config.EnableFileOps = true         // opt-in for thorough
+	config.EnableDeepDOMXSS = true      // headless DOM XSS confirmation
 	return &Profile{Name: "thorough", Description: "Comprehensive scan with all detectors and recon stages enabled", Config: config}
 }
 

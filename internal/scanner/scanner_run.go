@@ -10,6 +10,7 @@ import (
 
 	"github.com/TyrusRC/assay/internal/checkpoint"
 	"github.com/TyrusRC/assay/internal/core"
+	"github.com/TyrusRC/assay/internal/detection/techstack"
 	"github.com/TyrusRC/assay/internal/tools"
 )
 
@@ -150,6 +151,11 @@ func (s *Scanner) Scan(ctx context.Context) (*ScanResult, error) {
 								finding.Tool = "techstack-detector"
 								findingsChan <- finding
 							}
+						}
+						// Tech-to-CVE correlation: emit findings for known CVEs
+						// matching the detected technology + version.
+						for _, cveFinding := range techstack.CorrelateCVEs(internalResult.Technologies, target.URL()) {
+							findingsChan <- cveFinding
 						}
 					}
 				}
