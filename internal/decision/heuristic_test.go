@@ -84,6 +84,35 @@ func TestHeuristicSeparation(t *testing.T) {
 	}
 }
 
+func TestImpactQualifierCoversLowValue(t *testing.T) {
+	lowValueClasses := []string{
+		"CSS Injection", "Email Header Injection",
+		"HTTP Parameter Pollution", "HTML Injection",
+		"SSI Injection", "Format String Injection",
+		"DOM Clobbering", "Reverse Tabnabbing",
+		"Content Spoofing", "Text Injection",
+	}
+	for _, cls := range lowValueClasses {
+		q := ImpactQualifier(cls)
+		if q == "" {
+			t.Errorf("ImpactQualifier(%q) returned empty — must cover all low-value classes", cls)
+		}
+	}
+}
+
+func TestImpactQualifierNonNoise(t *testing.T) {
+	realClasses := []string{
+		"SQL Injection", "Cross-Site Scripting (XSS)",
+		"Server-Side Template Injection (SSTI)", "Command Injection",
+	}
+	for _, cls := range realClasses {
+		q := ImpactQualifier(cls)
+		if q != "" {
+			t.Errorf("ImpactQualifier(%q) = %q, want empty for real finding classes", cls, q)
+		}
+	}
+}
+
 func TestHeuristicAdjudicate(t *testing.T) {
 	items := []Item{
 		{Key: "f1", Text: `SQL Injection on http://x param "id" [critical,confirmed,verified-by-replay]: error`},
